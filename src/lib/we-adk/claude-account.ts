@@ -46,9 +46,9 @@ export function clearClaudeToken(): void {
  * Two credentials, doing different jobs, which is why they travel together. The bearer
  * token says who is asking and is what the API checks before doing anything at all; the
  * Claude token is optional and says whose Claude quota to spend. The bridge is the one
- * place both are needed, so this is the one place that assembles them — twelve call sites
+ * place both are needed, so this is the one place that assembles them — nine call sites
  * spread this object, and adding the session header to each of them by hand would be
- * twelve chances to miss one.
+ * nine chances to miss one.
  */
 export function claudeHeaders(): Record<string, string> {
   const token = getClaudeToken();
