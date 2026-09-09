@@ -1,0 +1,87 @@
+# we-adk in Docker, behind the shared Mac mini nginx edge.
+#
+#   docker compose up -d --build
+#   docker compose logs -f app
+#
+# Bound to loopback only: the public path is
+#   cloudflared → macmini-edge :8080 → host.docker.internal:3003 → this app
+# so there is no reason for :3003 to answer on the LAN.
+#
+# The edge lives in we-testcase-ms/deploy/edge and is shared by five projects.
+# Adding a route there needs `nginx -s reload`, never a tunnel restart — the
+# Quick Tunnel mints a NEW random URL every time it restarts.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        # Must match the `location /adk/` block in the edge's nginx.conf.
+        BASE_PATH: /adk
+    image: we-adk:latest
+    container_name: we-adk-app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3003:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      BASE_PATH: /adk
+      # Present so the app can reach the db once it stops reading mock modules.
+      # Nothing queries it yet, so the app starts fine whether or not db is up.
+      DATABASE_URL: postgres://${POSTGRES_USER:-weadk}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-weadk}
+      # The /api/sketcher/* routes spawn the Claude CLI. They are loopback-only
+      # by design, so through the tunnel they answer 403. Set this to 1 only if
+      # you accept a public endpoint that spends tokens on every request.
+      # SKETCHER_AI_ALLOW_REMOTE: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/adk/we-adk"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # Postgres for we-adk. Loopback-only on 5436: 5432 is SecureScan (and a brew
+  # postgres), 5433 PTAS168, 5434 we-testcase, 5435 OhMyCMO.
+  #
+  # deploy/db/*.sql runs once, on an empty volume. After editing the schema:
+  #   docker compose down -v && docker compose up -d
+  # which DROPS the data — there is no migration tool wired up yet.
+  db:
+    image: postgres:16-alpine
+    container_name: we-adk-db
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5436:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-weadk}
+      POSTGRES_USER: ${POSTGRES_USER:-weadk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Deterministic collation regardless of the host's locale.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./deploy/db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-weadk} -d ${POSTGRES_DB:-weadk}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  db-data:

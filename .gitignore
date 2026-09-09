@@ -16,3 +16,7 @@ next-env.d.ts
 # Build output and local service state
 out
 .wrangler
+
+# This is a pnpm repo (packageManager: pnpm@11.3.0). An npm run here leaves a
+# second lockfile that silently drifts from pnpm-lock.yaml.
+package-lock.json

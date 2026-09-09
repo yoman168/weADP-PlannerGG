@@ -11,6 +11,55 @@ pnpm dev          # http://localhost:3000 (also served on the LAN)
 
 Other scripts: `pnpm build`, `pnpm start` (production server), `pnpm typecheck`.
 
+## Docker
+
+```bash
+docker compose up -d --build
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3003/adk/we-adk
+```
+
+The image builds with `BUILD_TARGET=standalone`, so unlike the default `export`
+target it is a real Node server and the routes under `src/app/api` **run** — that
+is the whole backend this app has. It listens on `127.0.0.1:3003` (3000–3002 are
+taken by other containers on this machine) under `BASE_PATH=/adk`, ready for the
+shared nginx edge. `@anthropic-ai/claude-code` is installed in the image so the
+Claude bridge has a `claude` on PATH.
+
+Three build targets, selected by `BUILD_TARGET`:
+
+| Target | Output | API routes |
+| --- | --- | --- |
+| `standalone` | `node server.js` — the Docker image | run |
+| `export` | static HTML for `pnpm build:cf` | **dropped** |
+| `dev` | `next dev` | run |
+
+Serving it publicly means adding one route to the shared Cloudflare tunnel edge
+— see [deploy/EDGE.md](deploy/EDGE.md). Read it before restarting anything: the
+tunnel is a free Quick Tunnel whose URL is shared with four other projects and
+changes on every restart.
+
+### Database
+
+`docker compose up -d` also starts Postgres 16 on `127.0.0.1:5436` (5432–5435
+are taken by other projects on this machine). Credentials come from `.env`,
+which is gitignored — `cp .env.example .env` and put a generated password in it.
+
+[deploy/db/01-schema.sql](deploy/db/01-schema.sql) is applied once, on an empty
+volume, by the image's `initdb` hook. It models the durable domain from
+`src/lib/we-adk-mock/` — projects, meetings, the folder tree, design files,
+canvas blocks, concept and production screens, tasks, comments, activity — as 10
+tables and 9 enums. The presentational types (`CHIP_CLASSES`, `ButtonVariant`,
+the `BlockProps` catalogue) are deliberately left in the bundle.
+
+**Nothing reads from it yet.** Every screen still renders from the mock modules
+and `localStorage`; the schema is the target shape for that migration, and a
+place to point a SQL client at meanwhile. There is also no migration tool wired
+up, so changing the schema means dropping the data:
+
+```bash
+docker compose down -v && docker compose up -d
+```
+
 ## Structure
 
 ```

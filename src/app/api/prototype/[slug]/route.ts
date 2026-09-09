@@ -23,9 +23,37 @@ export async function GET(
   }
 
   const url = new URL(request.url);
-  const origin = url.origin;
+  // `file.route` is the in-app path. When the app is served under a basePath
+  // (the shared nginx edge sets BASE_PATH=/adk) the real URL carries that
+  // prefix, and so must this self-fetch — otherwise every screen 404s and the
+  // export comes back as a 502. Empty in dev, so nothing changes there.
+  const basePath = process.env.BASE_PATH?.replace(/\/$/, '') ?? '';
 
-  const rendered = await fetch(`${origin}${file.route}`, {
+  /**
+   * The origin baked into the exported file's absolute urls.
+   *
+   * `request.url` is the origin the *server* was reached on, which in the Docker
+   * image is the bind address (http://0.0.0.0:3000) — a url no browser can open.
+   * Behind the nginx edge the real public origin only exists in the forwarded
+   * headers, so prefer those, then the Host header, and keep `url.origin` as the
+   * last resort for a plain `next dev` run.
+   */
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const host = forwardedHost ?? request.headers.get('host');
+  const proto = request.headers.get('x-forwarded-proto') ?? url.protocol.replace(/:$/, '');
+  const origin = host ? `${proto}://${host}` : url.origin;
+  /**
+   * Always fetch over loopback: this is the server talking to itself.
+   *
+   * `url.origin` is no good here either — Next rebuilds `request.url` from
+   * x-forwarded-host, so behind the edge it becomes the public https origin and
+   * the self-fetch dies on ERR_SSL_WRONG_VERSION_NUMBER against a plain-http
+   * server. PORT is set by the Docker image and by compose; the 3000 fallback
+   * matches the `dev` script's `--port 3000`.
+   */
+  const selfOrigin = `http://127.0.0.1:${process.env.PORT ?? '3000'}`;
+
+  const rendered = await fetch(`${selfOrigin}${basePath}${file.route}`, {
     headers: { accept: 'text/html' },
     cache: 'no-store',
   });

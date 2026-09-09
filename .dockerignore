@@ -1,0 +1,24 @@
+# Build context excludes. Keep this tight: the excalidraw assets in public/ make
+# the source tree large, and node_modules is reinstalled inside the image.
+node_modules
+.next
+.next-*
+.open-next
+out
+.wrangler
+.git
+.github
+.claude
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+.dev-server.log
+.env
+.env*.local
+package-lock.json
+open-next.config.ts.bak
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+CLAUDE.md

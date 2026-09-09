@@ -1,8 +1,32 @@
 import type { NextConfig } from 'next';
 
+/**
+ * How this build is packaged.
+ *
+ *   standalone  a real Node server (`node server.js`) — the Docker image. Route
+ *               handlers under src/app/api run, so the Claude bridge works.
+ *   export      static HTML only, for the Cloudflare Workers deploy. API routes
+ *               are DROPPED by this target; `pnpm build:cf` accepts that.
+ *   dev         neither, so `next dev` behaves normally.
+ *
+ * Default keeps the previous behaviour: export in production, nothing in dev.
+ */
+const buildTarget =
+  process.env.BUILD_TARGET ?? (process.env.NODE_ENV === 'production' ? 'export' : 'dev');
+
+/**
+ * URL prefix this app is served under, for the shared Mac mini nginx edge (one
+ * Cloudflare hostname → many apps). Unset for local dev, so nothing changes.
+ *
+ * Note the app's own routes already start with /we-adk, so with BASE_PATH=/adk
+ * the project list is at /adk/we-adk. nginx does not strip prefixes.
+ */
+const basePath = process.env.BASE_PATH?.replace(/\/$/, '') || undefined;
+
 const nextConfig: NextConfig = {
-  // Static export for Cloudflare builds; skipped in dev so next dev works normally.
-  ...(process.env.NODE_ENV === 'production' ? { output: 'export' as const } : {}),
+  ...(buildTarget === 'standalone' ? { output: 'standalone' as const } : {}),
+  ...(buildTarget === 'export' ? { output: 'export' as const } : {}),
+  ...(basePath ? { basePath } : {}),
   /**
    * Where the build lands. `next dev` does not vary this by port, so two dev
    * servers in this project overwrite each other's `.next` — the stylesheet
