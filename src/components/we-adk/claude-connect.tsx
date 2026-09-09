@@ -29,6 +29,7 @@ import {
   DialogTrigger,
   Input,
 } from '@/components/ui';
+import { authHeaders } from '@/lib/api/session';
 import { CLAUDE_TOKEN_HEADER, useClaudeAccount } from '@/lib/we-adk/claude-account';
 
 function maskToken(token: string): string {
@@ -50,7 +51,14 @@ export function ClaudeConnectDialog({ trigger }: { trigger: ReactNode }) {
     try {
       const response = await fetch('/api/claude-auth/verify', {
         method: 'POST',
-        headers: { [CLAUDE_TOKEN_HEADER]: candidate },
+        // The session token says who is asking, and the API requires it: /api/ai/verify is
+        // not a public path, and the proxy's server-side fallback is unset in both stacks,
+        // so without this the request reached the API as "Bearer undefined" and 401'd —
+        // connecting an account failed before the key was ever tried.
+        //
+        // Deliberately not `claudeHeaders()`. That sends the *stored* token, and the whole
+        // point here is to try the candidate that has not been saved yet.
+        headers: { ...authHeaders(), [CLAUDE_TOKEN_HEADER]: candidate },
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
