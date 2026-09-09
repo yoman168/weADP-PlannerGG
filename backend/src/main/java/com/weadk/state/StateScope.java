@@ -29,12 +29,20 @@ public final class StateScope {
             "we-adk:locale",
             "we-adk:sidebar-config",
             "we-adk:version-rail-width",
-            "we-adk:sketcher:chat-model",
-            "we-adk:last-folder",
-            "we-adk:last-user-view");
+            "we-adk:sketcher:chat-model");
 
-    /** Key families that belong to the viewer. */
-    private static final List<String> PERSONAL_PREFIXES = List.of("we-adk:whats-new:");
+    /**
+     * Key families that belong to the viewer.
+     *
+     * <p>The two {@code last-} families are scoped per project, so the key that arrives
+     * carries a project id: {@code we-adk:last-folder:proj-fleet-portal}. They were listed
+     * as exact keys at
+     * first, which never matched anything and quietly stored them shared — so two people in
+     * one project overwrote each other's place in the tree. A prefix is the right test for
+     * any key built by concatenation.
+     */
+    private static final List<String> PERSONAL_PREFIXES =
+            List.of("we-adk:whats-new:", "we-adk:last-folder:", "we-adk:last-user-view:");
 
     /**
      * Keys that must never be stored at all.

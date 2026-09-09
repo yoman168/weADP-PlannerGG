@@ -24,6 +24,25 @@ class StateScopeTest {
         assertThat(StateScope.personal("we-adk:whats-new:proj-x:v2")).isTrue();
     }
 
+    /**
+     * The keys the frontend actually writes, not the family names.
+     *
+     * <p>These two are built by concatenation — {@code `${STORAGE_KEY}:${projectId}`} in
+     * last-view.ts — so the string that arrives is never the bare family name. Listing them
+     * as exact keys matched nothing and stored them shared, which in a project with two
+     * people meant each overwrote the other's place in the tree. The original test asserted
+     * the four un-suffixed preferences and so agreed with the bug.
+     */
+    @Test
+    @DisplayName("per-project preferences are personal under the keys actually written")
+    void projectScopedPreferencesArePersonal() {
+        assertThat(StateScope.personal("we-adk:last-folder:proj-fleet-portal")).isTrue();
+        assertThat(StateScope.personal("we-adk:last-user-view:proj-fleet-portal")).isTrue();
+        assertThat(StateScope.ownerFor("we-adk:last-folder:proj-x", "user-1")).isEqualTo("user-1");
+        assertThat(StateScope.ownerFor("we-adk:last-user-view:proj-x", "user-1"))
+                .isEqualTo("user-1");
+    }
+
     @Test
     @DisplayName("the project's own work is shared, and so is anything unclassified")
     void workIsShared() {
