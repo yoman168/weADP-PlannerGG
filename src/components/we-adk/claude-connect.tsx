@@ -52,9 +52,10 @@ export function ClaudeConnectDialog({ trigger }: { trigger: ReactNode }) {
       const response = await fetch('/api/claude-auth/verify', {
         method: 'POST',
         // The session token says who is asking, and the API requires it: /api/ai/verify is
-        // not a public path, and the proxy's server-side fallback is unset in both stacks,
-        // so without this the request reached the API as "Bearer undefined" and 401'd —
-        // connecting an account failed before the key was ever tried.
+        // not a public path. The proxy falls back to a service credential when the browser
+        // sends none, but that is guarded on WEADK_API_TOKEN being set and it is set in
+        // neither stack — so the request arrived with no Authorization header at all and
+        // 401'd. Connecting an account failed before the pasted key was ever tried.
         //
         // Deliberately not `claudeHeaders()`. That sends the *stored* token, and the whole
         // point here is to try the candidate that has not been saved yet.
