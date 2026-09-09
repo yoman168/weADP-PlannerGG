@@ -1,6 +1,7 @@
 'use client';
 
-import { Building2, Coins, ShieldCheck, Users } from 'lucide-react';
+import { Building2, Coins, Pencil, ShieldCheck, Users } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Badge, Button, Card, Input, Label, Separator, Switch, cn } from '@/components/ui';
 import {
@@ -71,7 +72,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Settings',
-  subtitle: 'Administration > Workspace settings',
+  subtitle: 'eACC Cloud > Administration > Settings',
 };
 
 const COMPANY_DEFAULTS = {
@@ -135,7 +136,6 @@ export default function SettingsPage() {
   const [requireEvidence, setRequireEvidence] = useState(true);
   const [bulkPerMonth, setBulkPerMonth] = useState(true);
   const [notifyReturned, setNotifyReturned] = useState(false);
-
   const header = useSectionConfig('settings-header', HEADER_DEFAULTS);
   const company = useSectionConfig('settings-company', COMPANY_DEFAULTS);
   const table = useSectionConfig('settings-members', MEMBERS_DEFAULTS);
@@ -239,8 +239,8 @@ export default function SettingsPage() {
               <Users className="text-muted-foreground size-4" />
               <h2 className="text-sm font-semibold">Members</h2>
             </div>
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-              Invite member
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" asChild>
+              <Link href="/eacc/settings/invite">Invite member</Link>
             </Button>
           </div>
           <div className="overflow-x-auto">
@@ -276,7 +276,7 @@ export default function SettingsPage() {
                       </td>
                     )}
                     {columnOn(table, 'status') && (
-                      <td className="py-3 pr-4">
+                      <td className="py-3 text-right">
                         <span
                           className={cn(
                             'text-xs',
@@ -289,6 +289,14 @@ export default function SettingsPage() {
                         </span>
                       </td>
                     )}
+                    <td className="py-3 pr-4">
+                      <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs" asChild>
+                        <Link href="/eacc/settings/edit-role">
+                          <Pencil className="size-3" />
+                          Edit
+                        </Link>
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -7,7 +7,9 @@
  * loopback by default because this app has been exposed through a tunnel before.
  */
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { type NextRequest } from 'next/server';
 
 const MAX_OUTPUT_BYTES = 4_000_000;
@@ -16,6 +18,55 @@ export function isLoopbackRequest(request: NextRequest): boolean {
   if (process.env.SKETCHER_AI_ALLOW_REMOTE === '1') return true;
   const host = (request.headers.get('host') ?? '').split(':')[0]?.toLowerCase() ?? '';
   return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1';
+}
+
+/**
+ * Every user brings their own Claude account: the browser sends the token from
+ * `claude setup-token` on each request, and the CLI runs as that account.
+ */
+const TOKEN_HEADER = 'x-claude-token';
+const TOKEN_PATTERN = /^sk-ant-[A-Za-z0-9_-]{20,}$/;
+
+export function readClaudeToken(request: NextRequest): string | null {
+  const token = (request.headers.get(TOKEN_HEADER) ?? '').trim();
+  // Accept an explicit API key, or fall back to 'local' which means
+  // use the CLI's own auth (claude.ai OAuth login).
+  if (TOKEN_PATTERN.test(token)) return token;
+  return 'local';
+}
+
+/** Host credentials that must never leak into a per-user CLI run. */
+const HOST_CREDENTIAL_VARS = [
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_PROFILE',
+  'ANTHROPIC_FEDERATION_RULE_ID',
+  'ANTHROPIC_ORGANIZATION_ID',
+  'ANTHROPIC_IDENTITY_TOKEN_FILE',
+  'ANTHROPIC_BASE_URL',
+];
+
+let configDir: string | undefined;
+
+/**
+ * Child env that authenticates as the request's user only: their OAuth token,
+ * host credentials stripped, and a config dir outside ~/.claude so the host
+ * machine's login can never be picked up.
+ */
+export function buildClaudeEnv(token: string): NodeJS.ProcessEnv {
+  // 'local' means use the host machine's own Claude CLI auth (OAuth login).
+  if (token === 'local') {
+    return { ...process.env };
+  }
+  if (!configDir) {
+    configDir = join(tmpdir(), 'we-adk-claude-config');
+    mkdirSync(configDir, { recursive: true });
+  }
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const name of HOST_CREDENTIAL_VARS) delete env[name];
+  env.CLAUDE_CODE_OAUTH_TOKEN = token;
+  env.CLAUDE_CONFIG_DIR = configDir;
+  return env;
 }
 
 export interface ClaudeUsage {
@@ -31,6 +82,8 @@ export type ClaudeOutcome =
 
 interface RunOptions {
   prompt: string;
+  /** The requesting user's own Claude Code OAuth token. */
+  token: string;
   systemPrompt?: string;
   timeoutMs?: number;
   model?: string;
@@ -64,7 +117,7 @@ function spawnClaude(options: RunOptions): Promise<RawOutcome> {
     const child = spawn('claude', args, {
       // Run outside the repo so the CLI does not auto-load this project's CLAUDE.md.
       cwd: tmpdir(),
-      env: process.env,
+      env: buildClaudeEnv(options.token),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 

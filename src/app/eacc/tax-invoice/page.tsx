@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown, Download, Plus, Search, X } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Badge, Button, Card, Input } from '@/components/ui';
 import {
@@ -176,7 +177,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Purchase Tax Invoice',
-  subtitle: 'Purchase Tax Invoice > Purchase Tax Invoice',
+  subtitle: 'eACC Cloud > Tax & Receipts > Tax Invoice',
 };
 
 const FILTERS_DEFAULTS = {
@@ -423,7 +424,9 @@ export default function TaxInvoicePage() {
                     )}
                     {columnOn(table, 'invoiceNo') && (
                       <td className="px-3 py-3 font-mono text-xs text-blue-600 dark:text-blue-400">
-                        {inv.invoiceNo}
+                        <Link href="/eacc/tax-invoice/detail" className="hover:underline">
+                          {inv.invoiceNo}
+                        </Link>
                       </td>
                     )}
                     {columnOn(table, 'status') && (

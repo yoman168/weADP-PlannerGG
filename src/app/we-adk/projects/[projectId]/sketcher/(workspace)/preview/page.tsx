@@ -5,35 +5,37 @@ import {
   ClipboardList,
   Code2,
   ExternalLink,
+  MessageSquare,
   MonitorPlay,
+  MousePointer2,
   PenLine,
   Sparkles,
-  SquareTerminal,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Badge, Button } from '@/components/ui';
+import { Button, cn } from '@/components/ui';
 import { useBusinessWorkspace } from '@/components/we-adk/business-workspace';
 import { ChatPane } from '@/components/we-adk/claude-chat';
 import { DesignHtmlButton } from '@/components/we-adk/design-html-button';
+import { ScreenLinkPicker } from '@/components/we-adk/screen-link-picker';
+import { saveHtmlAndBlocks } from '@/lib/we-adk/html-to-blocks';
 import { TaskFormDialog } from '@/components/we-adk/task-form-dialog';
-import { canPreviewLive } from '@/components/we-adk/live-screen-preview';
+import { showToast } from '@/components/ui/toast';
 import {
-  businessCanvasHref,
+  businessEditHref,
   businessPreviewHref,
   previewHref,
 } from '@/components/we-adk/mockup-board';
 import {
   DeviceSwitcher,
   PreviewEditTabs,
-  PreviewModeSwitcher,
   ScreenPreviewSurface,
   type PreviewMode,
 } from '@/components/we-adk/screen-preview';
 import { useLocale } from '@/lib/locale';
 import { isHtmlDesignFile } from '@/lib/we-adk/design-html';
-import { liveScreenRoute } from '@/lib/we-adk/live-screens';
 import {
   findPrototypeByRoute,
   findPrototypeFile,
@@ -65,11 +67,15 @@ export default function BusinessPreviewPage() {
   const folderId = searchParams.get('folder');
 
   const [device, setDevice] = useState<DevicePresetId>('full');
-  const [mode, setMode] = useState<PreviewMode>('live');
+  const [mode] = useState<PreviewMode>('wireframe');
   const [chrome, setChrome] = useState(true);
   /** The question Improve by AI hands to the chat pane beside the screen. */
   const [aiPrompt, setAiPrompt] = useState<string | null>(null);
+  const [chatCollapsed, setChatCollapsed] = useState(true);
   const [taskOpen, setTaskOpen] = useState(false);
+  /** Wiring: the mode, and the control waiting to be told what it opens. */
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<number | null>(null);
 
   // Preview and Design are the same screen — Design just lets you change it.
   const designing = searchParams.get('edit') === '1';
@@ -96,10 +102,7 @@ export default function BusinessPreviewPage() {
     );
   }
 
-  const hasLive = canPreviewLive(screenId);
-  const liveRoute = liveScreenRoute(screenId);
   const prototype = findPrototypeFile(screenId);
-  const showingLive = hasLive && mode === 'live';
   // A round's own designs are html files too, so they read and export the way
   // the baseline's pages do.
   const isHtml = isHtmlDesignFile(screenId, file?.fileName);
@@ -113,6 +116,15 @@ export default function BusinessPreviewPage() {
   const where = `${screenName}${screenRoute ? ` (${screenRoute})` : ''}${
     round ? ` in ${round.name}` : ''
   }`;
+  /**
+   * Whether the screen on show is frozen.
+   *
+   * The workspace's own `isReleased` reads the round that is *open*, which is
+   * not necessarily the round this screen belongs to — open a released file
+   * with no round open and that flag is false while the file is still locked.
+   * The round in the URL is the authority when there is one.
+   */
+  const releasedRound = round ? round.versionStatus === 'Released' : isReleased;
 
   /**
    * What the chat beside the screen can see. The sections themselves have to be
@@ -175,19 +187,6 @@ export default function BusinessPreviewPage() {
               {file?.name ?? elsewhere?.route}
             </span>
           )}
-          {isHtml ? (
-            <Badge variant="info" className="shrink-0 text-[10px]" title={liveRoute ?? ''}>
-              {t('badge.html')}
-            </Badge>
-          ) : showingLive ? (
-            <Badge variant="success" className="shrink-0 text-[10px]" title={liveRoute ?? ''}>
-              {t('badge.liveScreen')}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="shrink-0 text-[10px]">
-              {t('badge.wireframe')}
-            </Badge>
-          )}
 
           {/* Save: this round is where it should be, so clear its A and M
               markers and start counting changes from here. A released round
@@ -206,13 +205,37 @@ export default function BusinessPreviewPage() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Preview is the screen; Edit is the canvas it is built from. */}
+            {/* Preview is the screen; Page is the document it is, edited in place. */}
             <PreviewEditTabs
               active="preview"
+              released={releasedRound}
               previewHref={businessPreviewHref(project.id, screenId, folderId)}
-              editHref={businessCanvasHref(project.id, screenId, folderId)}
+              editHref={businessEditHref(project.id, screenId, folderId)}
             />
-            {hasLive && !prototype && <PreviewModeSwitcher mode={mode} onChange={setMode} />}
+            {/* The same wiring gesture the Customer side has. A round's
+                screens link to each other too, and this is where someone
+                notices that one of them doesn't. A released round is the
+                record of what shipped, so it is not wired here. */}
+            {!releasedRound && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPicking((current) => !current);
+                  setPicked(null);
+                }}
+                aria-pressed={picking}
+                className={cn(
+                  'flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium transition-colors',
+                  picking
+                    ? 'bg-indigo-500 text-white'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                )}
+                title="Click a control on the screen to say what it opens"
+              >
+                <MousePointer2 className="size-3.5" />
+                {picking ? 'Picking…' : 'Link'}
+              </button>
+            )}
             <DeviceSwitcher device={device} onChange={setDevice} />
             {isHtml && (
               <DesignHtmlButton
@@ -231,17 +254,6 @@ export default function BusinessPreviewPage() {
               </a>
             </Button>
           </div>
-        </div>
-
-        <div className="flex w-[26rem] shrink-0 items-center gap-2 border-l px-3 py-2">
-          <SquareTerminal className="text-primary size-4 shrink-0" />
-          <span className="text-sm font-semibold">{t('chat.claudeCode')}</span>
-          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-            {file?.fileName ?? elsewhere?.name ?? screenId}
-          </span>
-          <Badge variant="outline" className="shrink-0 text-[10px]">
-            {t('badge.localCli')}
-          </Badge>
         </div>
       </div>
 
@@ -271,6 +283,17 @@ export default function BusinessPreviewPage() {
                     ? businessPreviewHref(project.id, roundCopyOf(target.id), folderId)
                     : null;
                 }}
+                /*
+                 * The round's own screens, so a page wired to another one
+                 * still reaches it here. The wiring travels in the page as
+                 * screen names; this is what those names resolve against.
+                 */
+                links={folders
+                  .flatMap((entry) => [...entry.files, ...(entry.children ?? []).flatMap((c) => c.files)])
+                  .map((entry) => ({ id: entry.id, name: entry.name }))}
+                onOpenScreen={(id) => router.push(businessPreviewHref(project.id, id, folderId))}
+                pick={picking}
+                onPickControl={setPicked}
               />
             </div>
 
@@ -306,14 +329,10 @@ export default function BusinessPreviewPage() {
           </div>
           <p className="text-muted-foreground bg-background flex shrink-0 flex-wrap items-center gap-1 border-t px-4 py-2 text-[10px]">
             {isReleased
-              ? // A released round has no Edit UI to point at — saying otherwise
-                // sends people looking for a button that is deliberately gone.
-                t('preview.releasedHint')
+              ? t('preview.releasedHint')
               : prototype
                 ? t('preview.prototypeHint', { summary: prototype.summary })
-                : hasLive
-                  ? t('preview.liveHint')
-                  : t('preview.wireframeHint')}
+                : t('preview.wireframeHint')}
             {/* The link that got here may predate the html prototype, so say where
               the file actually lives now rather than leaving the tree blank. */}
             {elsewhere && (
@@ -327,25 +346,67 @@ export default function BusinessPreviewPage() {
           </p>
         </div>
 
-        {/* Claude sits beside every screen — part of the workspace, not
-            something to go and open. */}
-        <aside className="bg-background flex w-[26rem] shrink-0 flex-col border-l">
-          <ChatPane
-            project={project}
-            contextText={screenContext}
-            folderLabel={`preview/${file?.fileName ?? screenId}`}
-            greeting={t('chat.askAbout', { name: prototype?.name ?? file?.name ?? 'this screen' })}
-            greetingHint={t('chat.greetingHint')}
-            initialTurns={[]}
-            pendingPrompt={aiPrompt}
-            onPromptHandled={() => setAiPrompt(null)}
-            onPersist={() => {}}
-          />
-        </aside>
+        {/* AI Chat — collapsible, same pattern as the task tab */}
+        {chatCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setChatCollapsed(false)}
+            title="Open AI chat"
+            aria-label="Open AI chat"
+            className="fixed right-6 bottom-6 z-40 flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 shadow-lg transition-colors hover:bg-muted"
+          >
+            <MessageSquare className="size-4 text-muted-foreground" />
+            <span className="text-xs font-medium">AI Chat</span>
+          </button>
+        ) : (
+          <aside className="bg-background flex w-[26rem] shrink-0 flex-col border-l">
+            <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">AI Chat</span>
+              <button
+                type="button"
+                onClick={() => setChatCollapsed(true)}
+                title="Close chat"
+                aria-label="Close chat"
+                className="text-muted-foreground hover:text-foreground rounded p-0.5"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+            <ChatPane
+              project={project}
+              contextText={screenContext}
+              folderLabel={`preview/${file?.fileName ?? screenId}`}
+              greeting={t('chat.askAbout', { name: prototype?.name ?? file?.name ?? 'this screen' })}
+              greetingHint="Ask to generate or improve a page — Claude will create both HTML preview and canvas blocks."
+              initialTurns={[]}
+              pendingPrompt={aiPrompt}
+              onPromptHandled={() => setAiPrompt(null)}
+              onPersist={() => {}}
+              onResponse={(responseText) => {
+                if (!screenId) return;
+                const match = responseText.match(/```html\s*\n([\s\S]*?)```/);
+                if (match?.[1]) saveHtmlAndBlocks(screenId, match[1].trim());
+              }}
+            />
+          </aside>
+        )}
       </div>
 
-      {/* Create task — the same form the Task tab uses, opened with the screen
-          already written into it. Saving lands on the task itself. */}
+      {/* The control just clicked, and what it should open. */}
+      {picked !== null && (
+        <ScreenLinkPicker
+          screenId={screenId}
+          index={picked}
+          targets={folders
+            .flatMap((entry) => [...entry.files, ...(entry.children ?? []).flatMap((c) => c.files)])
+            .filter((entry) => entry.id !== screenId)
+            .map((entry) => ({ id: entry.id, name: entry.name }))}
+          onClose={() => setPicked(null)}
+        />
+      )}
+
+      {/* Create task, with the screen already written into the form. There is
+          no task screen to land on — the task shows up in Overview. */}
       <TaskFormDialog
         open={taskOpen}
         defaults={{
@@ -360,9 +421,9 @@ export default function BusinessPreviewPage() {
         }}
         onClose={() => setTaskOpen(false)}
         onSave={(fields) => {
-          const task = createTask(project.id, fields);
+          createTask(project.id, fields);
           setTaskOpen(false);
-          router.push(`/we-adk/projects/${project.id}/sketcher/task?task=${task.id}`);
+          showToast(t('action.taskCreated'));
         }}
       />
     </div>

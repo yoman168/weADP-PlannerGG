@@ -9,6 +9,7 @@
  * holding what that project's live product looks like today. A change request
  * therefore starts from the real screen next to it, not from a blank canvas.
  */
+import { loadCreatedProjects } from './created-projects';
 import { PRODUCTION_SCREENS, type ProductionScreen, type SolutionName } from './production-screens';
 import {
   loadGeneratedScreens,
@@ -147,7 +148,7 @@ export const PROJECTS: DesignProject[] = [
         ],
         openQuestions: ['Should a returned item drop back into Draft, or keep its own state?'],
         notes: [
-          'Three change requests came out of this month’s support review.',
+          'Three change requests came out of this month\'s support review.',
           '- corporate card list: accountants want to approve a whole month at once, not row by row',
           '- purchase tax invoice: the supplier CEO column is empty on most rows — they want it gone',
           '- personal expense: add a "returned to me" tab so people find rejected items without filtering',
@@ -175,10 +176,386 @@ export const PROJECTS: DesignProject[] = [
           },
         ],
       },
+      {
+        id: 'ses-cloud-mobile-app',
+        title: 'Mobile app kickoff',
+        metAt: '2026-08-05',
+        attendees: 'Lee Jiyeon, Kim Minsu, Taehyuk Park, UX team (3)',
+        kind: 'Workshop',
+        durationMin: 90,
+        notes: [
+          'Kickoff for the mobile companion app — not a port of the desktop, a tool for on-the-go.',
+          '',
+          'Core use cases discussed:',
+          '1. Receipt capture — take a photo of a receipt, OCR fills vendor/amount/date',
+          '2. Expense submission — submit from phone right after purchase',
+          '3. Approval on the go — approve/return charges from push notification',
+          '4. Spending summary — monthly totals and category breakdown',
+          '',
+          'Design requirements:',
+          '- Bottom tab navigation: Home, Capture, Expenses, Approvals, Profile',
+          '- Home shows spending summary cards (this month total, pending count, last receipt)',
+          '- Capture screen: camera viewfinder with overlay guides for receipt edges',
+          '- After capture: auto-filled form with vendor, amount, date, category dropdown',
+          '- Expense list: card-style rows with receipt thumbnail, swipe to delete',
+          '- Approval list: swipe right to approve, swipe left to return',
+          '- Profile: account info, notification settings, logout',
+          '',
+          'Technical notes:',
+          '- React Native with shared design tokens from the web app',
+          '- Offline-first: queue submissions when no network, sync when back',
+          '- Push notifications for new items to approve',
+        ].join('\n'),
+        decisions: [
+          'Mobile app is a companion, not a replacement — complex workflows stay on desktop.',
+          'Receipt OCR is MVP — manual entry is the fallback.',
+          'Bottom tab navigation with 5 tabs.',
+          'Offline queue for expense submissions.',
+        ],
+        openQuestions: [
+          'Should the camera use the native camera API or a custom viewfinder?',
+          'Do we need biometric auth (Face ID / fingerprint) for approvals?',
+        ],
+        screens: [
+          {
+            id: 'sk-mobile-home',
+            name: 'Mobile — Home dashboard',
+            route: '/mobile/home',
+            seedPattern: 'dashboard',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-06',
+          },
+          {
+            id: 'sk-mobile-capture',
+            name: 'Mobile — Receipt capture',
+            route: '/mobile/capture',
+            seedPattern: 'detailPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-06',
+          },
+          {
+            id: 'sk-mobile-expenses',
+            name: 'Mobile — Expense list',
+            route: '/mobile/expenses',
+            seedPattern: 'listPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-06',
+          },
+        ],
+      },
+      {
+        id: 'ses-cloud-reporting',
+        title: 'Reporting & analytics',
+        metAt: '2026-08-12',
+        attendees: 'Choi Dongwook, Park Seongmin, Finance director, Taehyuk Park',
+        kind: 'Workshop',
+        durationMin: 75,
+        notes: [
+          'Finance wants proper reporting — the dashboard summary cards are not enough.',
+          '',
+          'Requested reports:',
+          '1. Monthly expense report — grouped by department, with subtotals and grand total',
+          '   - Columns: date, employee, category, vendor, amount, status, receipt attached (Y/N)',
+          '   - Filters: date range, department, category, status',
+          '   - Export to Excel and PDF',
+          '',
+          '2. Budget vs actual — bar chart per department per month',
+          '   - Show budget line, actual spend line, variance as red/green',
+          '   - Drill down: click a bar to see the transactions',
+          '',
+          '3. Vendor analysis — top 10 vendors by spend, trend over 6 months',
+          '   - Pie chart for current month, line chart for trend',
+          '   - Click vendor name to see all transactions',
+          '',
+          '4. Audit trail — who approved what, when, any overrides',
+          '   - Searchable log with filters: date, user, action type',
+          '   - Flag entries where approval was overridden',
+          '',
+          'Layout: a "Reports" section in the sidebar with sub-pages for each report.',
+          'Each report has a toolbar with date range picker + filters + export button.',
+          'Charts use the same Recharts library as the dashboard.',
+        ].join('\n'),
+        decisions: [
+          'Four reports for v1: monthly expense, budget vs actual, vendor analysis, audit trail.',
+          'All reports export to Excel. PDF only for monthly expense.',
+          'Reports live under a new "Reports" section in the main sidebar.',
+        ],
+        openQuestions: [
+          'Should the audit trail include read-only views or just write actions?',
+          'Is the budget set per department or per cost centre?',
+        ],
+        screens: [
+          {
+            id: 'sk-report-monthly',
+            name: 'Monthly expense report',
+            route: '/eacc-cloud-reports/monthly',
+            seedPattern: 'listPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-13',
+          },
+          {
+            id: 'sk-report-budget',
+            name: 'Budget vs actual',
+            route: '/eacc-cloud-reports/budget',
+            seedPattern: 'dashboard',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-13',
+          },
+          {
+            id: 'sk-report-vendor',
+            name: 'Vendor analysis',
+            route: '/eacc-cloud-reports/vendor',
+            seedPattern: 'dashboard',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-13',
+          },
+        ],
+      },
+      {
+        id: 'ses-cloud-notification',
+        title: 'Notification system design',
+        metAt: '2026-08-18',
+        attendees: 'Lee Jiyeon, Jung Minjae, Taehyuk Park',
+        kind: 'Review',
+        durationMin: 45,
+        notes: [
+          'Current state: the bell icon shows "9+" and does nothing. Time to make it real.',
+          '',
+          'Notification types agreed:',
+          '- Expense submitted (for approver): "Kim Minsu submitted ₩45,000 for approval"',
+          '- Expense approved/returned (for submitter): "Your ₩45,000 expense was approved"',
+          '- Month-end close reminder: "3 items blocking close for Marketing dept"',
+          '- New team member added: "Choi Dongwook joined as Member"',
+          '- Budget alert: "Marketing dept is at 85% of monthly budget"',
+          '',
+          'UI design:',
+          '- Click bell → dropdown panel (not a full page)',
+          '- Panel width: 380px, max height: 500px, scrollable',
+          '- Each notification: avatar + message + timestamp + unread dot',
+          '- Group by date: Today, Yesterday, Earlier',
+          '- "Mark all as read" button at the top',
+          '- Click a notification → navigate to the relevant screen',
+          '- Settings: per-type toggle (email + in-app for each type)',
+          '',
+          'Badge count: unread count, cap at 99+.',
+          'Real-time: WebSocket for instant delivery, fallback to polling every 30s.',
+        ].join('\n'),
+        decisions: [
+          'Notifications are a dropdown panel, not a separate page.',
+          '5 notification types for v1.',
+          'WebSocket with polling fallback.',
+          'Per-type notification preferences in Settings.',
+        ],
+        openQuestions: [
+          'Should email notifications be opt-in or opt-out by default?',
+        ],
+        screens: [
+          {
+            id: 'sk-notification-panel',
+            name: 'Notification dropdown panel',
+            route: '/eacc-cloud/notifications',
+            seedPattern: 'listPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-19',
+          },
+          {
+            id: 'sk-notification-settings',
+            name: 'Notification preferences',
+            route: '/eacc-cloud/settings/notifications',
+            seedPattern: 'detailPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-19',
+          },
+        ],
+      },
     ],
   },
   {
-    id: 'proj-hd-trip',
+    id: 'proj-fleet-portal',
+    archived: true,
+    name: 'Fleet management portal',
+    customer: 'GS Logistics',
+    owner: 'Jihoon Lee (PM)',
+    status: { label: 'In progress', tone: 'blue' },
+    updatedAt: '2026-08-20',
+    summary:
+      'Vehicle tracking and maintenance scheduling for a 200-truck fleet. The dispatch team draws screens here before handing them to engineering.',
+    stage: 'Design',
+    saved: false,
+    spend: 8.72,
+    accent: 'teal',
+    sessions: [
+      {
+        id: 'ses-fleet-kickoff',
+        title: 'Dispatch team kickoff',
+        metAt: '2026-07-22',
+        attendees: 'GS dispatch team (5), Jihoon Lee, Sooyeon Kim',
+        kind: 'Kickoff',
+        durationMin: 90,
+        notes: [
+          'Sat with the dispatch team for 90 minutes. They run 200 trucks across 3 regions.',
+          'Their daily routine:',
+          '- morning: assign drivers to trucks, check which trucks are available',
+          '- midday: handle breakdowns and re-assign routes on the fly',
+          '- evening: log mileage and fuel receipts',
+          '',
+          'Pain points:',
+          '- the fleet overview is a shared spreadsheet that drifts out of date by lunchtime',
+          '- nobody knows which trucks are due for maintenance until they break down',
+          '- fuel costs are logged on paper receipts that get lost',
+          '',
+          'They want one screen that answers "what can I dispatch right now?".',
+          'Everything else — reports, history, settings — is secondary.',
+        ].join('\n'),
+        decisions: [
+          'Fleet dashboard is the landing page — shows available, in-use, and in-maintenance counts.',
+          'Maintenance schedule must be visible from the dashboard, not buried in settings.',
+        ],
+        openQuestions: [
+          'Should the dashboard auto-refresh, or is a manual refresh button enough?',
+        ],
+        screens: [
+          {
+            id: 'sk-fleet-dashboard',
+            name: 'Fleet overview dashboard',
+            route: '/fleet/dashboard',
+            seedPattern: 'dashboard',
+            status: { label: 'Reviewed', tone: 'green' },
+            updatedAt: '2026-07-25',
+          },
+          {
+            id: 'sk-fleet-vehicle-list',
+            name: 'Vehicle list — dispatch view',
+            route: '/fleet/vehicles',
+            seedPattern: 'listPage',
+            status: { label: 'Reviewed', tone: 'green' },
+            updatedAt: '2026-07-25',
+          },
+          {
+            id: 'sk-fleet-vehicle-detail',
+            name: 'Vehicle detail — history & status',
+            route: '/fleet/vehicles/:id',
+            seedPattern: 'detailPage',
+            status: { label: 'In review', tone: 'blue' },
+            updatedAt: '2026-07-26',
+          },
+        ],
+      },
+      {
+        id: 'ses-fleet-maintenance',
+        title: 'Maintenance workflow review',
+        metAt: '2026-08-01',
+        attendees: 'GS maintenance team (3), GS dispatch lead, Jihoon Lee',
+        kind: 'Workshop',
+        durationMin: 120,
+        notes: [
+          'The maintenance team joined for the first time. Very different perspective from dispatch.',
+          '',
+          'Current workflow:',
+          '- mechanic gets a call → walks to the truck → diagnoses → orders parts → waits → fixes',
+          '- average turnaround: 3 days. Target: 1 day for routine, 2 days for major.',
+          '- they keep a whiteboard with truck numbers and status magnets',
+          '',
+          'What they want:',
+          '1. Maintenance calendar — which trucks are due this week, next week',
+          '2. Work order form — log what was done, parts used, cost',
+          '3. Parts inventory — what is in stock, what needs ordering',
+          '',
+          'Dispatch wants to see maintenance ETA so they can plan around it.',
+          'The whiteboard has no ETA — it just says "in shop" or "waiting for parts".',
+        ].join('\n'),
+        decisions: [
+          'Maintenance gets its own section with calendar and work orders.',
+          'ETA is mandatory on every work order so dispatch can see it.',
+          'Parts inventory is phase 2 — too much for the first release.',
+        ],
+        openQuestions: [
+          'Who creates the work order — dispatch or the mechanic?',
+          'Should preventive maintenance auto-create work orders based on mileage?',
+        ],
+        screens: [
+          {
+            id: 'sk-fleet-maint-calendar',
+            name: 'Maintenance calendar',
+            route: '/fleet/maintenance',
+            seedPattern: 'listPage',
+            status: { label: 'In review', tone: 'blue' },
+            updatedAt: '2026-08-03',
+          },
+          {
+            id: 'sk-fleet-work-order',
+            name: 'Work order form',
+            route: '/fleet/maintenance/work-order',
+            seedPattern: 'detailPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-04',
+          },
+        ],
+      },
+      {
+        id: 'ses-fleet-driver-app',
+        title: 'Driver mobile app',
+        metAt: '2026-08-14',
+        attendees: 'Dispatch lead, Jihoon Lee, Sooyeon Kim',
+        kind: 'Workshop',
+        durationMin: 60,
+        notes: [
+          'Four drivers came in. They do not use the dispatch system — they get a text message.',
+          '',
+          'What drivers need:',
+          '- see today\'s route and stops on a map',
+          '- report a breakdown with a photo and location',
+          '- log fuel fill-up: pump photo + litres + odometer',
+          '- check-in at each stop so dispatch knows progress',
+          '',
+          'What they do NOT need:',
+          '- vehicle history, maintenance records, fleet reports — that is dispatch\'s job',
+          '- anything that requires typing more than a sentence',
+          '',
+          'One driver said: "I want to tap, tap, done — not fill out a form while standing in the rain."',
+          'The dispatch lead agreed: fewer taps = more compliance.',
+        ].join('\n'),
+        decisions: [
+          'Driver app is tap-heavy, minimal typing.',
+          'Breakdown report: photo + pin drop + one-line note, nothing else.',
+          'Fuel log: camera on the pump display, auto-read litres if possible.',
+        ],
+        openQuestions: [
+          'Does the driver need to see other drivers on the map, or just their own route?',
+          'Offline mode — drivers pass through tunnels and rural areas.',
+        ],
+        screens: [
+          {
+            id: 'sk-fleet-driver-route',
+            name: 'Driver — today\'s route',
+            route: '/driver/route',
+            seedPattern: 'listPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-15',
+          },
+          {
+            id: 'sk-fleet-driver-breakdown',
+            name: 'Driver — report breakdown',
+            route: '/driver/breakdown',
+            seedPattern: 'detailPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-15',
+          },
+          {
+            id: 'sk-fleet-driver-fuel',
+            name: 'Driver — fuel log',
+            route: '/driver/fuel',
+            seedPattern: 'detailPage',
+            status: { label: 'Draft', tone: 'slate' },
+            updatedAt: '2026-08-15',
+          },
+        ],
+      },
+    ],
+  },
+];
+
+/* removed: proj-hd-trip, proj-nonghyup-loan, proj-sk-hynix-trip, proj-harim-voucher, proj-voucher-issuing
     name: 'Trip management rollout',
     customer: 'HD Korea Shipbuilding',
     owner: 'Seongmin Yoo (PM)',
@@ -248,7 +625,7 @@ export const PROJECTS: DesignProject[] = [
           'They also asked for a printable summary, then agreed it can wait.',
         ].join('\n'),
         decisions: ['Queue is scoped to the signed-in approver.', 'Printable summary is deferred.'],
-        openQuestions: ['Do delegated approvers see the delegator’s queue as well as their own?'],
+        openQuestions: ['Do delegated approvers see the delegator's queue as well as their own?'],
         screens: [
           {
             id: 'sk-hd-approvals-scoped',
@@ -273,7 +650,7 @@ export const PROJECTS: DesignProject[] = [
           'Nobody failed to submit a plan. Two hit the same wall:',
           '- adding a crew member after submitting means starting over',
           '- the approval status wording is unclear ("in approval" vs "pending")',
-          'One asked to duplicate last month’s trip. Three others nodded.',
+          'One asked to duplicate last month's trip. Three others nodded.',
           'The travel desk wants the pilot extended by two weeks before the next department.',
         ].join('\n'),
         decisions: [
@@ -299,6 +676,7 @@ export const PROJECTS: DesignProject[] = [
   },
   {
     id: 'proj-nonghyup-loan',
+    archived: true,
     name: 'Mobile loan onboarding',
     customer: 'NongHyup',
     owner: 'Moka (PL)',
@@ -408,7 +786,7 @@ export const PROJECTS: DesignProject[] = [
           'Compliance joined for the first time and moved the goalposts, politely.',
           '- identity check must happen before any product comparison is shown',
           '- consent for credit enquiry is a separate, explicit step — not a checkbox in the form',
-          '- every document upload needs a retention notice in the applicant’s language',
+          '- every document upload needs a retention notice in the applicant's language',
           'They were relaxed about the callback button, strict about consent wording.',
           'Legal will send the exact consent text next week; do not invent it.',
         ].join('\n'),
@@ -451,6 +829,7 @@ export const PROJECTS: DesignProject[] = [
   },
   {
     id: 'proj-sk-hynix-trip',
+    archived: true,
     name: 'Trip management proposal',
     customer: 'SK Hynix',
     owner: 'Seongmin Yoo (PM)',
@@ -533,6 +912,7 @@ export const PROJECTS: DesignProject[] = [
   },
   {
     id: 'proj-harim-voucher',
+    archived: true,
     name: 'Regional voucher pilot',
     customer: 'Harim',
     owner: 'Moka (PL)',
@@ -616,6 +996,7 @@ export const PROJECTS: DesignProject[] = [
   },
   {
     id: 'proj-voucher-issuing',
+    archived: true,
     name: 'Voucher issuing pilot',
     customer: 'Local Currency BU',
     owner: 'Moka (PL)',
@@ -667,14 +1048,38 @@ export const PROJECTS: DesignProject[] = [
       },
     ],
   },
-];
+*/
 
 /* ------------------------------------------------------------------ */
 /* Project lookups                                                     */
 /* ------------------------------------------------------------------ */
 
+/**
+ * A project by id, seeded or created.
+ *
+ * Created projects live in storage, so this answers seeds-only during a server
+ * render and finds everything once there is a browser. Callers already handle a
+ * null — a project id that matches nothing is an ordinary 404 here — and every
+ * one of them gets created projects for free by going through this door.
+ */
 export function findProject(projectId: string): DesignProject | null {
-  return PROJECTS.find((entry) => entry.id === projectId) ?? null;
+  const seeded = PROJECTS.find((entry) => entry.id === projectId);
+  if (seeded) return seeded;
+  return loadCreatedProjects().find((entry) => entry.id === projectId) ?? null;
+}
+
+/**
+ * Whether this id is one of the samples that ship with the mockup.
+ *
+ * The seeded projects carry demo content that only makes sense as a
+ * demonstration — QA test cases about a login screen, past test runs, meetings
+ * that were held. A project someone creates here starts with none of it, and
+ * every module holding that kind of seed asks this before handing it over.
+ * Deliberately not "is it in storage": an unknown id is not a sample either,
+ * and answering from the bundle keeps this usable during a server render.
+ */
+export function isSeededProject(projectId: string): boolean {
+  return PROJECTS.some((entry) => entry.id === projectId);
 }
 
 /** Initial shown on the project's card tile. */

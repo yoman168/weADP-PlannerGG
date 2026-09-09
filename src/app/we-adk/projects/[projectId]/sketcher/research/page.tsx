@@ -494,6 +494,9 @@ function ResearchBrowser() {
             folderLabel="research"
             initialTurns={activeChat?.turns ?? []}
             greeting="What do you want to know about this research?"
+            mentionFiles={Object.values(researchFiles)
+              .flat()
+              .map((file) => ({ name: file.name, text: file.text }))}
             onPersist={(turns) =>
               persistChat(chatId, turns, {
                 title: turns.find((t) => t.role === 'user')?.text.slice(0, 60) ?? 'New chat',

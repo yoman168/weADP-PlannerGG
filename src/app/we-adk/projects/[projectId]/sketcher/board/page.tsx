@@ -1,5 +1,6 @@
 'use client';
 
+import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import {
   ArrowLeft,
   CalendarDays,
@@ -33,7 +34,7 @@ import {
 import {
   MockupBoard,
   ZoomControl,
-  businessCanvasHref,
+  businessEditHref,
   type BoardScreen,
   type ZoomId,
 } from '@/components/we-adk/mockup-board';
@@ -113,7 +114,7 @@ function GeneratePanel({
     try {
       const response = await fetch('/api/sketcher/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...claudeHeaders() },
         body: JSON.stringify({
           notes,
           customer,
@@ -219,11 +220,7 @@ function GeneratePanel({
 
         <div className="flex flex-wrap items-center gap-2">
           <Select value={baseId} onValueChange={setBaseId}>
-            <SelectTrigger
-              size="sm"
-              className="w-full"
-              aria-label={t('board.designFromScratch')}
-            >
+            <SelectTrigger size="sm" className="w-full" aria-label={t('board.designFromScratch')}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -549,7 +546,7 @@ function ProjectBoard() {
           // A design file belongs to the workspace, so it opens with the explorer.
           // Everything on this board came out of a meeting, so it is the baseline.
           hrefFor={(screenId) =>
-            businessCanvasHref(project.id, screenId, versionFolderId(BASELINE_VERSION))
+            businessEditHref(project.id, screenId, versionFolderId(BASELINE_VERSION))
           }
           emptyMessage="No designs in this project yet — paste the meeting notes and generate some."
           onDelete={deleteGenerated}

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { Badge, Button, cn } from '@/components/ui';
-import { businessCanvasHref, canvasHref, previewHref } from '@/components/we-adk/mockup-board';
+import { businessEditHref, canvasHref, previewHref } from '@/components/we-adk/mockup-board';
 import { DesignHtmlButton } from '@/components/we-adk/design-html-button';
 import { canPreviewLive } from '@/components/we-adk/live-screen-preview';
 import {
@@ -85,7 +85,7 @@ function Preview() {
     projectId !== null &&
     (opened === null || opened.origin === 'sketch' || opened.origin === 'generated');
   const editHref = inWorkspace
-    ? businessCanvasHref(projectId, screenId)
+    ? businessEditHref(projectId, screenId)
     : canvasHref(screenId, projectId ?? undefined);
 
   return (

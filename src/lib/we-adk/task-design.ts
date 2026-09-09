@@ -206,3 +206,155 @@ export function removeTaskDesign(
   saveTaskDesigns(projectId, taskId, next);
   return next;
 }
+
+/** Where a draft is meant to sit in the target project's IA, once placed. */
+export interface DraftPlacement {
+  /** Depth path of the parent screen, e.g. ['Accountant', 'Approval Queue']. */
+  parentPath: string[];
+  /** Parent screen's name, for showing the relationship without re-deriving it. */
+  parentName: string;
+  screenType: string;
+  platform: string;
+}
+
+/** A staged design, with a line saying where it came from. */
+export interface ProjectDraft extends TaskDesign {
+  /** Shown under the name: the task, or the customer project it came from. */
+  fromLabel: string;
+  /** Set only on drafts generated from a task. */
+  taskId?: string;
+  /** Set only on drafts sent over with an agreed IA placement. */
+  placement?: DraftPlacement;
+}
+
+/**
+ * Drafts that belong to the project rather than to a task.
+ *
+ * A screen moved over from a Customer project has no task behind it, but it is
+ * the same kind of thing — a screen waiting for a decision about which round it
+ * belongs in. It is stored per project rather than being given a fake task.
+ */
+const PROJECT_DRAFTS_KEY = 'we-adk:project-drafts';
+
+function projectDraftsKey(projectId: string): string {
+  return `${PROJECT_DRAFTS_KEY}:${projectId}`;
+}
+
+
+export interface StandaloneDraft extends TaskDesign {
+  fromLabel: string;
+  /**
+   * Agreed before the move, not after: a screen arriving with no idea where it
+   * belongs is the thing that makes a Drafts pile hard to clear.
+   */
+  placement?: DraftPlacement;
+}
+
+export function loadStandaloneDrafts(projectId: string): StandaloneDraft[] {
+  try {
+    const raw = window.localStorage.getItem(projectDraftsKey(projectId));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as StandaloneDraft[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Adds a draft that came from somewhere other than a task. */
+export function addStandaloneDraft(projectId: string, draft: StandaloneDraft): StandaloneDraft[] {
+  const next = [...loadStandaloneDrafts(projectId), draft];
+  try {
+    window.localStorage.setItem(projectDraftsKey(projectId), JSON.stringify(next.slice(-60)));
+  } catch {
+    // Storage full — the draft still exists for this session.
+  }
+  return next;
+}
+
+/**
+ * Records that a draft has gone into a round.
+ *
+ * Marked rather than deleted: the row is the history of where the screen came
+ * from, and `loadProjectDrafts` already skips anything carrying a version, so
+ * a filed draft leaves the pile without losing what it was.
+ */
+export function markStandaloneDraftFiled(
+  projectId: string,
+  screenId: string,
+  version: number,
+  movedAt: string,
+): StandaloneDraft[] {
+  const next = loadStandaloneDrafts(projectId).map((draft) =>
+    draft.screenId === screenId ? { ...draft, version, movedAt } : draft,
+  );
+  try {
+    window.localStorage.setItem(projectDraftsKey(projectId), JSON.stringify(next));
+  } catch {
+    // Storage full — the move is correct for this session either way.
+  }
+  return next;
+}
+
+/** The same, for a draft that was generated from a task. */
+export function markTaskDesignFiled(
+  projectId: string,
+  taskId: string,
+  screenId: string,
+  version: number,
+  movedAt: string,
+): TaskDesign[] {
+  const next = loadTaskDesigns(projectId, taskId).map((design) =>
+    design.screenId === screenId ? { ...design, version, movedAt } : design,
+  );
+  saveTaskDesigns(projectId, taskId, next);
+  return next;
+}
+
+export function removeStandaloneDraft(projectId: string, screenId: string): StandaloneDraft[] {
+  const next = loadStandaloneDrafts(projectId).filter((draft) => draft.screenId !== screenId);
+  try {
+    window.localStorage.setItem(projectDraftsKey(projectId), JSON.stringify(next));
+  } catch {
+    // Nothing to do — the list is correct for this session either way.
+  }
+  return next;
+}
+
+/**
+ * Every design generated from a task in this project — what the Request tab
+ * shows.
+ *
+ * Designs are stored per task, which is right for the task pane but means
+ * nobody can see the project's whole pile of unplaced work. This gathers them,
+ * newest first, and keeps the task each came from attached: a request with no
+ * idea what it was for cannot be judged.
+ *
+ * A design that has been handed to someone is no longer waiting here — it is in
+ * their workspace, and reaching Main is their decision from there.
+ *
+ * `includeFiled` keeps the ones already moved into a round. The tab wants them:
+ * a row that vanishes the moment you move it leaves you wondering whether the
+ * click worked, where a row that stays and goes quiet says plainly that it did.
+ */
+export function loadProjectDrafts(
+  projectId: string,
+  tasks: { id: string; code: string; title: string }[],
+  options?: { includeFiled?: boolean },
+): ProjectDraft[] {
+  const keep = (design: TaskDesign) => options?.includeFiled || design.version === undefined;
+  const drafts: ProjectDraft[] = [];
+  for (const task of tasks) {
+    for (const design of loadTaskDesigns(projectId, task.id)) {
+      if (design.handedTo || !keep(design)) continue;
+      drafts.push({ ...design, taskId: task.id, fromLabel: `[${task.code}] ${task.title}` });
+    }
+  }
+  // Screens moved in from a Customer project sit alongside them — same waiting
+  // room, different door.
+  for (const draft of loadStandaloneDrafts(projectId)) {
+    if (!keep(draft)) continue;
+    drafts.push(draft);
+  }
+  return drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}

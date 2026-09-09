@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown, Download, Plus, RotateCcw, Search, X } from 'lucide-react';
+import Link from 'next/link';
 import { Fragment, useState } from 'react';
 import { Badge, Button, Card, Input, cn } from '@/components/ui';
 import {
@@ -168,7 +169,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Personal Expense',
-  subtitle: 'Personal Expense > Personal Expense',
+  subtitle: 'eACC Cloud > Expense Management > Personal Expense',
 };
 
 const TABLE_DEFAULTS = {
@@ -241,9 +242,11 @@ export default function PersonalExpensePage() {
               <Download className="size-3.5" />
               Export
             </Button>
-            <Button size="sm" className="gap-1.5">
-              <Plus className="size-3.5" />
-              New Expense
+            <Button size="sm" className="gap-1.5" asChild>
+              <Link href="/eacc/personal-expense/new">
+                <Plus className="size-3.5" />
+                New Expense
+              </Link>
             </Button>
           </div>
         </div>

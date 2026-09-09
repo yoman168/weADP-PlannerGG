@@ -1,6 +1,7 @@
 'use client';
 
 import { BookOpen, Lock, Mail } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Button, Card, Input, Label, Separator } from '@/components/ui';
 import { EditableSection, filterOn, useSectionConfig } from '@/components/eacc/editable-section';
@@ -117,7 +118,9 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Button className="w-full">Sign in</Button>
+            <Button asChild className="w-full">
+              <Link href="/eacc/dashboard">Sign in</Link>
+            </Button>
 
             {filterOn(form, 'sso') && (
               <>

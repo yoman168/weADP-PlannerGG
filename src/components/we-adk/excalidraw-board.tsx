@@ -269,6 +269,8 @@ export function ExcalidrawBoard({
               scrollToContent: true,
             }}
             onChange={(elements, _appState, files) => persist(elements, files)}
+            UIOptions={{ tools: { image: false }, canvasActions: { export: false } }}
+            libraryReturnUrl=""
           />
         </div>
 

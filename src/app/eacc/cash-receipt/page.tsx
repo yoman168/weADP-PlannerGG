@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown, Download, Plus, Search, X } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Badge, Button, Card, Input, cn } from '@/components/ui';
 import {
@@ -169,7 +170,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Cash Receipt',
-  subtitle: 'Cash Receipt > Cash Receipt',
+  subtitle: 'eACC Cloud > Tax & Receipts > Cash Receipt',
 };
 
 const FILTERS_DEFAULTS = {
@@ -250,9 +251,11 @@ export default function CashReceiptPage() {
               <Download className="size-3.5" />
               Export
             </Button>
-            <Button size="sm" className="gap-1.5">
-              <Plus className="size-3.5" />
-              New Receipt
+            <Button size="sm" className="gap-1.5" asChild>
+              <Link href="/eacc/cash-receipt/new">
+                <Plus className="size-3.5" />
+                New Receipt
+              </Link>
             </Button>
           </div>
         </div>

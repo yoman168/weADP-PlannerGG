@@ -66,7 +66,11 @@ export type MergeBlocker = 'locked' | 'empty' | null;
 
 /** The member's canvas for a screen — the blocks the merge actually carries. */
 function blocksOf(screen: SketchScreen): CanvasBlock[] {
-  return loadScreenBlocks(screen.id, screen.seedPattern, () =>
+  // Only copy blocks that actually exist — saved canvas data or prototype
+  // design blocks. Pass empty seed pattern so a file with no saved data
+  // stays empty in the member's workspace rather than getting auto-generated
+  // seed blocks.
+  return loadScreenBlocks(screen.id, '', () =>
     isPrototypeFile(screen.id) ? prototypeDesignBlocks(screen.id) : null,
   );
 }
@@ -109,6 +113,11 @@ export function forkScreenForMember(screen: SketchScreen, memberId: string): Ske
     // Canvas won't persist; the copy still opens on the screen's own design.
   }
   copyScreenConfig(screen.id, id);
+  // Copy the design HTML so the member sees the latest UI, not the auto-generated wireframe.
+  try {
+    const html = window.localStorage.getItem(`we-adk:design-html:${screen.id}`);
+    if (html) window.localStorage.setItem(`we-adk:design-html:${id}`, html);
+  } catch { /* storage full */ }
   return { ...screen, id };
 }
 

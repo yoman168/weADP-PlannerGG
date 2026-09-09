@@ -1,5 +1,7 @@
 allowBuilds:
+  esbuild: set this to true or false
   sharp: set this to true or false
+  workerd: set this to true or false
 # Single-package repo. pnpm 11 reads its settings from here.
 #
 # sharp is Next's optional image optimiser and its install script is skipped;

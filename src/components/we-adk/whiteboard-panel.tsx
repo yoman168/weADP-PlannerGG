@@ -190,6 +190,7 @@ export function WhiteboardPanel({
   uploadedBy,
   onSaved,
   className,
+  whiteboardOnly,
 }: {
   /** The same key the reference files use, so boards attach to this task. */
   sessionId: string;
@@ -199,6 +200,8 @@ export function WhiteboardPanel({
   /** Optional: the task page no longer needs this, since the cards live here. */
   onSaved?: () => void;
   className?: string;
+  /** Skip the mode picker and go straight to the whiteboard. */
+  whiteboardOnly?: boolean;
 }) {
   const [mode, setMode] = useState<BoardMode | null>(null);
   const [picking, setPicking] = useState(false);
@@ -321,15 +324,12 @@ export function WhiteboardPanel({
     <div className={cn('flex flex-col gap-2', className)}>
       <div className="flex flex-wrap items-center gap-2">
         <Presentation className="size-4" />
-        {/* Named for both halves. It was "Whiteboard" when drawing by hand was all
-            it did, which left the diagram side looking like it belonged to
-            something else. */}
-        <p className="text-sm font-semibold">Whiteboard &amp; diagrams</p>
+        <p className="text-sm font-semibold">Whiteboard</p>
         <Button
           variant="outline"
           size="sm"
           className="ml-auto h-7 gap-1 px-2 text-xs"
-          onClick={() => setPicking(true)}
+          onClick={() => whiteboardOnly ? setMode('whiteboard') : setPicking(true)}
         >
           <Paintbrush className="size-3" />
           {/* "Draw" was wrong for a section that also writes diagrams. */}

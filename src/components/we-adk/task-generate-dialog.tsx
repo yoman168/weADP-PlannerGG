@@ -21,8 +21,9 @@ import {
   cn,
 } from '@/components/ui';
 import { useLocale } from '@/lib/locale';
+import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import { DesignThumbnail } from '@/components/we-adk/design-thumbnail';
-import { businessCanvasHref, businessPreviewHref } from '@/components/we-adk/mockup-board';
+import { businessEditHref, businessPreviewHref } from '@/components/we-adk/mockup-board';
 import { MemberTargetSelect, useMemberTargets } from '@/components/we-adk/member-target-select';
 import {
   designHtmlFileName,
@@ -45,7 +46,10 @@ import { giveScreenToMember } from '@/lib/we-adk/user-workspace';
 import { loadScreenBlocks } from '@/lib/we-adk-mock/sketcher';
 import { materialiseGeneratedScreens, type SketchScreen } from '@/lib/we-adk-mock/sketches';
 import { type ProjectTask } from '@/lib/we-adk-mock/tasks';
+import { type TaskComment } from '@/lib/we-adk-mock/task-comments';
+import { type ChatTurn } from '@/components/we-adk/claude-chat';
 import { versionFolderId } from '@/lib/we-adk-mock/versions';
+import { existingScreensContext } from '@/lib/we-adk/round-screens';
 
 /**
  * Generates the screens for one task.
@@ -60,6 +64,8 @@ export function TaskGenerateDialog({
   project,
   task,
   files,
+  chatTurns = [],
+  comments = [],
   onClose,
   onCreated,
   onMoved,
@@ -68,6 +74,10 @@ export function TaskGenerateDialog({
   project: DesignProject;
   task: ProjectTask;
   files: MeetingFile[];
+  /** AI Chat conversation turns — ideas and requirements discussed in the chat. */
+  chatTurns?: ChatTurn[];
+  /** Task thread comments — discussion, decisions, and activity on this task. */
+  comments?: TaskComment[];
   onClose: () => void;
   onCreated: (designs: TaskDesign[]) => void;
   /** A sample went into a version — the task pane relists and logs it. */
@@ -98,7 +108,52 @@ export function TaskGenerateDialog({
   } = useMemberTargets(project.id, task.assignee, moveRefresh);
 
   const references = taskReferences(files);
-  const brief = taskBrief(project, task, useFiles ? files : []);
+  const baseBrief = taskBrief(project, task, useFiles ? files : []);
+
+  /**
+   * What Main already holds. Read on open rather than at mount, so a screen
+   * generated a minute ago is in the list the next generation reasons about.
+   */
+  const [existingScreens, setExistingScreens] = useState('');
+  useEffect(() => {
+    if (!open) return;
+    setExistingScreens(existingScreensContext(project.id));
+  }, [open, project.id]);
+
+  // Append the AI Chat discussion and task comments so the generator uses
+  // ideas, requirements, and decisions the team discussed on this task.
+  const brief = (() => {
+    const parts = [baseBrief];
+
+    // The product as it stands — checked before the discussion, so a screen
+    // that already exists is extended rather than proposed a second time.
+    if (existingScreens) parts.push(existingScreens);
+
+    // Chat turns — the AI conversation about this task's scope and ideas.
+    const meaningful = chatTurns.filter((turn) => turn.text && !turn.error);
+    if (meaningful.length > 0) {
+      parts.push(
+        '',
+        'AI Chat discussion on this task (use these ideas and requirements for the screens):',
+      );
+      for (const turn of meaningful.slice(-20)) {
+        parts.push(`${turn.role === 'user' ? 'User' : 'Assistant'}: ${turn.text.slice(0, 800)}`);
+      }
+    }
+
+    // Thread comments — human discussion, decisions, and pinned notes.
+    const userComments = comments.filter(
+      (c) => c.kind === 'comment' || (c.kind === 'system' && c.pinned),
+    );
+    if (userComments.length > 0) {
+      parts.push('', 'Task thread (decisions and notes from the team):');
+      for (const c of userComments.slice(-10)) {
+        parts.push(`${c.author}: ${c.text.slice(0, 400)}`);
+      }
+    }
+
+    return parts.join('\n').slice(0, 11_800);
+  })();
 
   useEffect(() => {
     if (!open) return;
@@ -125,7 +180,7 @@ export function TaskGenerateDialog({
     try {
       const response = await fetch('/api/sketcher/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...claudeHeaders() },
         body: JSON.stringify({
           notes: brief,
           customer: project.customer,
@@ -242,8 +297,8 @@ export function TaskGenerateDialog({
           </DialogTitle>
           <DialogDescription>
             Everything on [{task.code}] goes to Claude Code — title, description, category, tags,
-            status, priority and the attached files. What comes back lands in this project&rsquo;s
-            working version as an editable canvas and an html page.
+            status, priority, attached files, and the AI Chat discussion. What comes back lands in
+            this project&rsquo;s working version as an editable canvas and an html page.
           </DialogDescription>
         </DialogHeader>
 
@@ -268,6 +323,16 @@ export function TaskGenerateDialog({
                 {files.length} file{files.length === 1 ? '' : 's'}
                 {references.read > 0 ? ` · text from ${references.read}` : ''}
               </Badge>
+              {chatTurns.filter((t) => !t.error).length > 0 && (
+                <Badge variant="info" className="text-[10px]">
+                  {chatTurns.filter((t) => !t.error).length} chat turns
+                </Badge>
+              )}
+              {comments.filter((c) => c.kind === 'comment').length > 0 && (
+                <Badge variant="info" className="text-[10px]">
+                  {comments.filter((c) => c.kind === 'comment').length} comments
+                </Badge>
+              )}
               {(task.tags ?? []).map((tag) => (
                 <Badge key={tag} variant="outline" className="text-[10px]">
                   {tag}
@@ -383,7 +448,7 @@ export function TaskGenerateDialog({
                               className="h-7 gap-1 px-2 text-xs"
                               onClick={() =>
                                 openIn(
-                                  businessCanvasHref(project.id, screen.id, versionFolderId(moved)),
+                                  businessEditHref(project.id, screen.id, versionFolderId(moved)),
                                 )
                               }
                             >

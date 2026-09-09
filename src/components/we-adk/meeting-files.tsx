@@ -299,9 +299,7 @@ export function MeetingFilePanel({
         </div>
 
         {files.length === 0 ? (
-          <p className="text-muted-foreground text-xs">
-            {t('files.noAttached')}
-          </p>
+          <p className="text-muted-foreground text-xs">{t('files.noAttached')}</p>
         ) : (
           <div className="flex flex-col divide-y">
             {files.map((file) => (

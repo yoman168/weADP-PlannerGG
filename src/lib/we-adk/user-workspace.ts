@@ -67,6 +67,20 @@ export const PROJECT_TEAMS: Record<string, TeamMember[]> = {
       department: 'Engineering',
     },
     { id: 'tm-3', name: 'Moka', role: 'Designer', email: 'moka@kosign.com', department: 'Design' },
+    {
+      id: 'tm-11',
+      name: 'Chheng Udam',
+      role: 'Developer',
+      email: 'chhengudam@kosign.com.kh',
+      department: 'Engineering',
+    },
+    {
+      id: 'tm-12',
+      name: 'Seongmin Yoo',
+      role: 'QA',
+      email: 'seongmin@kosign.com',
+      department: 'Product',
+    },
   ],
   'proj-hd-trip': [
     {
@@ -209,15 +223,49 @@ export function initUserScreens(
   version: number,
 ): SketchScreen[] {
   const existing = loadUserScreens(projectId, userId, version);
-  const source = existing ?? versionScreens(projectId, version);
-  const shared = source.filter((screen) => readPrototypeId(screen.id).member === null);
-  if (existing !== null && shared.length === 0) return existing;
+  const mainScreens = versionScreens(projectId, version);
 
-  const forked = source.map((screen) =>
+  if (existing === null) {
+    // First time — fork everything from Main.
+    const forked = mainScreens.map((screen) => forkScreenForMember(screen, userId));
+    saveUserScreens(projectId, userId, version, forked);
+    return forked;
+  }
+
+  // Re-fork any screens that are still shared (legacy data).
+  let updated = existing.map((screen) =>
     readPrototypeId(screen.id).member === null ? forkScreenForMember(screen, userId) : screen,
   );
-  saveUserScreens(projectId, userId, version, forked);
-  return forked;
+
+  // Sync: pick up new screens added to Main since the member last initialised.
+  const memberNames = new Set(updated.map((s) => s.name));
+  const newFromMain = mainScreens.filter((s) => !memberNames.has(s.name));
+  if (newFromMain.length > 0) {
+    updated = [...updated, ...newFromMain.map((s) => forkScreenForMember(s, userId))];
+  }
+
+  // Sync HTML: if Main has design HTML that the member's fork is missing, copy it.
+  // This ensures the member sees the latest UI from Main, not auto-generated wireframes.
+  const mainById = new Map(mainScreens.map((s) => [s.name, s]));
+  for (const screen of updated) {
+    const mainScreen = mainById.get(screen.name);
+    if (!mainScreen) continue;
+    const memberHtmlKey = `we-adk:design-html:${screen.id}`;
+    const mainHtmlKey = `we-adk:design-html:${mainScreen.id}`;
+    try {
+      const memberHtml = window.localStorage.getItem(memberHtmlKey);
+      if (!memberHtml) {
+        const mainHtml = window.localStorage.getItem(mainHtmlKey);
+        if (mainHtml) window.localStorage.setItem(memberHtmlKey, mainHtml);
+      }
+    } catch { /* storage full */ }
+  }
+
+  const hadShared = existing.some((s) => readPrototypeId(s.id).member === null);
+  if (hadShared || newFromMain.length > 0) {
+    saveUserScreens(projectId, userId, version, updated);
+  }
+  return updated;
 }
 
 /** Moves a screen to a new position in the user's list. */

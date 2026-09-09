@@ -4,11 +4,14 @@ import {
   ClipboardList,
   Code2,
   Eye,
+  FileCode2,
   FileText,
+  Hammer,
   Filter,
   FolderInput,
+  ListTree,
+  MessageSquare,
   Pencil,
-  Pin,
   Plus,
   Sparkles,
   SquareTerminal,
@@ -17,10 +20,14 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   Select,
   SelectContent,
   SelectItem,
@@ -30,19 +37,23 @@ import {
 } from '@/components/ui';
 import { useLocale } from '@/lib/locale';
 import { ChatPane, type ChatTurn } from '@/components/we-adk/claude-chat';
+import { prdForTask, screenForTask, PRD_TASK_TAGS, PRD_DOCUMENTS } from '@/lib/we-adk-mock/ia';
+import { updateTask as persistTask } from '@/lib/we-adk-mock/tasks';
+import { PROTOTYPE_FILES } from '@/lib/we-adk/prototype';
 import { MeetingFilePanel } from '@/components/we-adk/meeting-files';
 import { WhiteboardPanel } from '@/components/we-adk/whiteboard-panel';
 import {
-  businessCanvasHref,
+  businessEditHref,
   businessPreviewHref,
   previewHref,
 } from '@/components/we-adk/mockup-board';
 import { DesignThumbnail } from '@/components/we-adk/design-thumbnail';
+import { MemberPicker } from '@/components/we-adk/member-picker';
 import { MemberTargetSelect, useMemberTargets } from '@/components/we-adk/member-target-select';
 import { StatusChip } from '@/components/we-adk/status-chip';
 import { TaskCommentThread } from '@/components/we-adk/task-comments';
-import { ALL_STATUSES, TaskFormDialog } from '@/components/we-adk/task-form-dialog';
 import { TaskGenerateDialog } from '@/components/we-adk/task-generate-dialog';
+import { taskRound } from '@/components/we-adk/version-rail';
 import {
   designHtmlFileName,
   designToHtml,
@@ -57,6 +68,8 @@ import {
   taskStageKey,
   type TaskDesign,
 } from '@/lib/we-adk/task-design';
+import { hasBuild, loadBuildSession } from '@/lib/we-adk-mock/build';
+import { STAGE_LABELS } from '@/lib/we-adk/build-types';
 import { loadUploadedFiles, type MeetingFile } from '@/lib/we-adk-mock/meeting-files';
 import { loadScreenBlocks } from '@/lib/we-adk-mock/sketcher';
 import { loadGeneratedScreens } from '@/lib/we-adk-mock/sketches';
@@ -67,21 +80,37 @@ import {
   logTaskEvent,
   type TaskComment,
 } from '@/lib/we-adk-mock/task-comments';
-import { findVersionScreen, versionFolderId } from '@/lib/we-adk-mock/versions';
+import {
+  findVersionScreen,
+  isVersionLocked,
+  loadVersionStatuses,
+  versionFolderId,
+  type VersionStatuses,
+} from '@/lib/we-adk-mock/versions';
 import {
   applyTaskStatusOverrides,
   createTask,
   deleteTask,
   isUserTask,
   loadTaskStatusOverrides,
+  loadTaskAssignmentOverrides,
+  loadTaskVersionOverrides,
+  loadTestedByOverrides,
+  needsHumanTester,
   loadUserTasks,
+  projectRounds,
   projectTasks,
   setTaskStatusOverride,
+  setTaskAssignmentOverride,
+  setTaskVersionOverride,
+  setTestedByOverride,
   taskStatusChip,
   updateTask,
+  TESTED_BY_OPTIONS,
   type ProjectTask,
   type TaskStatus,
   type TaskStatusOverrides,
+  type TestedBy,
 } from '@/lib/we-adk-mock/tasks';
 import { findProject, type DesignProject } from '@/lib/we-adk-mock/projects';
 import { giveScreenToMember } from '@/lib/we-adk/user-workspace';
@@ -127,6 +156,64 @@ function saveTaskTurns(projectId: string, taskId: string, turns: ChatTurn[]): vo
 /* Task detail panel                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Two letters for the byline avatar — CJK names carry in one character. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+}
+
+/**
+ * A property control, quiet until pointed at.
+ *
+ * The fields are settings to nudge, not a form to fill — so the value reads
+ * as text, and the border only appears when the pointer says "this one".
+ */
+const GHOST_TRIGGER =
+  'h-7 w-fit max-w-full gap-1 border-none bg-transparent px-2 text-xs font-medium shadow-none ' +
+  'hover:bg-muted/60 data-[state=open]:bg-muted/60 dark:hover:bg-muted/60';
+
+/** One row of the properties grid: a muted label, then its control. */
+function Property({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn('flex min-w-0 items-start gap-2', className)}>
+      <span className="text-muted-foreground w-24 shrink-0 text-xs leading-7">{label}</span>
+      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+    </div>
+  );
+}
+
+/** Every section carries the same header, so the page reads as one rhythm. */
+function SectionHeader({
+  icon: Icon,
+  title,
+  count,
+  children,
+}: {
+  icon: typeof FileCode2;
+  title: string;
+  count?: number;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Icon className="size-4" />
+      <p className="text-sm font-semibold">{title}</p>
+      {count !== undefined && <span className="text-muted-foreground text-xs">{count}</span>}
+      {children}
+    </div>
+  );
+}
+
 function taskChatContext(
   project: DesignProject,
   task: ProjectTask,
@@ -143,6 +230,9 @@ function taskChatContext(
     `Updated: ${task.updatedAt}`,
   ];
   if (task.category) parts.push(`Category: ${task.category}`);
+  if (task.testedBy) parts.push(`Tested by: ${task.testedBy}`);
+  if (task.tester) parts.push(`Human tester: ${task.tester}`);
+  parts.push(task.version ? `Round: version ${task.version}` : 'Round: unscheduled');
   if (task.description) parts.push('', 'Description:', task.description);
   if (task.tags?.length) parts.push('', `Tags: ${task.tags.join(', ')}`);
   if (files.length > 0) {
@@ -187,6 +277,9 @@ export function TaskDetail({
   onEdit,
   onDelete,
   onStatusChange,
+  onSendToBuild,
+  canGenerate = true,
+  showChat = true,
 }: {
   project: DesignProject;
   task: ProjectTask;
@@ -194,6 +287,19 @@ export function TaskDetail({
   onEdit: () => void;
   onDelete: () => void;
   onStatusChange: (status: TaskStatus) => void;
+  /**
+   * Open the build for this task. Absent where there is nowhere to go, so the
+   * button is never offered as a dead end — and offered only when a build
+   * actually exists, which is checked below rather than assumed.
+   */
+  onSendToBuild?: () => void;
+  /**
+   * Offer "Generate UI". Business raises the screens a task needs; Developer
+   * builds against screens that already exist, so the button is off there.
+   */
+  canGenerate?: boolean;
+  /** Show the Claude AI chat pane on the right. */
+  showChat?: boolean;
 }) {
   const { t } = useLocale();
   const [savedTurns, setSavedTurns] = useState<ChatTurn[]>([]);
@@ -201,6 +307,33 @@ export function TaskDetail({
   const [designs, setDesigns] = useState<TaskDesign[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(true);
+  const [iaDialogOpen, setIaDialogOpen] = useState(false);
+  const currentPrd = prdForTask(task);
+  /**
+   * What the build did, as thread entries.
+   *
+   * The build's steps and the conversation about the task are the same story
+   * told in two places; merging them means the thread answers "what happened
+   * to this task" without a second panel to go and read.
+   */
+  const [buildActivity, setBuildActivity] = useState<TaskComment[]>([]);
+  /**
+   * Whether a build exists for this task at all.
+   *
+   * Read after mount — the seeds live in localStorage — and false by default, so
+   * the first paint offers no control it might have to take away.
+   */
+  const [buildExists, setBuildExists] = useState(false);
+  const [testedBy, setTestedBy] = useState<TestedBy>(task.testedBy ?? 'Not tested');
+  const [assignee, setAssignee] = useState<string | undefined>(task.assignee);
+  const [tester, setTester] = useState<string | undefined>(task.tester);
+  const [version, setVersion] = useState<number | null>(task.version ?? null);
+  /** The rounds Business has, with which of them have shipped. */
+  const [rounds, setRounds] = useState<{ list: number[]; statuses: VersionStatuses }>({
+    list: [],
+    statuses: {},
+  });
   const [moveRefresh, setMoveRefresh] = useState(0);
   /** Designs whose file was deleted with its version — links would go nowhere. */
   const [goneDesigns, setGoneDesigns] = useState<string[]>([]);
@@ -225,6 +358,39 @@ export function TaskDetail({
     setFiles(loadUploadedFiles(filesKey));
     setDesigns(loadTaskDesigns(project.id, task.id));
     setComments(loadTaskComments(project.id, task));
+    setBuildExists(hasBuild(task.id));
+    const session = loadBuildSession(task.id);
+    const today = new Date().toISOString().slice(0, 10);
+    setBuildActivity(
+      session.activities
+        // Steps that have not run have no time and nothing to report yet.
+        .filter((entry) => entry.at !== '—')
+        .map((entry) => ({
+          id: `build-${entry.id}`,
+          kind: 'system' as const,
+          author: session.builder,
+          at: `${today}T${entry.at.slice(0, 5)}`,
+          text: [
+            `${STAGE_LABELS[entry.stage]} · ${entry.title}`,
+            entry.detail ?? '',
+            entry.status === 'complete' ? '' : `(${entry.status})`,
+          ]
+            .filter(Boolean)
+            .join(' — '),
+        })),
+    );
+    // The stored choice wins over the seeded one, and switching tasks must not
+    // leave the previous task's answer on screen.
+    setTestedBy(loadTestedByOverrides(project.id)[task.id] ?? task.testedBy ?? 'Not tested');
+    const assignment = loadTaskAssignmentOverrides(project.id)[task.id];
+    setAssignee(assignment?.assignee ?? task.assignee);
+    setTester(assignment?.tester === undefined ? task.tester : assignment.tester || undefined);
+    const versionOverrides = loadTaskVersionOverrides(project.id);
+    setVersion(task.id in versionOverrides ? versionOverrides[task.id]! : (task.version ?? null));
+    setRounds({
+      list: projectRounds(project.id),
+      statuses: loadVersionStatuses(project.id),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id, task.id, filesKey, task.updatedAt]);
 
@@ -316,22 +482,53 @@ export function TaskDetail({
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-      {/* One row: task header left, chat header right */}
-      <div className="bg-background flex shrink-0 border-b">
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2.5">
-          <span className="bg-primary/80 size-2.5 shrink-0 rounded-sm" aria-hidden />
-          <p className="min-w-0 flex-1 truncate text-sm font-medium">
-            [{task.code}] {task.title}
-          </p>
+      {/* Content left, chat right */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Task column */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {/* Task header */}
+          <div className="bg-background flex shrink-0 items-center gap-2 border-b px-4 py-2.5">
+            <span className="bg-primary/80 size-2.5 shrink-0 rounded-sm" aria-hidden />
+            <p className="min-w-0 flex-1 truncate text-sm font-medium">
+              [{task.code}] {task.title}
+            </p>
+          {/* A task and its build are two things. Most tasks have no build: a
+              feature build is raised by completing a round, a fix build by
+              reporting something broken. So this opens a build that exists
+              rather than pretending to make one, and it is absent when there is
+              none — sending a task "to Build" only landed the reader on a
+              different build, or on the empty state. */}
+          {onSendToBuild && buildExists && (
+            <Button
+              size="sm"
+              className="h-7 shrink-0 gap-1 px-2 text-xs"
+              onClick={onSendToBuild}
+              title={`Open the build for ${task.code}`}
+            >
+              <Hammer className="size-3" />
+              Open build
+            </Button>
+          )}
+          {canGenerate && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 shrink-0 gap-1 px-2 text-xs"
+              onClick={() => setGenerateOpen(true)}
+              title={t('taskPage.generateDesign')}
+            >
+              <Sparkles className="size-3" />
+              Generate UI
+            </Button>
+          )}
           <Button
             size="sm"
-            variant="outline"
+            variant={currentPrd ? 'secondary' : 'outline'}
             className="h-7 shrink-0 gap-1 px-2 text-xs"
-            onClick={() => setGenerateOpen(true)}
-            title={t('taskPage.generateDesign')}
+            onClick={() => setIaDialogOpen(true)}
           >
-            <Sparkles className="size-3" />
-            Generate UI
+            <ListTree className="size-3" />
+            {currentPrd ? currentPrd.id : 'Move to IA'}
           </Button>
           <button
             type="button"
@@ -359,139 +556,208 @@ export function TaskDetail({
           >
             <X className="size-4" />
           </button>
-        </div>
 
-        <div className="flex w-[26rem] shrink-0 items-center gap-2 border-l px-3 py-2.5">
-          <SquareTerminal className="text-primary size-4 shrink-0" />
-          <span className="text-sm font-semibold">Claude Code</span>
-          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-            [{task.code}] {task.title}
-          </span>
-          <Badge variant="outline" className="shrink-0 text-[10px]">
-            local CLI
-          </Badge>
-        </div>
-      </div>
+          </div>
 
-      {/* Content left, chat right */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Task content */}
-        <div className="bg-background min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-5xl pb-6">
-            {/* Header */}
-            <div className="flex items-start gap-3 px-4 pt-4">
-              <span
-                aria-hidden
-                className="bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400 flex size-9 shrink-0 items-center justify-center rounded-full"
-              >
-                <Pin className="size-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{task.assignee}</p>
-                <p className="text-muted-foreground text-[11px]">Updated {task.updatedAt}</p>
+          {/* Task content */}
+          <div className="bg-background min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-5xl px-6 pb-8">
+            {/* Hero — the title leads, because it is what the page is about.
+                The chips above it answer "where is this?" in one glance, and
+                the byline below answers "whose, and how fresh?". */}
+            <div className="pt-6">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 font-mono text-[11px] font-medium">
+                  {task.code}
+                </span>
+                <StatusChip {...chip} />
+                <Badge variant="outline" className="text-[10px]">
+                  {task.priority === 1 ? 'High' : task.priority === 2 ? 'Medium' : 'Low'} priority
+                </Badge>
+                {task.category && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {task.category}
+                  </Badge>
+                )}
               </div>
-              <StatusChip {...chip} />
-            </div>
 
-            {/* Title */}
-            <div className="flex items-start justify-between gap-2 px-4 pt-4">
-              <h2 className="text-lg font-semibold">
-                [{task.code}] {task.title}
+              <h2 className="mt-2.5 text-xl leading-snug font-semibold tracking-tight">
+                {task.title}
                 {task.count != null && (
-                  <span className="text-muted-foreground ml-1 font-normal">({task.count})</span>
+                  <span className="text-muted-foreground ml-1.5 font-normal">({task.count})</span>
                 )}
               </h2>
-              <Badge variant="outline" className="mt-1 shrink-0 font-mono text-[10px]">
-                P{task.priority}
-              </Badge>
+
+              <div className="text-muted-foreground mt-2.5 flex items-center gap-2 text-xs">
+                <span
+                  aria-hidden
+                  className="bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300 flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+                >
+                  {initialsOf(assignee ?? task.assignee)}
+                </span>
+                <span className="text-foreground font-medium">{assignee ?? task.assignee}</span>
+                <span aria-hidden>·</span>
+                <span>Updated {task.updatedAt}</span>
+              </div>
             </div>
 
-            {/* Meta fields */}
-            <dl className="flex flex-col gap-2.5 px-4 pt-4 text-sm">
-              <div className="flex items-center gap-4">
-                <dt className="text-muted-foreground w-20 shrink-0 text-xs">Status</dt>
-                <dd>
-                  <Select
-                    value={task.status}
-                    onValueChange={(v) => {
-                      const next = v as TaskStatus;
-                      if (next === task.status) return;
-                      // The thread is the record of what happened to the task.
-                      setComments(
-                        logTaskEvent(
-                          project.id,
-                          task,
-                          `'${task.status}' → '${next}' Status has been updated.`,
-                        ),
-                      );
-                      onStatusChange(next);
-                    }}
-                  >
-                    <SelectTrigger size="sm" className="h-6 w-28 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ALL_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
+            {/* The task's handles — who has it, where it goes, how it is
+                verified. A quiet grid between two hairlines rather than a
+                boxed form: these are settings to nudge, and a page of large
+                bordered fields made the record read like data entry. */}
+            <div className="border-border/70 mt-5 grid gap-x-10 gap-y-1 border-y py-3 sm:grid-cols-2">
+              <Property label="Assignee">
+                <MemberPicker
+                  projectId={project.id}
+                  value={assignee}
+                  className={GHOST_TRIGGER}
+                  onChange={(next) => {
+                    setAssignee(next);
+                    setTaskAssignmentOverride(project.id, task.id, { assignee: next ?? '' });
+                  }}
+                />
+              </Property>
+
+              {/* A shipped round takes no new work, so it is offered as a
+                  label rather than a destination. A task with no round of its
+                  own reads as the one being worked on — the same round the
+                  board files it under, rather than a blank field. */}
+              <Property label="Version">
+                <Select
+                  value={String(
+                    taskRound(
+                      { ...task, version: version ?? undefined },
+                      rounds.list,
+                      rounds.statuses,
+                    ) ?? '',
+                  )}
+                  onValueChange={(next) => {
+                    const parsed = Number(next);
+                    setVersion(parsed);
+                    setTaskVersionOverride(project.id, task.id, parsed);
+                  }}
+                >
+                  <SelectTrigger size="sm" className={GHOST_TRIGGER}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rounds.list.map((entry) => {
+                      const locked = isVersionLocked(entry, rounds.statuses);
+                      return (
+                        <SelectItem
+                          key={entry}
+                          value={String(entry)}
+                          disabled={locked && entry !== version}
+                        >
+                          Version {entry}
+                          {locked ? ' · Released' : ''}
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </dd>
-              </div>
-              <div className="flex items-center gap-4">
-                <dt className="text-muted-foreground w-20 shrink-0 text-xs">Priority</dt>
-                <dd className="text-xs">
-                  {task.priority === 1 ? 'High' : task.priority === 2 ? 'Medium' : 'Low'}
-                </dd>
-              </div>
-              <div className="flex items-center gap-4">
-                <dt className="text-muted-foreground w-20 shrink-0 text-xs">Assignee</dt>
-                <dd className="text-xs">{task.assignee}</dd>
-              </div>
-              {task.category && (
-                <div className="flex items-center gap-4">
-                  <dt className="text-muted-foreground w-20 shrink-0 text-xs">Category</dt>
-                  <dd>
-                    <Badge variant="outline" className="text-[10px]">
-                      {task.category}
-                    </Badge>
-                  </dd>
-                </div>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </Property>
+
+              {/* Changeable here rather than only in the edit form: who
+                  verifies the work is a decision that moves with it. */}
+              <Property label="Tested by">
+                <Select
+                  value={testedBy}
+                  onValueChange={(next) => {
+                    setTestedBy(next as TestedBy);
+                    setTestedByOverride(project.id, task.id, next as TestedBy);
+                  }}
+                >
+                  <SelectTrigger size="sm" className={GHOST_TRIGGER}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TESTED_BY_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Property>
+
+              {/* Only asked when a human is part of the verification — the
+                  question is meaningless for an AI-only check. */}
+              {needsHumanTester(testedBy) && (
+                <Property label="Tester">
+                  <MemberPicker
+                    projectId={project.id}
+                    value={tester}
+                    showRoles
+                    placeholder="Nobody yet"
+                    className={GHOST_TRIGGER}
+                    onChange={(next) => {
+                      setTester(next);
+                      setTaskAssignmentOverride(project.id, task.id, { tester: next ?? '' });
+                    }}
+                  />
+                  {tester && tester === assignee && (
+                    <p className="px-2 pb-1 text-[10px] text-amber-600 dark:text-amber-400">
+                      The tester is also the assignee — human verification usually wants a second
+                      pair of eyes.
+                    </p>
+                  )}
+                </Property>
               )}
-              <div className="flex items-center gap-4">
-                <dt className="text-muted-foreground w-20 shrink-0 text-xs">Updated</dt>
-                <dd className="text-xs">{task.updatedAt}</dd>
-              </div>
+
               {task.tags && task.tags.length > 0 && (
-                <div className="flex items-start gap-4">
-                  <dt className="text-muted-foreground w-20 shrink-0 text-xs">Tags</dt>
-                  <dd className="flex flex-wrap gap-1">
+                <Property label="Tags" className="sm:col-span-2">
+                  <div className="flex min-h-7 flex-wrap items-center gap-1 px-2">
                     {task.tags.map((tag) => (
                       <Badge key={tag} variant="outline" className="text-[10px]">
                         {tag}
                       </Badge>
                     ))}
-                  </dd>
-                </div>
+                  </div>
+                </Property>
               )}
-            </dl>
+
+              {(() => {
+                const prd = prdForTask(task);
+                if (!prd) return null;
+                const route = screenForTask(task);
+                const screen = route ? PROTOTYPE_FILES.find((p) => p.route === route) : null;
+                const screenIndex = screen ? PROTOTYPE_FILES.indexOf(screen) : -1;
+                const versionNum = taskRound(task, rounds.list, rounds.statuses) ?? 1;
+                const screenCode = screenIndex >= 0 ? `SC-${versionNum}-${String(screenIndex + 1).padStart(3, '0')}` : null;
+                return (
+                  <>
+                    <Property label="PRD" className="sm:col-span-2">
+                      <div className="flex min-h-7 items-center gap-1.5 px-2">
+                        <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">{prd.id}</span>
+                        <span className="text-xs">{prd.title}</span>
+                      </div>
+                    </Property>
+                    {screen && (
+                      <Property label="Screen" className="sm:col-span-2">
+                        <div className="flex min-h-7 items-center gap-1.5 px-2">
+                          {screenCode && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium">{screenCode}</span>}
+                          <span className="text-xs">{screen.name}</span>
+                          <span className="text-muted-foreground text-[10px]">{screen.fileName}</span>
+                        </div>
+                      </Property>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
 
             {/* Description */}
             {task.description && (
-              <div className="px-4 pt-4">
-                <p className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-[11px] font-medium">
-                  <ClipboardList className="size-3" />
-                  Description
-                </p>
-                <p className="text-sm leading-relaxed">{task.description}</p>
+              <div className="pt-7">
+                <SectionHeader icon={ClipboardList} title="Description" />
+                <p className="mt-2 text-sm leading-relaxed">{task.description}</p>
               </div>
             )}
 
             {/* Files — the spec, the screenshot, the sheet the task refers to.
                 They are read as part of the brief when the screens are drawn. */}
-            <div className="px-4 pt-5">
+            <div className="pt-7">
               <MeetingFilePanel
                 sessionId={filesKey}
                 files={files}
@@ -502,26 +768,15 @@ export function TaskDetail({
 
             {/* The whiteboard the hint above asks for a photo of. Boards attach
                 into that same list, so nothing downstream needs to know they
-                were drawn here rather than uploaded.
-
-                The two are one block, so the divider is inset to the text rather
-                than run edge to edge, and sits with equal air above and below —
-                a full-bleed rule under an indented paragraph reads as a seam. */}
-            <div className="px-4 pt-4">
-              <div className="border-border/60 flex flex-col gap-3 border-t pt-4">
-                {/* The board and the cards it produces travel together. */}
-                <WhiteboardPanel sessionId={filesKey} project={project} uploadedBy="You" />
-              </div>
+                were drawn here rather than uploaded. */}
+            <div className="pt-7">
+              <WhiteboardPanel sessionId={filesKey} project={project} uploadedBy="You" />
             </div>
 
             {/* What this task has produced so far. */}
             {designs.length > 0 && (
-              <div className="px-4 pt-5">
-                <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  <p className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-medium">
-                    <Sparkles className="size-3" />
-                    Generated designs
-                  </p>
+              <div className="pt-7">
+                <SectionHeader icon={Sparkles} title="Generated designs" count={designs.length}>
                   {/* Pick the destination first; nothing moves on its own. */}
                   {designs.some(
                     (design) => design.version === undefined && design.handedTo === undefined,
@@ -535,13 +790,13 @@ export function TaskDetail({
                       className="ml-auto"
                     />
                   )}
-                </div>
-                <div className="flex flex-col gap-2">
+                </SectionHeader>
+                <div className="mt-2 flex flex-col gap-2">
                   {designs.map((design) => {
                     const gone = goneDesigns.includes(design.screenId);
                     const staged = design.version === undefined && design.handedTo === undefined;
                     return (
-                      <div key={design.screenId} className="flex gap-3 rounded-md border p-3">
+                      <div key={design.screenId} className="flex gap-3 rounded-lg border p-3">
                         {/* The sample itself, drawn from the blocks Claude proposed. */}
                         <DesignThumbnail
                           screenId={design.screenId}
@@ -559,7 +814,7 @@ export function TaskDetail({
                               </span>
                             ) : (
                               <Link
-                                href={businessCanvasHref(
+                                href={businessEditHref(
                                   project.id,
                                   design.screenId,
                                   versionFolderId(design.version!),
@@ -751,27 +1006,55 @@ export function TaskDetail({
             )}
 
             {/* The conversation, and the record of what the task has done. */}
-            <div className="px-4 pt-5">
+            <div className="pt-7">
               <TaskCommentThread
                 project={project}
                 task={task}
                 entries={comments}
+                activity={buildActivity}
                 onChange={setComments}
               />
             </div>
           </div>
         </div>
+        </div>
 
-        {/* Chat on the right */}
-        <aside className="bg-background flex w-[26rem] shrink-0 flex-col border-l">
-          <ChatPane
-            project={project}
-            contextText={taskChatContext(project, task, files, designs, comments)}
-            folderLabel={`task/${task.code} — ${task.title}`}
-            initialTurns={savedTurns}
-            onPersist={(turns) => saveTaskTurns(project.id, task.id, turns)}
-          />
-        </aside>
+        {showChat && (
+          chatCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setChatCollapsed(false)}
+              title="Open AI chat"
+              aria-label="Open AI chat"
+              className="fixed right-6 bottom-6 z-40 flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 shadow-lg transition-colors hover:bg-muted"
+            >
+              <MessageSquare className="size-4 text-muted-foreground" />
+              <span className="text-xs font-medium">AI Chat</span>
+            </button>
+          ) : (
+            <aside className="bg-background flex w-[26rem] shrink-0 flex-col border-l">
+              <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
+                <span className="text-xs font-medium text-muted-foreground">AI Chat</span>
+                <button
+                  type="button"
+                  onClick={() => setChatCollapsed(true)}
+                  title="Close chat"
+                  aria-label="Close chat"
+                  className="text-muted-foreground hover:text-foreground rounded p-0.5"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <ChatPane
+                project={project}
+                contextText={taskChatContext(project, task, files, designs, comments)}
+                folderLabel={`task/${task.code} — ${task.title}`}
+                initialTurns={savedTurns}
+                onPersist={(turns) => saveTaskTurns(project.id, task.id, turns)}
+              />
+            </aside>
+          )
+        )}
       </div>
 
       <TaskGenerateDialog
@@ -779,6 +1062,8 @@ export function TaskDetail({
         project={project}
         task={task}
         files={files}
+        chatTurns={savedTurns}
+        comments={comments}
         onClose={() => setGenerateOpen(false)}
         onCreated={(created) => {
           setDesigns(loadTaskDesigns(project.id, task.id));
@@ -797,6 +1082,49 @@ export function TaskDetail({
           setComments(logTaskEvent(project.id, task, `Moved "${name}" into version ${version}.`));
         }}
       />
+      {/* Move to IA dialog */}
+      <Dialog open={iaDialogOpen} onOpenChange={setIaDialogOpen}>
+        <DialogContent className="!max-w-sm p-0 gap-0 [&>button:last-child]:hidden">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <DialogHeader className="!flex-row items-center gap-2 !space-y-0">
+              <ListTree className="size-4 text-violet-500" />
+              <DialogTitle className="text-sm font-medium">Link to PRD</DialogTitle>
+            </DialogHeader>
+            <button type="button" onClick={() => setIaDialogOpen(false)} className="text-muted-foreground hover:text-foreground rounded p-1">
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="max-h-[50vh] overflow-y-auto px-2 py-2">
+            {Object.entries(PRD_DOCUMENTS).map(([prdId, doc]) => {
+              const isLinked = currentPrd?.id === prdId;
+              return (
+                <button
+                  key={prdId}
+                  type="button"
+                  onClick={() => {
+                    // Remove all PRD-related tags, then add the new PRD's tag
+                    const allPrdTags = new Set(Object.values(PRD_TASK_TAGS).flat());
+                    const cleaned = (task.tags ?? []).filter((t) => !allPrdTags.has(t));
+                    const newTag = (PRD_TASK_TAGS[prdId] ?? [])[0];
+                    const newTags = newTag ? [...cleaned, newTag] : cleaned;
+                    persistTask(project.id, { ...task, tags: newTags });
+                    onStatusChange(task.status);
+                    setIaDialogOpen(false);
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors',
+                    isLinked ? 'bg-primary/10' : 'hover:bg-muted/50',
+                  )}
+                >
+                  <span className="shrink-0 rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">{prdId}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{doc.title}</span>
+                  {isLinked && <Badge variant="secondary" className="text-[10px]">Current</Badge>}
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

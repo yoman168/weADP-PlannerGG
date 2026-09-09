@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, ChevronDown, Clock, RotateCcw, Search, TriangleAlert } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Badge, Button, Card, Input, cn } from '@/components/ui';
 import {
@@ -130,7 +131,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Approval Queue',
-  subtitle: 'Accountant > Waiting on me',
+  subtitle: 'eACC Cloud > Accountant > Approval Queue',
 };
 
 const STATS_DEFAULTS = {
@@ -390,30 +391,53 @@ export default function ApprovalsPage() {
                       {columnOn(table, 'actions') && (
                         <td className="py-3 pr-4">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 gap-1 px-2 text-xs"
-                              disabled={Boolean(state)}
-                              onClick={() =>
-                                setHandled((prev) => ({ ...prev, [row.id]: 'approved' }))
-                              }
-                            >
-                              <Check className="size-3" />
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-muted-foreground h-7 gap-1 px-2 text-xs"
-                              disabled={Boolean(state)}
-                              onClick={() =>
-                                setHandled((prev) => ({ ...prev, [row.id]: 'returned' }))
-                              }
-                            >
-                              <RotateCcw className="size-3" />
-                              Return
-                            </Button>
+                            {state ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 px-2 text-xs"
+                                  disabled
+                                >
+                                  <Check className="size-3" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-muted-foreground h-7 gap-1 px-2 text-xs"
+                                  disabled
+                                >
+                                  <RotateCcw className="size-3" />
+                                  Return
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 gap-1 px-2 text-xs"
+                                  asChild
+                                >
+                                  <Link href="/eacc/approvals/confirm">
+                                    <Check className="size-3" />
+                                    Approve
+                                  </Link>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-muted-foreground h-7 gap-1 px-2 text-xs"
+                                  asChild
+                                >
+                                  <Link href="/eacc/approvals/return">
+                                    <RotateCcw className="size-3" />
+                                    Return
+                                  </Link>
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </td>
                       )}

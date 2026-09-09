@@ -66,7 +66,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Cash Receipt Detail',
-  subtitle: 'Cash Receipt > RCP-2026-00187',
+  subtitle: 'eACC Cloud > Tax & Receipts > Cash Receipt',
 };
 
 const SUMMARY_DEFAULTS = {

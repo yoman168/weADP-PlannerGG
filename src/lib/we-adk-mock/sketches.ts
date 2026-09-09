@@ -47,7 +47,8 @@ export type SessionKind =
   | 'Change request'
   | 'Interviews'
   | 'UAT'
-  | 'Close-out';
+  | 'Close-out'
+  | 'Wireframe';
 
 export interface SketchSession {
   id: string;
@@ -114,6 +115,15 @@ export function saveGeneratedScreens(sessionId: string, screens: SketchScreen[])
   } catch {
     // Storage unavailable — the screens simply won't persist.
   }
+}
+
+export function renameGeneratedScreen(sessionId: string, screenId: string, newName: string): SketchScreen[] {
+  const screens = loadGeneratedScreens(sessionId);
+  const updated = screens.map((s) =>
+    s.id === screenId ? { ...s, name: newName } : s,
+  );
+  saveGeneratedScreens(sessionId, updated);
+  return updated;
 }
 
 export function removeGeneratedScreen(sessionId: string, screenId: string): SketchScreen[] {

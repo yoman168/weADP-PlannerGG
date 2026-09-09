@@ -184,10 +184,29 @@ export interface StoredDesignPackage extends DesignPackage {
   inputs: { meetings: number; sketches: number; referenceFiles: number };
 }
 
+/** Envelope with screens left unknown, so they can be validated one by one. */
+const looseDesignEnvelope = designPackageSchema.extend({
+  screens: z.array(z.unknown()).max(20),
+});
+
+/** Validates screen-by-screen so one malformed screen can't discard the rest. */
 export function parseDesignPackage(input: unknown): DesignPackage | null {
-  const parsed = designPackageSchema.safeParse(input);
-  if (!parsed.success || parsed.data.screens.length === 0) return null;
-  return parsed.data;
+  const envelope = looseDesignEnvelope.safeParse(input);
+  if (!envelope.success) return null;
+
+  const screens: ConsolidatedScreen[] = [];
+  for (const candidate of envelope.data.screens) {
+    const parsed = consolidatedScreenSchema.safeParse(candidate);
+    if (parsed.success) screens.push(parsed.data);
+    else {
+      const issue = parsed.error.issues[0];
+      console.warn(
+        `[design-phase] skipped screen (${issue?.path.join('.') ?? ''}: ${issue?.message ?? 'invalid'})`,
+      );
+    }
+  }
+  if (screens.length === 0) return null;
+  return { ...envelope.data, screens };
 }
 
 /* ------------------------------------------------------------------ */

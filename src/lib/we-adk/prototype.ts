@@ -24,6 +24,8 @@ export interface PrototypeFile {
   route: string;
   /** One line on what the screen is for. */
   summary: string;
+  /** Human-readable breadcrumb path, e.g. "Expense Management > Corporate Card". */
+  path?: string;
   status: Chip;
   updatedAt: string;
   /** False for screens that stand alone, like login — no sidebar or header. */
@@ -45,6 +47,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Login',
     route: '/eacc/login',
     summary: 'Email and password, with company SSO deferred to phase 2.',
+    path: 'Login',
     status: SHIPPED,
     updatedAt: '2026-07-24',
     chrome: false,
@@ -56,6 +59,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Dashboard',
     route: '/eacc/dashboard',
     summary: 'What needs the accountant today, spend by category, recent activity.',
+    path: 'Accountant > Dashboard',
     status: IN_REVIEW,
     updatedAt: '2026-07-29',
     chrome: true,
@@ -67,6 +71,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Month-end Close Status',
     route: '/eacc/close',
     summary: 'The single screen that answers "what is blocking the close?".',
+    path: 'Accountant > Month-end Close > Close Status',
     status: SHIPPED,
     updatedAt: '2026-06-18',
     chrome: true,
@@ -78,6 +83,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Close Blockers by Cost Centre',
     route: '/eacc/close/blockers',
     summary: 'Every blocked item, grouped the way the accountants scan them.',
+    path: 'Accountant > Month-end Close > Close Blockers',
     status: SHIPPED,
     updatedAt: '2026-06-18',
     chrome: true,
@@ -89,6 +95,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Corporate Card',
     route: '/eacc/corp-card',
     summary: 'Card charges for the month, defaulted to Draft.',
+    path: 'Expense Management > Corporate Card',
     status: SHIPPED,
     updatedAt: '2026-07-03',
     chrome: true,
@@ -97,9 +104,10 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     id: 'proto-corp-card-bulk',
     slug: 'corporate-card-bulk-approve',
     fileName: '06-corporate-card-bulk-approve.html',
-    name: 'Corporate Card — Bulk Approve',
+    name: 'Corporate Card > Bulk Approve',
     route: '/eacc/corp-card/bulk',
     summary: 'Approve a whole calendar month per department, not row by row.',
+    path: 'Expense Management > Corporate Card > Bulk Approve',
     status: IN_REVIEW,
     updatedAt: '2026-07-28',
     chrome: true,
@@ -111,6 +119,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Personal Expense',
     route: '/eacc/personal-expense',
     summary: 'Expense list with the "returned to me" tab from the July review.',
+    path: 'Expense Management > Personal Expense',
     status: DRAFT,
     updatedAt: '2026-07-29',
     chrome: true,
@@ -122,6 +131,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Expense Report Detail',
     route: '/eacc/personal-expense/detail',
     summary: 'A returned report: the reason, the lines to fix, and resubmit.',
+    path: 'Expense Management > Personal Expense > Report Detail',
     status: DRAFT,
     updatedAt: '2026-07-30',
     chrome: true,
@@ -133,6 +143,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Purchase Tax Invoice',
     route: '/eacc/tax-invoice',
     summary: 'Invoice list, date range defaulted to the current month.',
+    path: 'Tax & Receipts > Tax Invoice',
     status: SHIPPED,
     updatedAt: '2026-07-06',
     chrome: true,
@@ -144,6 +155,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Cash Receipt',
     route: '/eacc/cash-receipt',
     summary: 'Receipt number replaces the internal id in the list.',
+    path: 'Tax & Receipts > Cash Receipt',
     status: SHIPPED,
     updatedAt: '2026-07-02',
     chrome: true,
@@ -155,6 +167,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Cash Receipt Detail',
     route: '/eacc/cash-receipt/detail',
     summary: 'One receipt with its line items, evidence and approval box.',
+    path: 'Tax & Receipts > Cash Receipt > Receipt Detail',
     status: IN_REVIEW,
     updatedAt: '2026-07-30',
     chrome: true,
@@ -166,6 +179,7 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Approval Queue',
     route: '/eacc/approvals',
     summary: 'Scoped to the signed-in approver, overdue first.',
+    path: 'Accountant > Approval Queue',
     status: IN_REVIEW,
     updatedAt: '2026-07-31',
     chrome: true,
@@ -177,8 +191,154 @@ export const PROTOTYPE_FILES: PrototypeFile[] = [
     name: 'Settings',
     route: '/eacc/settings',
     summary: 'Company details, close policy and workspace members.',
+    path: 'Administration > Settings',
     status: DRAFT,
     updatedAt: '2026-07-31',
+    chrome: true,
+  },
+  // Popup screens
+  {
+    id: 'proto-dashboard-date-picker',
+    slug: 'dashboard-date-picker',
+    fileName: '14-dashboard-date-picker.html',
+    name: 'Date Picker',
+    route: '/eacc/dashboard/date-picker',
+    summary: 'Date range picker for the dashboard period.',
+    path: 'Accountant > Dashboard > Date Picker',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-corp-card-new-charge',
+    slug: 'corp-card-new-charge',
+    fileName: '15-corp-card-new-charge.html',
+    name: 'New Charge',
+    route: '/eacc/corp-card/new-charge',
+    summary: 'Add a new corporate card charge.',
+    path: 'Expense Management > Corporate Card > New Charge',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-corp-card-detail',
+    slug: 'corp-card-detail',
+    fileName: '16-corp-card-detail.html',
+    name: 'Card Detail',
+    route: '/eacc/corp-card/detail',
+    summary: 'Card charge detail with receipt and approval info.',
+    path: 'Expense Management > Corporate Card > Card Detail',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-corp-card-reject',
+    slug: 'corp-card-reject',
+    fileName: '17-corp-card-reject.html',
+    name: 'Reject Reason',
+    route: '/eacc/corp-card/reject',
+    summary: 'Reject reason dialog with note.',
+    path: 'Expense Management > Corporate Card > Reject Reason',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-personal-expense-new',
+    slug: 'personal-expense-new',
+    fileName: '18-personal-expense-new.html',
+    name: 'New Expense',
+    route: '/eacc/personal-expense/new',
+    summary: 'New personal expense entry form.',
+    path: 'Expense Management > Personal Expense > New Expense',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-personal-expense-receipt',
+    slug: 'personal-expense-receipt',
+    fileName: '19-personal-expense-receipt.html',
+    name: 'Add Receipt',
+    route: '/eacc/personal-expense/receipt',
+    summary: 'Receipt upload/attach dialog.',
+    path: 'Expense Management > Personal Expense > Add Receipt',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-tax-invoice-detail',
+    slug: 'tax-invoice-detail',
+    fileName: '20-tax-invoice-detail.html',
+    name: 'Invoice Detail',
+    route: '/eacc/tax-invoice/detail',
+    summary: 'Tax invoice detail view.',
+    path: 'Tax & Receipts > Tax Invoice > Invoice Detail',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-cash-receipt-new',
+    slug: 'cash-receipt-new',
+    fileName: '21-cash-receipt-new.html',
+    name: 'New Receipt',
+    route: '/eacc/cash-receipt/new',
+    summary: 'New cash receipt entry form.',
+    path: 'Tax & Receipts > Cash Receipt > New Receipt',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-approvals-confirm',
+    slug: 'approvals-confirm',
+    fileName: '22-approvals-confirm.html',
+    name: 'Approve Confirm',
+    route: '/eacc/approvals/confirm',
+    summary: 'Approval confirmation with summary.',
+    path: 'Accountant > Approval Queue > Approve Confirm',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-approvals-return',
+    slug: 'approvals-return',
+    fileName: '23-approvals-return.html',
+    name: 'Return Reason',
+    route: '/eacc/approvals/return',
+    summary: 'Return reason dialog.',
+    path: 'Accountant > Approval Queue > Return Reason',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-settings-invite',
+    slug: 'settings-invite',
+    fileName: '24-settings-invite.html',
+    name: 'Invite Member',
+    route: '/eacc/settings/invite',
+    summary: 'Invite team member form.',
+    path: 'Administration > Settings > Invite Member',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
+    chrome: true,
+  },
+  {
+    id: 'proto-settings-edit-role',
+    slug: 'settings-edit-role',
+    fileName: '25-settings-edit-role.html',
+    name: 'Edit Role',
+    route: '/eacc/settings/edit-role',
+    summary: 'Edit member role dialog.',
+    path: 'Administration > Settings > Edit Role',
+    status: DRAFT,
+    updatedAt: '2026-08-01',
     chrome: true,
   },
 ];
@@ -247,6 +407,34 @@ export function findPrototypeByFileName(fileName: string): PrototypeFile | null 
 
 export function isPrototypeFile(screenId: string): boolean {
   return findPrototypeFile(screenId) !== null;
+}
+
+/**
+ * Human-readable breadcrumb path for a screen, e.g.
+ * "Expense Management > Corporate Card > Bulk Approve".
+ *
+ * Falls back to capitalising the route segments when no prototype matches.
+ */
+export function screenDisplayPath(
+  screenId: string | null | undefined,
+  route: string | null | undefined,
+): string {
+  if (screenId) {
+    const proto = findPrototypeFile(screenId);
+    if (proto?.path) return proto.path;
+  }
+  if (!route) return '';
+  // Strip /eacc/ prefix and query, then capitalise each segment.
+  const raw = (route.split(/[?#]/)[0] ?? '').replace(/^\/eacc\//, '').replace(/^\//, '');
+  if (!raw) return '';
+  return raw
+    .split('/')
+    .map((s) =>
+      s
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
+    )
+    .join(' > ');
 }
 
 /** True only for the baseline files themselves, not a round's copy of one. */

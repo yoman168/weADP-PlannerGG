@@ -25,38 +25,62 @@ import { PropertiesPanel } from '@/components/eacc/editable-section';
 import { EACC_NAV, findNavItem } from '@/lib/eacc/nav';
 import { pushScreenToCanvas } from '@/lib/we-adk/design-sync';
 import { liveScreenRoute } from '@/lib/we-adk/live-screens';
-import { findPrototypeFile, prototypeConfigKeyForScreen } from '@/lib/we-adk/prototype';
+import { findPrototypeByRoute, findPrototypeFile, prototypeConfigKeyForScreen } from '@/lib/we-adk/prototype';
 import { prototypeDesignBlocks } from '@/lib/we-adk/prototype-design';
 import { screenStorageKey } from '@/lib/we-adk-mock/sketcher';
 import ApprovalsPage from '@/app/eacc/approvals/page';
+import ApprovalsConfirmPage from '@/app/eacc/approvals/confirm/page';
+import ApprovalsReturnPage from '@/app/eacc/approvals/return/page';
 import CashReceiptPage from '@/app/eacc/cash-receipt/page';
 import CashReceiptDetailPage from '@/app/eacc/cash-receipt/detail/page';
+import CashReceiptNewPage from '@/app/eacc/cash-receipt/new/page';
 import CloseBlockersPage from '@/app/eacc/close/blockers/page';
 import CloseStatusPage from '@/app/eacc/close/page';
 import CorpCardPage from '@/app/eacc/corp-card/page';
 import CorpCardBulkPage from '@/app/eacc/corp-card/bulk/page';
+import CorpCardDetailPage from '@/app/eacc/corp-card/detail/page';
+import CorpCardNewChargePage from '@/app/eacc/corp-card/new-charge/page';
+import CorpCardRejectPage from '@/app/eacc/corp-card/reject/page';
 import DashboardPage from '@/app/eacc/dashboard/page';
+import DashboardDatePickerPage from '@/app/eacc/dashboard/date-picker/page';
 import LoginPage from '@/app/eacc/login/page';
 import PersonalExpensePage from '@/app/eacc/personal-expense/page';
 import PersonalExpenseDetailPage from '@/app/eacc/personal-expense/detail/page';
+import PersonalExpenseNewPage from '@/app/eacc/personal-expense/new/page';
+import PersonalExpenseReceiptPage from '@/app/eacc/personal-expense/receipt/page';
 import SettingsPage from '@/app/eacc/settings/page';
+import SettingsEditRolePage from '@/app/eacc/settings/edit-role/page';
+import SettingsInvitePage from '@/app/eacc/settings/invite/page';
 import TaxInvoicePage from '@/app/eacc/tax-invoice/page';
+import TaxInvoiceDetailPage from '@/app/eacc/tax-invoice/detail/page';
 
 /** The page component behind each live route. */
 const SCREEN_COMPONENTS: Record<string, ComponentType> = {
   '/eacc/login': LoginPage,
   '/eacc/dashboard': DashboardPage,
+  '/eacc/dashboard/date-picker': DashboardDatePickerPage,
   '/eacc/close': CloseStatusPage,
   '/eacc/close/blockers': CloseBlockersPage,
   '/eacc/corp-card': CorpCardPage,
   '/eacc/corp-card/bulk': CorpCardBulkPage,
+  '/eacc/corp-card/detail': CorpCardDetailPage,
+  '/eacc/corp-card/new-charge': CorpCardNewChargePage,
+  '/eacc/corp-card/reject': CorpCardRejectPage,
   '/eacc/personal-expense': PersonalExpensePage,
   '/eacc/personal-expense/detail': PersonalExpenseDetailPage,
+  '/eacc/personal-expense/new': PersonalExpenseNewPage,
+  '/eacc/personal-expense/receipt': PersonalExpenseReceiptPage,
   '/eacc/tax-invoice': TaxInvoicePage,
+  '/eacc/tax-invoice/detail': TaxInvoiceDetailPage,
   '/eacc/cash-receipt': CashReceiptPage,
   '/eacc/cash-receipt/detail': CashReceiptDetailPage,
+  '/eacc/cash-receipt/new': CashReceiptNewPage,
   '/eacc/approvals': ApprovalsPage,
+  '/eacc/approvals/confirm': ApprovalsConfirmPage,
+  '/eacc/approvals/return': ApprovalsReturnPage,
   '/eacc/settings': SettingsPage,
+  '/eacc/settings/invite': SettingsInvitePage,
+  '/eacc/settings/edit-role': SettingsEditRolePage,
 };
 
 /** True when this canvas id can be previewed as a real screen. */
@@ -92,19 +116,60 @@ function activeHref(route: string): string | null {
   return matches.sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
+/** Override for a single nav item — stored in localStorage. */
+export interface NavItemOverride {
+  label?: string;
+  visible?: boolean;
+  badge?: string;
+}
+
+/** A map of href → overrides for sidebar nav items. */
+export type SidebarOverrides = Record<string, NavItemOverride>;
+
+const SIDEBAR_STORAGE_KEY = 'we-adk:sidebar-config';
+
+export function loadSidebarOverrides(): SidebarOverrides {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as SidebarOverrides) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveSidebarOverrides(overrides: SidebarOverrides): void {
+  localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(overrides));
+}
+
 function PreviewSidebar({
   route,
   hrefForRoute,
+  selected,
+  onSelect,
+  overrides,
 }: {
   route: string;
   /** Where a nav item goes, or null to leave the sidebar as a picture. */
   hrefForRoute?: (route: string) => string | null;
+  /** Whether the sidebar is currently selected for editing. */
+  selected?: boolean;
+  /** Called when the sidebar is clicked in editing mode. */
+  onSelect?: () => void;
+  /** Nav item overrides from the sketcher. */
+  overrides?: SidebarOverrides;
 }) {
   const current = activeHref(route);
 
   return (
     // Hidden on narrow frames — a phone-width preview has no sidebar to show.
-    <div className="bg-background hidden w-48 shrink-0 flex-col border-r @[640px]:flex">
+    <div
+      className={cn(
+        'bg-background hidden w-48 shrink-0 flex-col border-r @[640px]:flex',
+        onSelect && 'cursor-pointer',
+        selected && 'ring-2 ring-blue-500 ring-inset',
+      )}
+      onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(); } : undefined}
+    >
       <div className="flex h-12 items-center gap-2 border-b px-3">
         <div className="flex size-6 items-center justify-center rounded-md bg-blue-600">
           <BookOpen className="size-3.5 text-white" />
@@ -119,8 +184,12 @@ function PreviewSidebar({
               {group.title}
             </p>
             {group.items.map((item) => {
+              const ov = overrides?.[item.href];
+              if (ov?.visible === false) return null;
               const Icon = item.icon;
               const active = item.href === current;
+              const itemLabel = ov?.label ?? item.label;
+              const itemBadge = ov?.badge !== undefined ? ov.badge : item.badge;
               const target = hrefForRoute?.(item.href) ?? null;
               const className = cn(
                 'flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px]',
@@ -130,10 +199,10 @@ function PreviewSidebar({
               const body = (
                 <>
                   <Icon className="size-3.5 shrink-0" />
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.badge && !active && (
+                  <span className="flex-1 truncate">{itemLabel}</span>
+                  {itemBadge && !active && (
                     <Badge variant="danger" className="px-1.5 py-0 text-[9px]">
-                      {item.badge}
+                      {itemBadge}
                     </Badge>
                   )}
                 </>
@@ -192,6 +261,8 @@ function PreviewHeader({
 }) {
   const { t } = useLocale();
   const { editMode, toggleEditMode, resetConfig } = useEdit();
+  const proto = findPrototypeByRoute(route);
+  const pathSegments = proto?.path?.split(' > ') ?? [];
   const hit = findNavItem(route);
   // On a sub-screen the parent menu is a way back to its own file.
   const parentHref =
@@ -201,7 +272,18 @@ function PreviewHeader({
     <div className="bg-background flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4">
       <div className="flex min-w-0 items-center gap-1 text-[13px]">
         <span className="text-muted-foreground shrink-0">eACC Cloud</span>
-        {hit && (
+        {pathSegments.length > 0 ? (
+          pathSegments.map((segment, i) => (
+            <span key={i} className="flex items-center gap-1">
+              <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
+              {i === pathSegments.length - 1 ? (
+                <span className="truncate font-medium">{segment}</span>
+              ) : (
+                <span className="text-muted-foreground truncate">{segment}</span>
+              )}
+            </span>
+          ))
+        ) : hit ? (
           <>
             <ChevronRight className="text-muted-foreground size-3.5 shrink-0" />
             <span className="text-muted-foreground truncate">{hit.group.title}</span>
@@ -217,7 +299,7 @@ function PreviewHeader({
               <span className="truncate font-medium">{hit.item.label}</span>
             )}
           </>
-        )}
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -278,6 +360,7 @@ function PreviewBody({
   editable,
   showEditToggle,
   hrefForRoute,
+  onNavigate,
 }: {
   route: string;
   Screen: ComponentType;
@@ -285,6 +368,7 @@ function PreviewBody({
   editable: boolean;
   showEditToggle: boolean;
   hrefForRoute?: (route: string) => string | null;
+  onNavigate?: (route: string) => void;
 }) {
   const { editMode, setSelectedId } = useEdit();
   const router = useRouter();
@@ -308,6 +392,13 @@ function PreviewBody({
     event.stopPropagation();
     if (editMode) return;
 
+    // A host that shows the app inside its own frame — the Build workspace —
+    // moves the preview to that screen rather than navigating the whole page.
+    if (onNavigate) {
+      onNavigate(href);
+      return;
+    }
+
     const target = hrefForRoute?.(href);
     if (target) router.push(target);
   };
@@ -322,7 +413,7 @@ function PreviewBody({
           hrefForRoute={hrefForRoute}
         />
       )}
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1" onClickCapture={onNavigate ? followLink : undefined}>
         {chrome && <PreviewSidebar route={route} hrefForRoute={hrefForRoute} />}
         <div
           className="min-w-0 flex-1 overflow-auto bg-gray-50 dark:bg-gray-950"
@@ -345,6 +436,7 @@ export function LiveScreenPreview({
   startEditing = false,
   showEditToggle = true,
   hrefForRoute,
+  onNavigate,
   className,
 }: {
   screenId: string;
@@ -361,6 +453,12 @@ export function LiveScreenPreview({
    * inside the screen both use it. Without it the chrome is just a picture.
    */
   hrefForRoute?: (route: string) => string | null;
+  /**
+   * Handle a link inside the preview without leaving the page. When given, the
+   * preview behaves like the running app: the nav and in-screen links move it
+   * to that screen instead of doing nothing.
+   */
+  onNavigate?: (route: string) => void;
   className?: string;
 }) {
   const { t } = useLocale();
@@ -370,9 +468,7 @@ export function LiveScreenPreview({
 
   if (!route || !Screen) {
     return (
-      <p className="text-muted-foreground py-16 text-center text-sm">
-        {t('live.noLiveScreen')}
-      </p>
+      <p className="text-muted-foreground py-16 text-center text-sm">{t('live.noLiveScreen')}</p>
     );
   }
 
@@ -417,6 +513,7 @@ export function LiveScreenPreview({
           editable={editable && withChrome}
           showEditToggle={showEditToggle}
           hrefForRoute={hrefForRoute}
+          onNavigate={onNavigate}
         />
       </div>
     </EditProvider>
@@ -439,10 +536,19 @@ export function LiveScreenPreview({
 export function DesignChromeFrame({
   route,
   hrefForRoute,
+  sidebarSelected,
+  onSidebarSelect,
+  sidebarOverrides,
   children,
 }: {
   route: string;
   hrefForRoute?: (route: string) => string | null;
+  /** Whether the sidebar is currently selected for editing. */
+  sidebarSelected?: boolean;
+  /** Called when the sidebar is clicked. */
+  onSidebarSelect?: () => void;
+  /** Nav item overrides from the sketcher. */
+  sidebarOverrides?: SidebarOverrides;
   children: ReactNode;
 }) {
   return (
@@ -455,7 +561,13 @@ export function DesignChromeFrame({
           hrefForRoute={hrefForRoute}
         />
         <div className="flex min-h-0 flex-1">
-          <PreviewSidebar route={route} hrefForRoute={hrefForRoute} />
+          <PreviewSidebar
+            route={route}
+            hrefForRoute={hrefForRoute}
+            selected={sidebarSelected}
+            onSelect={onSidebarSelect}
+            overrides={sidebarOverrides}
+          />
           <div className="min-w-0 flex-1 overflow-auto bg-gray-50 dark:bg-gray-950">{children}</div>
         </div>
       </div>

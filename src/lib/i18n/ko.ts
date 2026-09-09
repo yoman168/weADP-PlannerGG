@@ -7,27 +7,113 @@ export const ko: Record<string, string> = {
   'nav.members': '멤버',
   'nav.archive': '보관',
   'nav.saveGitlab': 'GitLab에 저장 →',
+  'shell.claudeOn': 'Claude 연결됨',
+  'shell.claudeOff': 'Claude 연결 안 됨',
+  'shell.claudeManage': 'Claude 계정이 연결되어 있습니다 — 클릭해 관리',
+  'shell.claudeConnectHint': 'AI 기능을 사용하려면 Claude 계정을 연결하세요',
   'nav.spend': '비용',
   'nav.spendOf': '${spend} / ${budget}',
   'nav.overBudget': '예산 초과: ${spend} 사용 / ${budget}',
   'nav.spentOf': '${spend} 사용 / ${budget}',
   'nav.mockupOnly': 'UI 목업 전용 — 실제 데이터 없음',
-
   // ── 도구 / 사이드바 ──
-  'tool.business': '비즈니스',
-  'tool.design': '디자인',
-  'tool.developer': '개발자',
-  'tool.qa': 'QA',
-
   // ── 스케쳐 탭 ──
   'tab.main': '메인',
-  'tab.task': '작업',
-  'tab.user': '초안',
-
+  'tab.overview': '개요',
+  'tab.drafts': '요청',
+  'drafts.search': '요청 검색…',
+  'drafts.empty':
+    '아직 없습니다. 태스크에서 생성한 화면과 고객 프로젝트에서 옮겨온 화면이 라운드로 들어가기 전까지 여기에 모입니다.',
+  'drafts.noMatch': '일치하는 요청이 없습니다.',
+  'drafts.notInRound': '라운드 미배정',
+  'drafts.open': '열기',
+  'drafts.moveToMain': '메인으로 이동',
+  'drafts.alreadyInMain': '메인에 있음',
+  'drafts.moveAll': '전체 메인으로 이동',
+  'drafts.allMoved': '모두 메인으로 이동했습니다',
+  'drafts.willOpenRound': '이동하면 메인에 새 라운드가 열립니다',
+  'drafts.noPage': '이 요청에는 아직 생성된 페이지가 없습니다',
+  'tab.ia': 'IA',
+  'tab.setting': '설정',
+  // ── IA 탭 ──
+  // ── Main views ──
+  'main.viewSwitch': '메인 보기',
+  'main.viewFiles': '파일',
+  'main.viewFlow': '화면 흐름',
+  'main.viewFlowShort': '흐름',
+  'ia.title': 'IA',
+  'ia.count': '화면 {count}개',
+  'ia.search': 'Depth·Path 검색…',
+  'ia.filterType': '화면 유형',
+  'ia.filterPlatform': '화면구분',
+  'ia.all': '전체',
+  'ia.allTypes': '모든 유형',
+  'ia.allPlatforms': '모든 플랫폼',
+  'ia.clearFilters': '초기화',
+  'ia.addRow': '화면 추가',
+  'ia.close': '닫기',
+  'ia.viewSwitch': 'IA 보기',
+  'ia.viewFlow': '화면 흐름',
+  'ia.viewTable': '표 보기',
+  'ia.flowEmpty': '이 라운드에는 아직 화면이 없습니다.',
+  'ia.flowOther': '기타 모듈 / 추가 화면',
+  'ia.flowLegend': '다이어그램 범례',
+  'ia.flowNoPreview': '이 행에는 아직 연결된 화면이 없습니다.',
+  'ia.download': 'IA 목록 다운로드',
+  'ia.downloadFiltered': '검색·필터에 일치하는 화면 {count}개를 다운로드합니다',
+  'ia.reset': '초기화',
+  'ia.resetConfirm':
+    '라운드의 파일 기준으로 IA 시트를 초기화할까요? 여기서만 편집한 행과 수정 내용은 사라집니다.',
+  'ia.colNo': 'No',
+  'ia.colDepth1': 'Depth 1',
+  'ia.colDepth2': 'Depth 2',
+  'ia.colDepth3': 'Depth 3',
+  'ia.colDepth4': 'Depth 4',
+  'ia.colDepth5': 'Depth 5',
+  'ia.colPath': 'Path',
+  'ia.colScreenId': '화면ID',
+  'ia.colScreenType': '화면 유형',
+  'ia.colPlatform': '화면구분',
+  'ia.colWorkItem': '작업',
+  'ia.colPrd': 'PRD',
+  'ia.colFrd': 'FRD',
+  'ia.colLink': '링크',
+  'ia.colMaintainer': '유지 타입',
+  'ia.colMenuGroup': '메뉴 구분',
+  'ia.duplicateRow': '행 복사',
+  'ia.deleteRow': '행 삭제',
+  'ia.openInMain': '메인에서 열기',
+  'ia.openScreen': '화면 열기',
+  'ia.renameWorkItem': '이름 변경',
+  'ia.workItemMissing': '이 화면은 더 이상 라운드에 없습니다 — 행은 메모로 남습니다.',
+  'ia.empty': '아직 화면이 없습니다. 추가하거나 메인에서 디자인을 추가하세요.',
+  'ia.noMatch': '검색과 일치하는 화면이 없습니다.',
+  'ia.placeholderDepth': '—',
+  'ia.placeholderText': '—',
+  'ia.depthHint': '시트 전용 — 여기를 수정해도 메인의 파일은 이동하지 않습니다.',
+  'ia.rowRemoved': '"{name}" 삭제됨.',
+  'ia.undo': '실행 취소',
+  // ── 리포트 탭 ──
+  'overview.exportHint':
+    'zip 다운로드: 웹 페이지와 마크다운 리포트, 그리고 이 라운드의 모든 디자인',
+  'overview.export': '내보내기',
+  'overview.preview': '미리보기',
+  'overview.draftNotice':
+    '이 라운드는 아직 진행 중이므로 내보낸 문서는 현재 상태를 나타내며 릴리스된 내용의 기록이 아닙니다. 완료되면 메인에서 릴리스하세요.',
+  'overview.screens': '화면',
+  'overview.tasks': '작업',
+  'overview.change': '변경',
+  'overview.new': '신규',
+  'overview.changed': '변경됨',
+  'overview.carried': '이전됨',
+  'overview.designs': '이 라운드의 디자인',
+  'overview.noDesigns': '이 라운드에 아직 아무것도 없습니다 — 메인에서 디자인을 추가하세요.',
+  'overview.noTasks': '이 라운드에 등록된 작업이 없습니다.',
   // ── 탐색기 ──
   'explorer.title': '탐색기',
   'explorer.newFile': '새 캔버스 파일',
   'explorer.newVersion': '다음 버전 시작',
+  'explorer.searchFiles': '디자인 검색',
   'explorer.collapse': '폴더 접기',
   'explorer.collapseAll': '모든 폴더 접기',
   'explorer.noVersions': '아직 버전이 없습니다.',
@@ -44,13 +130,11 @@ export const ko: Record<string, string> = {
   'explorer.carryOver': '릴리스된 디자인 가져오기',
   'explorer.baselineInfo':
     'version 1은 기준선입니다 — 제품이 라이브인 html 프로토타입, 아닌 경우 회의 디자인. 각 변경 라운드는 다음 버전을 생성합니다.',
-
   // ── 버전 상태 ──
   'status.released': '릴리스됨',
   'status.inProgress': '진행 중',
   'status.markAs': '{name}은(는) {status} — {next}(으)로 변경',
   'status.versionStatus': 'version {version}이(가) {status}입니다.',
-
   // ── 새 디자인 다이얼로그 ──
   'newDesign.title': '새 디자인 파일',
   'newDesign.name': '디자인 이름',
@@ -63,14 +147,12 @@ export const ko: Record<string, string> = {
   'newDesign.listScreen': '목록 화면',
   'newDesign.detailScreen': '상세 / 입력 화면',
   'newDesign.dashboard': '대시보드',
-
   // ── 새 폴더 다이얼로그 ──
   'newFolder.title': '{name}에 새 폴더',
   'newFolder.label': '폴더 이름',
   'newFolder.placeholder': '승인 흐름',
   'newFolder.hint': '디자인 파일을 내부에 생성할 수 있으며, 라운드와 함께 이동합니다.',
   'newFolder.create': '폴더 생성',
-
   // ── 삭제 다이얼로그 ──
   'remove.folderTitle': '{name}을(를) 삭제하시겠습니까?',
   'remove.folderDesc':
@@ -80,12 +162,14 @@ export const ko: Record<string, string> = {
     '이 라운드의 {count}개 디자인 파일이 함께 삭제됩니다. 기준선과 다른 버전은 영향받지 않습니다.',
   'remove.cancel': '취소',
   'remove.confirm': '{name} 삭제',
-
   // ── 플래시 메시지 ──
   'flash.saved': '{name} 저장됨 — 변경 표시가 초기화되었습니다.',
   'flash.deleted': '{name}이(가) 삭제되었습니다.',
   'flash.moved': '{name}을(를) {folder}(으)로 이동했습니다.',
   'flash.removed': '{name}이(가) 제거되었습니다.',
+  'flash.markedAs': '{name}은(는) 이제 {kind}입니다.',
+  'flash.versionOpened':
+    '{name}이(가) 비어 있는 상태로 열렸습니다 — 아직 완료된 라운드가 없어 복사할 대상이 없습니다.',
   'flash.cloned': 'version {version}이(가) version {from}에서 시작 — {count}개 디자인 이전됨.',
   'flash.clonedFolders':
     'version {version}이(가) version {from}에서 시작 — 폴더 {folders}개, 디자인 {count}개 이전됨.',
@@ -96,40 +180,35 @@ export const ko: Record<string, string> = {
   'flash.folderCreated': '{parent}에 {name} 폴더가 생성되었습니다.',
   'flash.stillInProgress': 'version {version}이(가) 아직 진행 중입니다 — 먼저 릴리스하세요.',
   'flash.roundReleased': '{name}은(는) 릴리스되었습니다 — 변경하려면 다시 진행 중으로 전환하세요.',
-
   // ── 파일 액션 ──
   'file.edit': '{name} 편집',
   'file.save': '저장',
   'file.saveRound': '{name}을(를) 저장 상태로 표시 — A와 M 표시를 초기화합니다',
-  'file.editCanvas': '{name}을(를) 캔버스에서 편집',
   'file.preview': '{name} 미리보기',
   'file.previewBrowser': '{name}을(를) 새 브라우저 탭에서 미리보기',
+  'file.markAs': '{kind}(으)로 표시',
   'file.delete': '{name} 삭제',
   'file.readOnly': '읽기 전용 기준선',
   'file.releasedReadOnly': '(릴리스됨 — 읽기 전용)',
   'file.liveScreen': '라이브 화면 미리보기',
-
   // ── 미리보기 / 편집 ──
   'view.preview': '미리보기',
+  'view.page': '페이지',
   'view.edit': '편집',
   'view.openBrowser': '브라우저에서 열기',
-
   // ── 배지 ──
   'badge.html': 'html',
   'badge.liveScreen': '라이브 화면',
   'badge.wireframe': '와이어프레임',
   'badge.localCli': '로컬 CLI',
-
   // ── Claude Code 채팅 ──
   'chat.claudeCode': 'Claude Code',
   'chat.askAbout': '{name}에 대해 질문하기',
   'chat.greetingHint': '미리보기 중인 화면의 레이아웃과 파일이 컨텍스트에 포함되어 있습니다.',
   'chat.pickFile': '탐색기에서 디자인 파일을 선택하여 미리보기하세요.',
-
   // ── 플로팅 액션 바 ──
   'action.improveAi': 'AI로 개선',
   'action.createTask': '작업 생성',
-
   // ── 미리보기 페이지 ──
   'preview.prototypeHint': '{summary} · UI 편집은 이 화면을 변경합니다; 편집은 캔버스를 엽니다.',
   'preview.releasedHint':
@@ -139,7 +218,6 @@ export const ko: Record<string, string> = {
   'preview.wireframeHint':
     '아직 이 파일 뒤에 라이브 화면이 없으므로 미리보기는 캔버스에 그려진 블록을 표시합니다.',
   'preview.notInVersion': '· 이 버전에 없음 —',
-
   // ── 사용자 탭 ──
   'user.team': '팀',
   'user.addMember': '멤버 추가',
@@ -157,7 +235,6 @@ export const ko: Record<string, string> = {
   'user.projectNotFound': '해당 프로젝트가 존재하지 않습니다.',
   'user.loadingTeam': '팀 로딩 중…',
   'user.designCount': '{versions}개 버전에 {count}개 디자인',
-
   // ── 멤버 폼 ──
   'member.name': '이름',
   'member.namePlaceholder': '전체 이름',
@@ -170,7 +247,6 @@ export const ko: Record<string, string> = {
   'member.add': '멤버 추가',
   'member.edit': '편집',
   'member.remove': '삭제',
-
   // ── 역할 ──
   'role.projectLead': '프로젝트 리드',
   'role.developer': '개발자',
@@ -178,7 +254,6 @@ export const ko: Record<string, string> = {
   'role.qa': 'QA',
   'role.pm': 'PM',
   'role.other': '기타',
-
   // ── 캔버스 편집기 ──
   'canvas.empty': '이 캔버스는 비어 있습니다',
   'canvas.emptyHint': '왼쪽에서 블록을 드래그하거나 클릭하여 추가하세요.',
@@ -186,7 +261,6 @@ export const ko: Record<string, string> = {
   'canvas.helpText':
     '블록 선택 클릭 · 핸들 드래그로 정렬 · ⌘Z 실행취소 · ⌘D 복제 · ⌫ 삭제 · ⌥↑/↓ 이동',
   'canvas.loading': '캔버스 로딩 중…',
-
   // ── 채팅 ──
   'chat.placeholder': '메시지를 입력하세요...',
   'chat.attachFiles': '파일 첨부',
@@ -203,14 +277,12 @@ export const ko: Record<string, string> = {
   'chat.readUnavailable': '이 브라우저에서는 음성 읽기를 사용할 수 없습니다',
   'chat.nothingToRead': '아직 읽을 내용이 없습니다',
   'chat.disclaimer': 'Claude는 AI이며 실수할 수 있습니다. 인용된 출처를 다시 확인하세요.',
-
   // ── 라이브 미리보기 ──
   'live.editMode': '편집 모드',
   'live.done': '완료',
   'live.editUi': 'UI 편집',
   'live.noLiveScreen': '이 디자인에는 아직 라이브 화면이 없습니다.',
   'live.resetEdits': '이 파일의 편집 내용 삭제',
-
   // ── 목업 보드 ──
   'board.variant': '변형',
   'board.blocks': '블록',
@@ -221,7 +293,6 @@ export const ko: Record<string, string> = {
   'board.variantOf': '변형: ',
   'board.noScreens': '아직 화면이 없습니다.',
   'board.footnote': '모든 프레임은 라이브 캔버스입니다 — 클릭하여 편집하면 여기에 반영됩니다.',
-
   // ── 작업 폼 ──
   'task.editTask': '작업 편집',
   'task.newTask': '새 작업',
@@ -239,7 +310,6 @@ export const ko: Record<string, string> = {
   'task.tagsPlaceholder': '버그, 결제',
   'task.saveChanges': '변경사항 저장',
   'task.create': '작업 생성',
-
   // ── 작업 댓글 ──
   'comments.like': '좋아요',
   'comments.deleteComment': '이 댓글 삭제',
@@ -254,7 +324,6 @@ export const ko: Record<string, string> = {
   'comments.attachHint': '파일 첨부 — 댓글에 파일명이 기록됩니다',
   'comments.maxAttachments': '댓글당 최대 {max}개 파일',
   'comments.post': '댓글 게시',
-
   // ── 작업 생성 ──
   'generate.title': '이 작업의 화면 생성',
   'generate.charsDesc': '글자 설명',
@@ -277,22 +346,42 @@ export const ko: Record<string, string> = {
   'generate.drawingHint':
     '로컬 Claude Code CLI를 실행합니다 — 프롬프트 외에는 이 컴퓨터를 떠나지 않습니다.',
   'generate.generating': '생성 중',
-
   // ── 프로젝트 홈 ──
+  'action.taskCreated': '작업이 생성되었습니다 — 개요에서 확인하세요.',
   'home.title': '내 프로젝트',
   'home.subtitle':
     '고객 대화를 버전별 프로젝트 브리프, 화면 및 클릭 가능한 프로토타입으로 전환 — 모든 디자인 파일은 해당 프로젝트에 보관됩니다.',
-  'home.newProject': '새 프로젝트',
-  'home.newProjectHint': '프로젝트 생성은 이 목업의 일부가 아닙니다 — 아래 샘플 중 하나를 여세요.',
+  'home.create': '{noun} 만들기',
   'home.search': '프로젝트 검색',
+  'home.clearSearch': '검색 지우기',
   'home.noArchived': '아직 보관된 항목이 없습니다.',
-  'home.noMatch': '검색과 일치하는 프로젝트가 없습니다.',
-
+  'home.noMatch': '검색과 일치하는 프로젝트가 없습니다',
+  'home.noMatchHint': '고객사, 담당자 또는 단계로 검색해 보세요.',
+  'home.emptyTitle': '아직 {noun} 프로젝트가 없습니다',
+  'home.emptyHint':
+    '프로젝트를 만들면 첫 대화가 브리프가 되고, 이어서 클릭할 수 있는 화면이 됩니다.',
+  'home.open': '열기',
+  'home.updated': '{when} 업데이트',
+  'home.fileOne': '디자인 파일 1개',
+  'home.files': '디자인 파일 {count}개',
+  'home.meetingOne': '미팅 1회',
+  'home.meetings': '미팅 {count}회',
+  'home.liveScreens': '실제 화면 {count}개',
+  'home.noBrief': '아직 브리프가 없습니다 — 열어서 첫 대화를 시작하세요.',
+  'home.workspace': '이 워크스페이스',
+  'home.statProjects': '프로젝트',
+  'home.statFiles': '디자인 파일',
+  'home.statMeetings': '미팅',
+  'home.statSpend': 'Claude 비용',
+  // ── 이 브라우저에 없는 프로젝트 ──
+  'project.missing': '이 브라우저에 없는 프로젝트입니다',
+  'project.missingHint':
+    '이 목업은 모든 데이터를 브라우저 저장소에 보관하므로, 직접 만든 프로젝트는 만든 브라우저와 주소에서만 존재합니다. 그곳에서 열거나 여기서 다시 만들어 주세요.',
+  'project.missingBack': '프로젝트 목록으로',
   // ── 프로젝트 크롬 ──
   'project.savedGitlab': 'GitLab에 저장됨',
   'project.committed': 'GitLab에 커밋됨',
   'project.notCommitted': '아직 커밋되지 않음',
-
   // ── 참조 파일 ──
   'files.referenceFiles': '참조 파일',
   'files.attach': '첨부',
@@ -305,11 +394,9 @@ export const ko: Record<string, string> = {
   'files.preview': '미리보기',
   'files.removeFile': '이 참조 삭제',
   'files.moreFiles': '+{count}개 더',
-
   // ── 기타 ──
   'misc.nothingInFolder': '아직 {name}에 아무것도 없습니다.',
   'misc.nothingAttached': '이 회의에 첨부된 파일이 없습니다.',
-  'misc.copyCode': '코드 복사',
   'misc.dragToReorder': '드래그하여 레이어 정렬',
   'misc.clickToSelect': '클릭하여 선택 · 더블클릭하여 이름 변경',
   'misc.showBlock': '블록 표시',
@@ -320,8 +407,6 @@ export const ko: Record<string, string> = {
   'misc.moveDown': '아래로 이동',
   'misc.remove': '삭제',
   'misc.toggleVisibility': '표시/숨기기 전환',
-  'misc.notMockup': '이 목업의 일부가 아닙니다',
-
   // ── 캔버스 도구 모음 ──
   'canvas.undo': '실행취소 · ⌘Z',
   'canvas.redo': '다시 실행 · ⇧⌘Z',
@@ -340,7 +425,6 @@ export const ko: Record<string, string> = {
   'canvas.resetCanvas': '캔버스 초기화',
   'canvas.openNewTab': '새 브라우저 탭에서 이 디자인 열기',
   'canvas.sendMessage': '메시지 전송',
-
   // ── 캔버스 속성 플레이스홀더 ──
   'prop.title': '제목',
   'prop.meta': '메타, 예: 마감 2026-08-05',
@@ -348,7 +432,6 @@ export const ko: Record<string, string> = {
   'prop.placeholder': '플레이스홀더',
   'prop.optionsComma': '옵션, 쉼표로 구분',
   'prop.buttonLabel': '버튼 레이블',
-
   // ── 터미널 ──
   'terminal.attachImage': '이미지 첨부',
   'terminal.attachFile': '파일 첨부',
@@ -361,7 +444,6 @@ export const ko: Record<string, string> = {
   'terminal.attachFiles': '이 채팅에 파일 첨부',
   'terminal.promptPlaceholder':
     'Claude Code에 요청하세요, 예: "날짜 범위 필터를 구현하고 테스트를 보여주세요"',
-
   // ── 리서치 ──
   'research.searchChats': '채팅 검색',
   'research.newFolder': '새 폴더',
@@ -370,51 +452,26 @@ export const ko: Record<string, string> = {
   'research.newChat': '이 폴더에 새 채팅',
   'research.deleteFolder': '이 폴더 삭제',
   'research.deleteChat': '이 채팅 삭제',
-
   // ── 작업 페이지 ──
   'taskPage.generateDesign': '이 작업의 html 페이지 및 UI 디자인 생성',
   'taskPage.editTask': '작업 편집',
   'taskPage.deleteTask': '작업 삭제',
   'taskPage.closePanel': '작업 패널 닫기',
   'taskPage.unlinkTask': '이 작업에서 연결 해제',
-  'taskPage.edit': '편집',
-  'taskPage.delete': '삭제',
-
   // ── 회의 페이지 ──
-  'meeting.moveToVersion': '디자인 버전으로 이동',
-  'meeting.closePreview': '파일 미리보기 닫기',
-  'meeting.closePanel': '회의 패널 닫기',
-  'meeting.generateDesigns': '디자인 생성',
-  'meeting.pickVersion': '버전 선택',
-  'meeting.nothingAttached': '이 회의에 첨부된 파일이 없습니다.',
-
   // ── 보드 페이지 ──
   'board.designFromScratch': '처음부터 디자인하거나 화면 수정',
   'board.maxScreens': '제안할 최대 화면 수',
   'board.includeRefFiles': '프롬프트에 참조 파일 텍스트 포함',
   'board.selectMeeting': '회의 선택',
-
   // ── 워크스페이스 페이지 ──
   'workspace.nothingInFolder': '아직 {name}에 아무것도 없습니다.',
-
   // ── 빌더 ──
-  'builder.searchMockups': '제목, 도메인, 화면, 작성자로 검색',
-  'builder.filterDomain': '도메인별 필터',
-  'builder.filterAuthor': '작성자별 필터',
-  'builder.filterStatus': '상태별 필터',
-  'builder.searchSpecs': '메뉴명, 경로, 설명으로 검색',
-  'builder.specStatus': '스펙 상태',
-  'builder.searchSolutions': '메뉴명, 경로, 링크로 검색',
-  'builder.editSolution': '솔루션 목업 편집',
-  'builder.searchRequirements': '제목, 종류, 기획자, 개발자로 검색',
-
   // ── 프로덕션 / 관리 ──
   'production.search': '메뉴 경로 또는 라우트로 검색',
   'security.search': '파일, 명령어, 유형으로 검색',
-
   // ── 프로젝트 홈 ──
   'home.claudeSpend': '이 프로젝트의 Claude 비용',
-
   // ── 섹션 ──
   'sections.businessSections': '비즈니스 섹션',
   'sections.layers': '레이어',

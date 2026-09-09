@@ -1,5 +1,18 @@
 node_modules
 .next
+.open-next
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store
+.next-run
+
+# Dev server output, when it is started detached
+.dev-server.log
+
+# Local environment
+.env*.local
+.env
+
+# Build output and local service state
+out
+.wrangler

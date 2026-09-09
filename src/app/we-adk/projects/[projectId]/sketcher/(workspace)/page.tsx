@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, FileCode2, Folder, FolderOpen, SquareTerminal } from 'lucide-react';
+import { Check, FileCode2, Folder, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -9,7 +9,12 @@ import { useLocale } from '@/lib/locale';
 import { useBusinessWorkspace } from '@/components/we-adk/business-workspace';
 import { ChangeMark } from '@/components/we-adk/change-mark';
 import { ChatPane, type ChatTurn } from '@/components/we-adk/claude-chat';
+import { CollapsibleChatAside } from '@/components/we-adk/collapsible-chat-aside';
 import { businessPreviewHref } from '@/components/we-adk/mockup-board';
+import { saveHtmlAndBlocks } from '@/lib/we-adk/html-to-blocks';
+import { addBlankDesign } from '@/lib/we-adk-mock/sketches';
+import { versionFolderKey } from '@/lib/we-adk-mock/versions';
+import { MiniMockupView } from '@/components/we-adk/mini-mockup-view';
 import { loadLastView, saveLastView } from '@/lib/we-adk/last-view';
 import {
   folderFiles,
@@ -172,6 +177,7 @@ function FolderView({
   changes: Record<string, FileDiff>;
 }) {
   const { t } = useLocale();
+  const router = useRouter();
   const { saveRound, isReleased } = useBusinessWorkspace();
   const children = folder.children ?? [];
   const total = folder.files.length + children.reduce((sum, child) => sum + child.files.length, 0);
@@ -179,19 +185,17 @@ function FolderView({
   // Saved turns come out of localStorage, so read them after mount and keep one
   // conversation per folder.
   const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
   useEffect(() => {
     setTurns(loadFolderTurns(project.id, folder.id));
   }, [project.id, folder.id]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-      {/* The same two-cell header the preview uses, so the chat column lines up
-          whichever pane is open. */}
       <div className="bg-background flex shrink-0 border-b">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 px-4 py-2">
           <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
           <span className="truncate font-mono text-xs font-medium">{folder.name}</span>
-          {/* folder.label removed per design */}
           <Badge variant="outline" className="shrink-0 text-[10px]">
             {total} file{total === 1 ? '' : 's'}
           </Badge>
@@ -214,17 +218,6 @@ function FolderView({
               Complete
             </Button>
           )}
-        </div>
-
-        <div className="flex w-[26rem] shrink-0 items-center gap-2 border-l px-3 py-2">
-          <SquareTerminal className="text-primary size-4 shrink-0" />
-          <span className="text-sm font-semibold">Claude Code</span>
-          <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-            {folder.name}
-          </span>
-          <Badge variant="outline" className="shrink-0 text-[10px]">
-            local CLI
-          </Badge>
         </div>
       </div>
 
@@ -282,18 +275,40 @@ function FolderView({
           </div>
         </div>
 
-        {/* Claude, with the folder in context rather than one screen. */}
-        <aside className="bg-background flex w-[26rem] shrink-0 flex-col border-l">
+        <CollapsibleChatAside open={chatOpen} onToggle={() => setChatOpen((v) => !v)}>
           <ChatPane
             project={project}
             contextText={folderChatContext(project, folder, status)}
             folderLabel={folder.label}
             greeting={`Ask about ${folder.name}`}
-            greetingHint="Everything in this folder is in context — its design files, the folders inside it, and where the round stands."
+            greetingHint="Ask to build any page — Claude will generate HTML preview and canvas blocks automatically."
             initialTurns={turns}
             onPersist={(next) => saveFolderTurns(project.id, folder.id, next)}
+            onResponse={(responseText, userMessage) => {
+              const match = responseText.match(/```html\s*\n([\s\S]*?)```/);
+              if (!match?.[1]) return;
+              const html = match[1].trim();
+              // Extract page name from user message
+              const nameMatch = userMessage.match(
+                /(?:build|create|make|design|generate)\s+(?:me\s+)?(?:a\s+)?(.+?)(?:\s+page|\s+screen)?$/i,
+              );
+              const pageName = nameMatch?.[1]?.trim() ?? 'Generated Page';
+              const fileName = pageName
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '');
+              const folderKey = versionFolderKey(project.id, folder.versionNumber ?? 1);
+              const today = new Date().toISOString().slice(0, 10);
+              const screen = addBlankDesign(
+                folderKey,
+                { name: pageName, route: `/${fileName}`, seedPattern: 'listPage' },
+                today,
+              );
+              saveHtmlAndBlocks(screen.id, html);
+              router.push(businessPreviewHref(project.id, screen.id, folder.id));
+            }}
           />
-        </aside>
+        </CollapsibleChatAside>
       </div>
     </div>
   );
@@ -308,6 +323,11 @@ function FolderView({
 export default function ProjectFilesPage() {
   const { project, folders, activeFolder, changes } = useBusinessWorkspace();
   const router = useRouter();
+
+  // Archived (mini mockup) projects use their own meeting-based layout
+  if (project.archived) {
+    return <MiniMockupView projectId={project.id} projectName={project.name} />;
+  }
   // The URL is the authority on whether a folder was chosen: rounds after the
   // first live in localStorage, so `?folder=version-2` resolves a beat after
   // mount — redirecting on the empty first render would bounce a reload of this

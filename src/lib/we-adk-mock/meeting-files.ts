@@ -367,6 +367,41 @@ export const MEETING_FILES: Record<string, MeetingFile[]> = {
       uploadedAt: '2026-03-12',
     },
   ],
+
+  /* Task reference files ------------------------------------------------- */
+  'task:proj-eacc-cloud:task-dev-01': [
+    { id: 'tf-01-1', name: 'csv-export-spec.md', kind: 'doc', sizeKb: 12, uploadedBy: 'Chheng Udam', uploadedAt: '2026-08-04' },
+    { id: 'tf-01-2', name: 'receipt-list-sample.csv', kind: 'sheet', sizeKb: 34, uploadedBy: 'Chheng Udam', uploadedAt: '2026-08-04' },
+  ],
+  'task:proj-eacc-cloud:task-dev-02': [
+    { id: 'tf-02-1', name: 'bulk-approve-wireframe.png', kind: 'image', sizeKb: 420, uploadedBy: 'Chheng Udam', uploadedAt: '2026-08-03' },
+    { id: 'tf-02-2', name: 'bulk-approve-flow.pdf', kind: 'pdf', sizeKb: 198, uploadedBy: 'Seongmin Yoo', uploadedAt: '2026-08-03' },
+  ],
+  'task:proj-eacc-cloud:task-dev-03': [
+    { id: 'tf-03-1', name: 'dashboard-performance-profile.json', kind: 'doc', sizeKb: 8, uploadedBy: 'Seongmin Yoo', uploadedAt: '2026-08-01' },
+  ],
+  'task:proj-eacc-cloud:task-dev-04': [
+    { id: 'tf-04-1', name: 'a11y-keyboard-nav-spec.md', kind: 'doc', sizeKb: 6, uploadedBy: 'Moka', uploadedAt: '2026-07-31' },
+  ],
+  'task:proj-eacc-cloud:task-dev-05': [
+    { id: 'tf-05-1', name: 'login-error-states.fig', kind: 'image', sizeKb: 1_200, uploadedBy: 'Chheng Udam', uploadedAt: '2026-07-30' },
+    { id: 'tf-05-2', name: 'design-conformance-checklist.xlsx', kind: 'sheet', sizeKb: 28, uploadedBy: 'Seongmin Yoo', uploadedAt: '2026-07-30' },
+  ],
+  'task:proj-eacc-cloud:task-dev-06': [
+    { id: 'tf-06-1', name: 'upload-error-screenshot.png', kind: 'image', sizeKb: 340, uploadedBy: 'Chheng Udam', uploadedAt: '2026-08-05' },
+    { id: 'tf-06-2', name: 'file-size-limit-policy.md', kind: 'doc', sizeKb: 4, uploadedBy: 'Seongmin Yoo', uploadedAt: '2026-08-05' },
+  ],
+  'task:proj-eacc-cloud:task-dev-07': [
+    { id: 'tf-07-1', name: 'totp-enrolment-flow.pdf', kind: 'pdf', sizeKb: 175, uploadedBy: 'Seongmin Yoo', uploadedAt: '2026-08-06' },
+    { id: 'tf-07-2', name: 'recovery-code-ux.fig', kind: 'image', sizeKb: 890, uploadedBy: 'Moka', uploadedAt: '2026-08-06' },
+  ],
+  'task:proj-eacc-cloud:task-dev-08': [
+    { id: 'tf-08-1', name: 'close-checklist-export-sample.pdf', kind: 'pdf', sizeKb: 310, uploadedBy: 'Moka', uploadedAt: '2026-08-04' },
+  ],
+  'task:proj-eacc-cloud:task-dev-09': [
+    { id: 'tf-09-1', name: 'audit-trail-schema.sql', kind: 'doc', sizeKb: 3, uploadedBy: 'Seongmin Yoo', uploadedAt: '2026-08-06' },
+    { id: 'tf-09-2', name: 'approval-override-scenarios.xlsx', kind: 'sheet', sizeKb: 22, uploadedBy: 'Seongmin Yoo', uploadedAt: '2026-08-06' },
+  ],
 };
 
 /* ------------------------------------------------------------------ */

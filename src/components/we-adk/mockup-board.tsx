@@ -9,6 +9,7 @@ import { StatusChip } from '@/components/we-adk/status-chip';
 import { type Chip } from '@/lib/we-adk-mock/types';
 import { useLocale } from '@/lib/locale';
 import { loadScreenBlocks, type CanvasBlock } from '@/lib/we-adk-mock/sketcher';
+import { screenDisplayPath } from '@/lib/we-adk/prototype';
 
 /** The design width every frame is authored at; frames scale down from this. */
 const AUTHOR_WIDTH = 1024;
@@ -63,13 +64,18 @@ export function previewHref(screenId: string, projectId?: string): string {
  * A project's design file opens inside the Business workspace, so the project
  * nav and the explorer stay where they are. `folderId` keeps the tree selection.
  */
-export function businessCanvasHref(
+/**
+ * A design file opened for editing — the page it is, not the canvas it used to
+ * be built from. Named for what the pane does rather than for the surface,
+ * since the surface has now changed once.
+ */
+export function businessEditHref(
   projectId: string,
   screenId: string,
   folderId?: string | null,
 ): string {
   const folder = folderId ? `&folder=${folderId}` : '';
-  return `/we-adk/projects/${projectId}/sketcher/canvas?screen=${screenId}${folder}`;
+  return `/we-adk/projects/${projectId}/sketcher/edit?screen=${screenId}${folder}`;
 }
 
 /**
@@ -179,12 +185,12 @@ function Frame({
         </span>
       </Link>
 
-      <p className="text-muted-foreground truncate font-mono text-[10px]">
+      <p className="text-muted-foreground truncate text-[10px]">
         {screen.basedOnRoute
-          ? `${t('board.fromProduction')}${screen.basedOnRoute}`
+          ? `${t('board.fromProduction')}${screenDisplayPath(screen.id, screen.basedOnRoute) || screen.basedOnRoute}`
           : screen.variantOfName
             ? `${t('board.variantOf')}${screen.variantOfName}`
-            : (screen.route ?? '—')}
+            : (screenDisplayPath(screen.id, screen.route) || screen.route || '—')}
       </p>
     </div>
   );
@@ -272,7 +278,9 @@ export function MockupBoard({
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-[#f4f5f7] p-8 dark:bg-[#0b0e14]">
       {screens.length === 0 ? (
-        <p className="text-muted-foreground py-16 text-center text-sm">{emptyMessage ?? t('board.noScreens')}</p>
+        <p className="text-muted-foreground py-16 text-center text-sm">
+          {emptyMessage ?? t('board.noScreens')}
+        </p>
       ) : (
         <div className="flex flex-col gap-8">
           {groups.map((group, index) => (

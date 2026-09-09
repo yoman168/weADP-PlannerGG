@@ -117,3 +117,23 @@
     cursor: pointer;
   }
 }
+
+/* Rainbow glow for AI actions */
+@property --ai-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes ai-spin {
+  to { --ai-angle: 360deg; }
+}
+
+@keyframes ai-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(168,85,247,0.4), 0 0 20px 4px rgba(139,92,246,0.15); }
+  50% { box-shadow: 0 0 14px 4px rgba(236,72,153,0.45), 0 0 28px 6px rgba(168,85,247,0.2); }
+}
+
+.animate-ai-glow {
+  animation: ai-glow-pulse 2s ease-in-out infinite;
+}

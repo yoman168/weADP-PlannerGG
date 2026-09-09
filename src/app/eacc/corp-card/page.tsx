@@ -1,6 +1,7 @@
 'use client';
 
 import { CheckSquare2, ChevronDown, Download, Plus, Search, Square, X } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { Badge, Button, Card, Input, cn } from '@/components/ui';
 import {
@@ -193,7 +194,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Corporate Card',
-  subtitle: 'Corporate Card > Corporate Card',
+  subtitle: 'eACC Cloud > Expense Management > Corporate Card',
 };
 
 const FILTERS_DEFAULTS = {
@@ -301,9 +302,11 @@ export default function CorpCardPage() {
               <Download className="size-3.5" />
               Export
             </Button>
-            <Button size="sm" className="gap-1.5">
-              <Plus className="size-3.5" />
-              New Charge
+            <Button size="sm" className="gap-1.5" asChild>
+              <Link href="/eacc/corp-card/new-charge">
+                <Plus className="size-3.5" />
+                New Charge
+              </Link>
             </Button>
           </div>
         </div>
@@ -494,7 +497,11 @@ export default function CorpCardPage() {
                       <td className="text-muted-foreground px-3 py-3 text-sm">{row.department}</td>
                     )}
                     {columnOn(table, 'merchant') && (
-                      <td className="px-3 py-3 text-sm">{row.merchant}</td>
+                      <td className="px-3 py-3 text-sm">
+                        <Link href="/eacc/corp-card/detail" className="hover:underline">
+                          {row.merchant}
+                        </Link>
+                      </td>
                     )}
                     {columnOn(table, 'category') && (
                       <td className="text-muted-foreground px-3 py-3 text-xs">{row.category}</td>

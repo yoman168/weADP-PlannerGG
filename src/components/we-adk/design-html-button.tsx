@@ -9,12 +9,22 @@
  * Same button, same file name, same result: the screen as one standalone
  * document. Which of the two it is stays in here.
  */
-import { Download } from 'lucide-react';
+import { Download, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui';
-import { designToHtml, downloadDesignHtml } from '@/lib/we-adk/design-html';
+import { designToHtml, downloadDesignHtml, openDesignHtml } from '@/lib/we-adk/design-html';
 import { findPrototypeFile, prototypeHtmlHref } from '@/lib/we-adk/prototype';
 import { prototypeDesignBlocks } from '@/lib/we-adk/prototype-design';
 import { loadScreenBlocks } from '@/lib/we-adk-mock/sketcher';
+
+function useDesignHtml(screenId: string, name: string, route?: string, seedPattern = 'listPage', origin?: string) {
+  return () =>
+    designToHtml({
+      name,
+      route,
+      origin,
+      blocks: loadScreenBlocks(screenId, seedPattern, () => prototypeDesignBlocks(screenId)),
+    });
+}
 
 export function DesignHtmlButton({
   screenId,
@@ -35,6 +45,7 @@ export function DesignHtmlButton({
   className?: string;
 }) {
   const prototype = findPrototypeFile(screenId);
+  const getHtml = useDesignHtml(screenId, name, route, seedPattern, origin);
 
   // A page of the running app: the server renders it, so this is a plain link.
   if (prototype) {
@@ -55,20 +66,59 @@ export function DesignHtmlButton({
       variant="outline"
       size="sm"
       className={className}
-      onClick={() =>
-        downloadDesignHtml(
-          name,
-          designToHtml({
-            name,
-            route,
-            origin,
-            blocks: loadScreenBlocks(screenId, seedPattern, () => prototypeDesignBlocks(screenId)),
-          }),
-        )
-      }
+      onClick={() => downloadDesignHtml(name, getHtml())}
     >
       <Download className="size-3" />
       .html
+    </Button>
+  );
+}
+
+/**
+ * "Open in Browser" — opens the same HTML that the download produces.
+ * For prototype files it opens the server-rendered page; for designed files
+ * it opens the static HTML generated from canvas blocks.
+ */
+export function OpenInBrowserButton({
+  screenId,
+  name,
+  route,
+  seedPattern = 'listPage',
+  origin,
+  className,
+  label,
+}: {
+  screenId: string;
+  name: string;
+  route?: string;
+  seedPattern?: string;
+  origin?: string;
+  className?: string;
+  label?: string;
+}) {
+  const prototype = findPrototypeFile(screenId);
+  const getHtml = useDesignHtml(screenId, name, route, seedPattern, origin);
+
+  if (prototype) {
+    return (
+      <Button variant="outline" size="sm" className={className} asChild>
+        <a href={prototypeHtmlHref(prototype)} target="_blank" rel="noreferrer">
+          <ExternalLink className="size-3" />
+          {label ?? 'Open in Browser'}
+        </a>
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className={className}
+      onClick={() => openDesignHtml(getHtml())}
+    >
+      <ExternalLink className="size-3" />
+      {label ?? 'Open in Browser'}
     </Button>
   );
 }

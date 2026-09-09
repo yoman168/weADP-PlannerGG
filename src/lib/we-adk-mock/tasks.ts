@@ -5,11 +5,30 @@
  * change requests — each with a code, title, status, and optional count.
  */
 import { type Chip } from './types';
+import {
+  BASELINE_VERSION,
+  isVersionLocked,
+  loadRemovedVersions,
+  loadVersionCount,
+  loadVersionStatuses,
+} from './versions';
 
 export type TaskStatus = 'Complete' | 'Request' | 'Progress' | 'Feedback';
 
 export type TaskCategory =
   'Research' | 'Design' | 'Development' | 'Testing' | 'Documentation' | 'Other';
+
+/**
+ * Who verifies the task once it is built.
+ *
+ * A real choice, not a label: AI testing is cheap and repeatable but blind to
+ * intent, human testing is the opposite, and some work wants both. Recording
+ * it on the task means a reviewer can see whether "Complete" was checked by a
+ * person, a machine, or nobody yet.
+ */
+export type TestedBy = 'Human' | 'AI' | 'Both' | 'Not tested';
+
+export const TESTED_BY_OPTIONS: TestedBy[] = ['Not tested', 'Human', 'AI', 'Both'];
 
 export const TASK_CATEGORIES: TaskCategory[] = [
   'Research',
@@ -52,199 +71,172 @@ export interface ProjectTask {
   tags?: string[];
   /** What the task is about: research, design, development, etc. */
   category?: TaskCategory;
+  /** Who verifies it. Absent means the question has not been answered yet. */
+  testedBy?: TestedBy;
+  /**
+   * The person doing the human testing, when a human is doing any of it.
+   *
+   * Separate from `assignee`: the point of human verification is that someone
+   * other than the builder looks at it, so the two are different questions and
+   * deserve different answers.
+   */
+  tester?: string;
+  /**
+   * The round this task belongs to — the same versions the design rounds use,
+   * not a second numbering. A project runs several rounds and each carries its
+   * own tasks, so "what shipped in version 2" is a question the board answers.
+   *
+   * Absent means unscheduled: raised, but not yet put in a round.
+   */
+  version?: number;
 }
 
 /** Tasks keyed by project id. */
 export const PROJECT_TASKS: Record<string, ProjectTask[]> = {
   'proj-eacc-cloud': [
     {
-      id: 'task-f2-09',
-      code: 'F2_09',
-      title: 'Do not display Bills that have negative value in the remaining',
-      status: 'Complete',
-      assignee: 'Taehyuk Park',
-      updatedAt: '2026-07-15',
-      priority: 2,
-      description:
-        'Bills with a negative remaining value should be hidden from the list view. The accountant workshop flagged this — negative values confuse the month-end close checklist.',
-      tags: ['bug', 'bills'],
-    },
-    {
-      id: 'task-ab1',
-      code: 'AB1',
-      title: 'Attendance',
-      status: 'Request',
-      assignee: 'Namwon Moon',
-      updatedAt: '2026-07-28',
-      priority: 2,
-      description:
-        'Add an attendance tracking module. The travel desk needs to reconcile trip plans against actual attendance records.',
-      tags: ['feature', 'attendance'],
-    },
-    {
-      id: 'task-aa1',
-      code: 'AA1',
-      title: 'Services',
-      count: 1,
-      status: 'Request',
-      assignee: 'Taehyuk Park',
-      updatedAt: '2026-07-27',
-      priority: 3,
-      description:
-        'Integrate external services API for invoice validation. One service endpoint needs to be connected.',
-      tags: ['feature', 'services'],
-    },
-    {
-      id: 'task-d6-04',
-      code: 'D6_04',
-      title: 'DAELYUK - Page Break Issue When Printing',
-      status: 'Complete',
-      assignee: 'Taehyuk Park',
-      updatedAt: '2026-07-10',
-      priority: 1,
-      description:
-        'Page breaks were not rendering correctly when printing tax invoices. Fixed the CSS print media query to handle multi-page documents.',
-      tags: ['bug', 'printing'],
-    },
-    {
-      id: 'task-d7',
-      code: 'D7',
-      title: 'Bills',
-      count: 31,
+      id: 'task-dev-01',
+      code: 'DEV_01',
+      title: 'CSV export for the cash receipt list',
       status: 'Progress',
-      assignee: 'Namwon Moon',
-      updatedAt: '2026-07-29',
+      assignee: 'Chheng Udam',
+      updatedAt: '2026-08-04',
       priority: 1,
       description:
-        'Batch of 31 bill-related improvements. Includes column reordering, default filters, and the receipt number replacement from the June change request.',
-      tags: ['feature', 'bills'],
+        'Accountants need to export the filtered receipt list as CSV from the toolbar. Columns and formatting must match what the table shows — dates and currency included — and the export must respect the active filters, not dump the whole dataset.',
+      tags: ['feature', 'cash-receipt', 'export'],
+      category: 'Development',
+      testedBy: 'AI',
+      version: 2,
     },
     {
-      id: 'task-z1',
-      code: 'Z1',
-      title: 'Standard Mobile',
-      count: 2,
-      status: 'Request',
-      assignee: 'Moka',
-      updatedAt: '2026-07-25',
-      priority: 2,
-      description:
-        'Two mobile-specific layout adjustments for the standard expense screens. Touch targets too small on the approval buttons.',
-      tags: ['feature', 'mobile'],
-    },
-    {
-      id: 'task-f2',
-      code: 'F2',
-      title: 'Payment Deposits',
-      count: 12,
-      status: 'Request',
-      assignee: 'Taehyuk Park',
-      updatedAt: '2026-07-26',
-      priority: 2,
-      description:
-        'Twelve deposit-related tasks covering auto-matching, duplicate detection, and the settlement date display the accountants asked for.',
-      tags: ['feature', 'payment'],
-    },
-    {
-      id: 'task-v3',
-      code: 'V3',
-      title: 'Multiple Language (ML)',
-      count: 14,
-      status: 'Request',
-      assignee: 'Moka',
-      updatedAt: '2026-07-24',
-      priority: 2,
-      description:
-        'Fourteen translation entries need adding for the new screens. Khmer and English are the priority; Korean follows.',
-      tags: ['feature', 'i18n'],
-    },
-    {
-      id: 'task-v2',
-      code: 'V2',
-      title: 'Multiple Language (ML)',
-      count: 50,
-      status: 'Complete',
-      assignee: 'Moka',
-      updatedAt: '2026-07-12',
-      priority: 2,
-      description:
-        'Previous batch of 50 translation strings. All delivered and verified across Khmer and English.',
-      tags: ['feature', 'i18n'],
-    },
-    {
-      id: 'task-y1',
-      code: 'Y1',
-      title: 'Settings -> Zalo OA',
-      count: 1,
-      status: 'Request',
-      assignee: 'Namwon Moon',
-      updatedAt: '2026-07-23',
-      priority: 3,
-      description:
-        'Connect the Zalo Official Account settings page. One integration point for push notifications.',
-      tags: ['feature', 'settings'],
-    },
-    {
-      id: 'task-d6',
-      code: 'D6',
-      title: 'Bills',
-      count: 50,
-      status: 'Progress',
-      assignee: 'Taehyuk Park',
-      updatedAt: '2026-07-28',
-      priority: 1,
-      description:
-        'Major bills overhaul — 50 items covering list performance, search, and the new close-status screen from the accountant workshop.',
-      tags: ['feature', 'bills'],
-    },
-    {
-      id: 'task-c3-15',
-      code: 'C3_15',
-      title: 'PROD - Error upload customer with customer ID is number, error',
-      status: 'Complete',
-      assignee: 'Taehyuk Park',
-      updatedAt: '2026-07-08',
-      priority: 1,
-      description:
-        'Customer upload failed when the customer ID was numeric. The validation regex expected at least one letter. Fixed to accept all-numeric IDs.',
-      tags: ['bug', 'customer'],
-    },
-    {
-      id: 'task-f1-39',
-      code: 'F1_39',
-      title: 'PROD - Cannot scraping Shinhan bank',
-      status: 'Complete',
-      assignee: 'Namwon Moon',
-      updatedAt: '2026-07-05',
-      priority: 1,
-      description:
-        'Shinhan bank scraping broke after their site redesign. Updated the scraper selectors and added a health-check endpoint.',
-      tags: ['bug', 'scraping'],
-    },
-    {
-      id: 'task-d5-29',
-      code: 'D5_29',
-      title: 'PROD - Daelyuk - Error display payment result',
-      status: 'Feedback',
-      assignee: 'Taehyuk Park',
-      updatedAt: '2026-07-20',
-      priority: 2,
-      description:
-        'Payment result screen shows incorrect totals when multiple currencies are involved. Awaiting feedback from the Daelyuk team on expected behaviour for mixed-currency settlements.',
-      tags: ['bug', 'payment'],
-    },
-    {
-      id: 'task-w1',
-      code: 'W1',
-      title: 'Admin -> Report',
+      id: 'task-dev-02',
+      code: 'DEV_02',
+      title: 'Bulk approve on the corporate card screen',
       count: 3,
       status: 'Progress',
-      assignee: 'Namwon Moon',
-      updatedAt: '2026-07-29',
+      assignee: 'Chheng Udam',
+      updatedAt: '2026-08-03',
+      priority: 1,
+      description:
+        'The card screen approves one expense at a time; team leads asked for select-all with a bulk approve action. Includes the checkbox column, the sticky action bar, and a confirm step showing the total amount being approved.',
+      tags: ['feature', 'corp-card'],
+      category: 'Development',
+      testedBy: 'Human',
+      tester: 'Seongmin Yoo',
+      version: 2,
+    },
+    {
+      id: 'task-dev-03',
+      code: 'DEV_03',
+      title: 'Dashboard loads slowly with 12 months of history',
+      status: 'Request',
+      assignee: 'Seongmin Yoo',
+      updatedAt: '2026-08-01',
       priority: 2,
       description:
-        'Three new admin reports: monthly expense summary, per-department breakdown, and approval turnaround time.',
-      tags: ['feature', 'admin'],
+        'The spend-by-category chart recomputes on every render once an account has a full year of activity. Memoise the aggregation and move the month grouping out of the component body.',
+      tags: ['performance', 'dashboard'],
+      category: 'Development',
+      testedBy: 'AI',
+      version: 2,
+    },
+    {
+      id: 'task-dev-04',
+      code: 'DEV_04',
+      title: 'Keyboard navigation in the approval queue',
+      status: 'Request',
+      assignee: 'Moka',
+      updatedAt: '2026-07-31',
+      priority: 3,
+      description:
+        'Reviewers work the queue top to bottom; arrow keys should move the selection and A/R should approve or return the focused item. Focus must stay visible and the shortcuts must not fire while a text field is active.',
+      tags: ['feature', 'approvals', 'a11y'],
+      category: 'Development',
+      testedBy: 'Human',
+      tester: 'Moka',
+      // The round being worked on. It used to say 3 — a round Business has
+      // never opened, and the only thing that put a third version on the rail.
+      version: 2,
+    },
+    {
+      id: 'task-dev-05',
+      code: 'DEV_05',
+      title: 'Login error states do not match the design round',
+      status: 'Feedback',
+      assignee: 'Chheng Udam',
+      updatedAt: '2026-07-30',
+      priority: 2,
+      description:
+        'A wrong password renders a browser alert instead of the inline field error the round specifies. Bring the error and disabled states in line with DESIGN.md — no colours or radii outside the system.',
+      tags: ['bug', 'login', 'design-conformance'],
+      category: 'Development',
+      testedBy: 'Both',
+      tester: 'Seongmin Yoo',
+      version: 1,
+    },
+    {
+      id: 'task-dev-06',
+      code: 'DEV_06',
+      title: 'Receipt attachments over 10MB fail silently',
+      status: 'Progress',
+      assignee: 'Chheng Udam',
+      updatedAt: '2026-08-05',
+      priority: 1,
+      description:
+        'Attaching a scan larger than 10MB leaves the row looking saved, but the file never reaches storage and the receipt cannot be approved. The limit must be enforced before upload with a clear message, and anything already stranded needs a repair path.',
+      tags: ['bug', 'cash-receipt', 'uploads'],
+      category: 'Development',
+      testedBy: 'Both',
+      tester: 'Seongmin Yoo',
+      version: 2,
+    },
+    {
+      id: 'task-dev-07',
+      code: 'DEV_07',
+      title: 'Two-factor enrolment for finance approvers',
+      status: 'Progress',
+      assignee: 'Seongmin Yoo',
+      updatedAt: '2026-08-06',
+      priority: 1,
+      description:
+        'Anyone who can approve money movement enrols in TOTP before their next approval. Covers the enrolment screen, recovery codes, and a grace window so nobody is locked out mid-close.',
+      tags: ['feature', 'security', 'approvals'],
+      category: 'Development',
+      testedBy: 'Both',
+      tester: 'Moka',
+      version: 2,
+    },
+    {
+      id: 'task-dev-08',
+      code: 'DEV_08',
+      title: 'Month-end close checklist export',
+      status: 'Complete',
+      assignee: 'Moka',
+      updatedAt: '2026-08-04',
+      priority: 2,
+      description:
+        'Accountants send the close checklist to the auditor as a PDF each month. Export the checklist with its blockers, owners and sign-off timestamps, in the order the close screen shows them.',
+      tags: ['feature', 'close', 'export'],
+      category: 'Development',
+      testedBy: 'AI',
+      version: 2,
+    },
+    {
+      id: 'task-dev-09',
+      code: 'DEV_09',
+      title: 'Audit trail for approval overrides',
+      status: 'Request',
+      assignee: 'Seongmin Yoo',
+      updatedAt: '2026-08-06',
+      priority: 2,
+      description:
+        'When an approver overrides a policy warning, record who did it, what the warning said and the reason they gave. The trail is read by the auditor, so entries cannot be edited or deleted once written.',
+      tags: ['feature', 'approvals', 'audit'],
+      category: 'Development',
+      testedBy: 'Human',
+      tester: 'Seongmin Yoo',
+      version: 2,
     },
   ],
   'proj-hd-trip': [
@@ -352,6 +344,10 @@ export function createTask(
     description?: string;
     tags?: string[];
     category?: TaskCategory;
+    testedBy?: TestedBy;
+    tester?: string;
+    /** Which round it lands in. Defaults to the one that is open. */
+    version?: number | null;
   },
 ): ProjectTask {
   taskCounter += 1;
@@ -366,6 +362,11 @@ export function createTask(
     description: fields.description,
     category: fields.category,
     tags: fields.tags,
+    testedBy: fields.testedBy,
+    tester: fields.tester || undefined,
+    // A new task belongs to the round being worked on; a shipped round takes
+    // no new work, so it is never the default.
+    version: fields.version === null ? undefined : (fields.version ?? openRound(projectId)),
   };
   const current = loadUserTasks(projectId);
   saveUserTasks(projectId, [task, ...current]);
@@ -389,6 +390,24 @@ export function deleteTask(projectId: string, taskId: string): void {
 /** Whether a task was created by the user (vs seeded mock data). */
 export function isUserTask(taskId: string): boolean {
   return taskId.startsWith('task-user-');
+}
+
+/**
+ * Whether a build owns this task.
+ *
+ * A build needs a task — it is what the build is keyed on, and where its code
+ * and title come from — but that does not make it board work. Completing a round
+ * raises one per file of new work and every reported fix raises another, so the
+ * board fills with rows nobody filed and nobody triages, burying the handful
+ * that a person actually wrote down. The task boards filter these out; the Build
+ * tab, which is where they belong, does not.
+ *
+ * Read off the id rather than the tags or the code, because the id is assigned
+ * by the two functions that raise builds and nothing else writes that prefix —
+ * a tag can be edited and `FIX_` is a label someone could type.
+ */
+export function isBuildTask(taskId: string): boolean {
+  return taskId.startsWith('task-bld-') || taskId.startsWith('task-fix-');
 }
 
 /* ------------------------------------------------------------------ */
@@ -428,6 +447,231 @@ export function setTaskStatusOverride(
     // Storage unavailable — the move simply won't survive a reload.
   }
   return next;
+}
+
+/* ------------------------------------------------------------------ */
+/* Who it is assigned to                                               */
+/* ------------------------------------------------------------------ */
+
+const ASSIGNMENT_KEY = 'we-adk:task-assignment';
+
+export interface TaskAssignment {
+  assignee?: string;
+  tester?: string;
+}
+
+export type TaskAssignmentOverrides = Record<string, TaskAssignment>;
+
+export function loadTaskAssignmentOverrides(projectId: string): TaskAssignmentOverrides {
+  try {
+    const raw = window.localStorage.getItem(`${ASSIGNMENT_KEY}:${projectId}`);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? (parsed as TaskAssignmentOverrides) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Stored as an override rather than written onto the task, for the same reason
+ * status moves are: the seeded tasks are constants, and reassignment has to
+ * survive a reload on those too. Patched rather than replaced so setting a
+ * tester does not clear the assignee.
+ */
+export function setTaskAssignmentOverride(
+  projectId: string,
+  taskId: string,
+  patch: TaskAssignment,
+): TaskAssignmentOverrides {
+  const current = loadTaskAssignmentOverrides(projectId);
+  const next = { ...current, [taskId]: { ...current[taskId], ...patch } };
+  try {
+    window.localStorage.setItem(`${ASSIGNMENT_KEY}:${projectId}`, JSON.stringify(next));
+  } catch {
+    // Storage unavailable — the reassignment simply won't survive a reload.
+  }
+  return next;
+}
+
+export function applyTaskAssignmentOverrides(
+  tasks: ProjectTask[],
+  overrides: TaskAssignmentOverrides,
+): ProjectTask[] {
+  return tasks.map((task) => {
+    const patch = overrides[task.id];
+    if (!patch) return task;
+    return {
+      ...task,
+      assignee: patch.assignee ?? task.assignee,
+      // An empty string is "nobody", which is a real answer and must not fall
+      // back to whatever the task was seeded with.
+      tester: patch.tester === undefined ? task.tester : patch.tester || undefined,
+    };
+  });
+}
+
+/** Whether a human is part of verifying this task. */
+export function needsHumanTester(testedBy: TestedBy | undefined): boolean {
+  return testedBy === 'Human' || testedBy === 'Both';
+}
+
+/* ------------------------------------------------------------------ */
+/* Which round it belongs to                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The round new work lands in: the newest one that has not shipped.
+ *
+ * Imported lazily through a function rather than at module scope because the
+ * versions module reads localStorage, and this file is also imported on the
+ * server where that does not exist.
+ */
+/**
+ * The rounds a task can be put in, newest first — exactly the rounds Business
+ * has, and a round it dropped is not one of them.
+ *
+ * Business owns the rounds: it is the tab that opens and ships them, so this
+ * reads its store and nothing else. It used to widen the list to cover the
+ * highest round any task named, which is how the rail grew a version Business
+ * had never opened — one stray number on one task invented a round, and it sat
+ * there reading "In progress" next to the round actually being worked on, two
+ * open rounds in a model that allows one. A task pointing at a round that does
+ * not exist is a task out of the rounds; it is not a reason to make one.
+ */
+export function projectRounds(projectId: string): number[] {
+  const count = Math.max(loadVersionCount(projectId), BASELINE_VERSION);
+  const removed = loadRemovedVersions(projectId);
+  const rounds: number[] = [];
+  for (let version = count; version >= BASELINE_VERSION; version -= 1) {
+    if (!removed.includes(version)) rounds.push(version);
+  }
+  return rounds;
+}
+
+function openRound(projectId: string): number | undefined {
+  try {
+    const statuses = loadVersionStatuses(projectId);
+    return projectRounds(projectId).find((version) => !isVersionLocked(version, statuses));
+  } catch {
+    return undefined;
+  }
+}
+
+const VERSION_KEY = 'we-adk:task-version';
+
+/** `null` is a deliberate answer — "taken out of every round" — so it is stored. */
+export type TaskVersionOverrides = Record<string, number | null>;
+
+export function loadTaskVersionOverrides(projectId: string): TaskVersionOverrides {
+  try {
+    const raw = window.localStorage.getItem(`${VERSION_KEY}:${projectId}`);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? (parsed as TaskVersionOverrides) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setTaskVersionOverride(
+  projectId: string,
+  taskId: string,
+  version: number | null,
+): TaskVersionOverrides {
+  const next = { ...loadTaskVersionOverrides(projectId), [taskId]: version };
+  try {
+    window.localStorage.setItem(`${VERSION_KEY}:${projectId}`, JSON.stringify(next));
+  } catch {
+    // Storage unavailable — the move simply won't survive a reload.
+  }
+  return next;
+}
+
+export function applyTaskVersionOverrides(
+  tasks: ProjectTask[],
+  overrides: TaskVersionOverrides,
+): ProjectTask[] {
+  return tasks.map((task) =>
+    task.id in overrides ? { ...task, version: overrides[task.id] ?? undefined } : task,
+  );
+}
+
+export interface TaskVersionGroup {
+  /** Null is the unscheduled group, which sorts last. */
+  version: number | null;
+  tasks: ProjectTask[];
+}
+
+/**
+ * Tasks by round, newest first, with the unscheduled ones last.
+ *
+ * Grouping rather than filtering, because the question the board is asked is
+ * "what is in each round" — a filter answers it one round at a time and hides
+ * the shape of the release.
+ */
+export function groupTasksByVersion(tasks: ProjectTask[]): TaskVersionGroup[] {
+  const groups = new Map<number | null, ProjectTask[]>();
+  for (const task of tasks) {
+    const key = task.version ?? null;
+    const existing = groups.get(key);
+    if (existing) existing.push(task);
+    else groups.set(key, [task]);
+  }
+  return [...groups.entries()]
+    .map(([version, entries]) => ({ version, tasks: entries }))
+    .sort((a, b) => {
+      if (a.version === null) return 1;
+      if (b.version === null) return -1;
+      return b.version - a.version;
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* Who tests it                                                        */
+/* ------------------------------------------------------------------ */
+
+const TESTED_BY_KEY = 'we-adk:task-tested-by';
+
+export type TestedByOverrides = Record<string, TestedBy>;
+
+export function loadTestedByOverrides(projectId: string): TestedByOverrides {
+  try {
+    const raw = window.localStorage.getItem(`${TESTED_BY_KEY}:${projectId}`);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? (parsed as TestedByOverrides) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Answering "who tests this?" is a decision people flip as work moves, so it
+ * is stored the way a status move is rather than only being reachable through
+ * the edit form.
+ */
+export function setTestedByOverride(
+  projectId: string,
+  taskId: string,
+  testedBy: TestedBy,
+): TestedByOverrides {
+  const next = { ...loadTestedByOverrides(projectId), [taskId]: testedBy };
+  try {
+    window.localStorage.setItem(`${TESTED_BY_KEY}:${projectId}`, JSON.stringify(next));
+  } catch {
+    // Storage unavailable — the choice simply won't survive a reload.
+  }
+  return next;
+}
+
+export function applyTestedByOverrides(
+  tasks: ProjectTask[],
+  overrides: TestedByOverrides,
+): ProjectTask[] {
+  return tasks.map((task) =>
+    overrides[task.id] ? { ...task, testedBy: overrides[task.id]! } : task,
+  );
 }
 
 /** The list as it should read now, with any moved statuses applied. */

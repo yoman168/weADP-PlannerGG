@@ -61,11 +61,21 @@ export function versionFolderKey(projectId: string, version: number): string {
 }
 
 /** How many versions this project has. Always at least the baseline. */
+/**
+ * How many rounds a project has, and zero is a real answer.
+ *
+ * A project that was created here has nothing in it and no product behind it,
+ * so it has no baseline to show either — it stores a zero and lists no rounds
+ * until someone opens one. Every seeded project stores nothing and gets the
+ * baseline, which is what the fallback is for: absent means "the usual one
+ * round", not "none".
+ */
 export function loadVersionCount(projectId: string): number {
   try {
     const raw = window.localStorage.getItem(`${COUNT_KEY}:${projectId}`);
+    if (raw === null) return BASELINE_VERSION;
     const parsed = Number(raw);
-    return Number.isInteger(parsed) && parsed >= BASELINE_VERSION ? parsed : BASELINE_VERSION;
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : BASELINE_VERSION;
   } catch {
     return BASELINE_VERSION;
   }
@@ -77,6 +87,75 @@ export function saveVersionCount(projectId: string, count: number): void {
   } catch {
     // Storage unavailable — the extra version simply won't survive a reload.
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* What a round is called                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The name someone gave a round, keyed by number.
+ *
+ * A number says when a round happened, not what it was for. "Version 4" and
+ * "Approval rework" are the same round, and only one of them is recognisable in
+ * a picker three months later — so a round can carry a name, and the number
+ * stays underneath it.
+ *
+ * Deliberately a side table rather than a field on the round: the number is the
+ * identity. Folder ids, storage keys, task scopes and build seeds are all keyed
+ * on it, so a rename has to be unable to move anything — and this way it cannot.
+ */
+const NAME_KEY = 'we-adk:business:version-names';
+
+export type VersionNames = Record<number, string>;
+
+export function loadVersionNames(projectId: string): VersionNames {
+  try {
+    const raw = window.localStorage.getItem(`${NAME_KEY}:${projectId}`);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    const names: VersionNames = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const version = Number(key);
+      // A hand-edited or stale entry is dropped rather than shown: a round whose
+      // name is `undefined` would render as the word "undefined".
+      if (Number.isInteger(version) && typeof value === 'string' && value.trim() !== '') {
+        names[version] = value;
+      }
+    }
+    return names;
+  } catch {
+    return {};
+  }
+}
+
+/** Name a round, or clear the name by passing an empty string. */
+export function setVersionName(projectId: string, version: number, name: string): VersionNames {
+  const names = { ...loadVersionNames(projectId) };
+  const trimmed = name.trim();
+  if (trimmed === '') delete names[version];
+  else names[version] = trimmed.slice(0, MAX_VERSION_NAME);
+  try {
+    window.localStorage.setItem(`${NAME_KEY}:${projectId}`, JSON.stringify(names));
+  } catch {
+    // Storage unavailable — the name won't survive a reload.
+  }
+  return names;
+}
+
+/** Long enough for a phrase, short enough for a tree row. */
+export const MAX_VERSION_NAME = 40;
+
+/**
+ * What to call a round in a list: its name if it has one, else `version 4`.
+ *
+ * Every surface goes through this so a named round reads the same in the
+ * Business tree, the Design explorer and the Developer rail — a round named in
+ * one place and numbered in another is two rounds as far as the reader knows.
+ */
+export function versionDisplayName(version: number, names: VersionNames = {}): string {
+  return names[version] ?? `version ${version}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -335,10 +414,36 @@ export function findInProgressVersion(projectId: string): number | null {
  */
 function sourceVersionFor(projectId: string, version: number): number | null {
   const removed = loadRemovedVersions(projectId);
+  const statuses = loadVersionStatuses(projectId);
   for (let candidate = version - 1; candidate >= BASELINE_VERSION; candidate -= 1) {
-    if (!removed.includes(candidate)) return candidate;
+    if (removed.includes(candidate)) continue;
+    // Only a round that has shipped. The name of this module's copy function has
+    // always said "released"; the search did not, so a round still being edited
+    // could be copied out from under whoever was working it — and the copy was a
+    // snapshot of unfinished work presented as a starting point. The baseline
+    // counts as released, which is what makes the first round after it work.
+    if (isVersionLocked(candidate, statuses)) return candidate;
   }
   return null;
+}
+
+/**
+ * The newest round that has shipped — what the next one will be copied from,
+ * and null when nothing has shipped yet.
+ *
+ * Takes the rounds rather than reading storage, so each tab can answer from the
+ * list it already holds and the answer moves the moment a round is released.
+ * Order-independent: Business lists rounds oldest first and the Developer rail
+ * newest first, and a helper that only worked on one of those is a helper that
+ * silently lies to the other.
+ */
+export function lastCompletedVersion(rounds: number[], statuses: VersionStatuses): number | null {
+  let latest: number | null = null;
+  for (const round of rounds) {
+    if (!isVersionLocked(round, statuses)) continue;
+    if (latest === null || round > latest) latest = round;
+  }
+  return latest;
 }
 
 /** Subfolders are browser state; the server render simply has none. */
@@ -347,6 +452,15 @@ function loadSubfoldersSafe(projectId: string, version: number): VersionSubfolde
     return loadSubfolders(projectId, version);
   } catch {
     return [];
+  }
+}
+
+/** Names are browser state too — the server render sees plain numbers. */
+function loadVersionNamesSafe(projectId: string): VersionNames {
+  try {
+    return loadVersionNames(projectId);
+  } catch {
+    return {};
   }
 }
 
@@ -566,16 +680,69 @@ export function cloneReleasedInto(
   return { from, screens, byKey, folders };
 }
 
+/** What opening a round produced, for the caller to report. */
+export interface CreatedVersion {
+  version: number;
+  /** The name it was given, or null when it is just a number. */
+  name: string | null;
+  /**
+   * What came across from the completed round, or null when nothing did —
+   * because no round has shipped yet, or because the last one that did had
+   * nothing in it.
+   */
+  copy: RoundCopy | null;
+}
+
+/**
+ * Opens the next round: numbers it, names it, and fills it from what shipped.
+ *
+ * The single door for Business, Design and Developer. All three used to have to
+ * know the sequence — bump the count, save it, copy the round forward, pick the
+ * folder id — and three copies of that is how one tab ends up opening a round
+ * the others cannot see. A name is optional because the number is the identity;
+ * naming is a courtesy to whoever reads the list later.
+ *
+ * It opens with the completed round's designs and the folders they were
+ * organised into, so work starts from where the product actually is. Only a
+ * completed round is copied: one still in progress is somebody's unfinished
+ * work, and duplicating it would both hand over a half-made starting point and
+ * copy it out from under them. With nothing shipped yet, the round opens empty
+ * rather than inventing a source.
+ *
+ * Deliberately does NOT refuse when a round is already in progress. That rule
+ * belongs to the doors that pick a round for you — `versionTargets` only offers
+ * the next one once nothing is open — because there the alternative is guessing.
+ * Pressing "new version" is not a guess: it is someone saying the next round
+ * starts now, and a button that answers by doing nothing is indistinguishable
+ * from a broken one.
+ */
+export function createVersion(
+  project: DesignProject,
+  options: { name?: string; today?: string } = {},
+): CreatedVersion {
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  const version = Math.max(loadVersionCount(project.id) + 1, FIRST_EDITABLE_VERSION);
+  saveVersionCount(project.id, version);
+
+  const trimmed = options.name?.trim() ?? '';
+  if (trimmed !== '') setVersionName(project.id, version, trimmed);
+
+  return {
+    version,
+    name: trimmed === '' ? null : trimmed.slice(0, MAX_VERSION_NAME),
+    copy: cloneReleasedInto(project, version, today),
+  };
+}
+
 /**
  * The version a design moves into, opening a new round if none is open — and a
- * round that opens here starts from the released one, same as anywhere else.
+ * round that opens here opens empty, same as anywhere else.
  */
-export function ensureInProgressVersion(projectId: string, project?: DesignProject): number {
+export function ensureInProgressVersion(projectId: string): number {
   const open = findInProgressVersion(projectId);
   if (open !== null) return open;
   const next = Math.max(loadVersionCount(projectId) + 1, FIRST_EDITABLE_VERSION);
   saveVersionCount(projectId, next);
-  if (project) cloneReleasedInto(project, next, new Date().toISOString().slice(0, 10));
   return next;
 }
 
@@ -608,6 +775,24 @@ function saveRemovedVersions(projectId: string, versions: number[]): void {
   } catch {
     // Storage unavailable — the folder comes back on reload.
   }
+}
+
+/**
+ * Starts a project with nothing in it — no rounds, and no baseline either.
+ *
+ * For a project created in the app rather than seeded. Version 1 everywhere
+ * else means "what the product is today", which is a real thing to look at when
+ * there is a live product behind it; for a project made a minute ago it is an
+ * empty locked folder that can never hold anything, and listing it is how a
+ * brand-new project ended up showing rounds nobody opened.
+ *
+ * Recorded as a dropped round rather than invented as a new concept: every
+ * reader already skips those, so the baseline stays absent when the first real
+ * round pushes the count back up.
+ */
+export function startWithNoRounds(projectId: string): void {
+  saveVersionCount(projectId, 0);
+  saveRemovedVersions(projectId, [BASELINE_VERSION]);
 }
 
 /**
@@ -646,7 +831,10 @@ export function removeVersion(
     // marked above the new ceiling can be forgotten too.
     let next = version - 1;
     while (next > BASELINE_VERSION && removed.includes(next)) next -= 1;
-    const kept = removed.filter((entry) => entry < next);
+    // A dropped baseline is kept dropped. It is not a hole below the ceiling —
+    // it is a project that never had one, and forgetting it here would hand it
+    // a version 1 the moment its last real round was deleted.
+    const kept = removed.filter((entry) => entry < next || entry === BASELINE_VERSION);
     saveRemovedVersions(projectId, kept);
     saveVersionCount(projectId, Math.max(next, BASELINE_VERSION));
     return { count: Math.max(next, BASELINE_VERSION), removed: kept };
@@ -766,8 +954,14 @@ export function findVersionScreen(
   return null;
 }
 
-function versionLabel(project: DesignProject, version: number): string {
-  if (version !== BASELINE_VERSION) return `Version ${version} · added in Business`;
+function versionLabel(project: DesignProject, version: number, names: VersionNames = {}): string {
+  if (version !== BASELINE_VERSION) {
+    const named = names[version];
+    // The number stays in the label even when the round has a name: the name is
+    // what people call it, the number is what the branches and seeds are keyed
+    // on, and a hover that showed only one of them would hide the other.
+    return named ? `${named} · version ${version}` : `Version ${version} · added in Business`;
+  }
   return project.id === PROTOTYPE_PROJECT_ID
     ? 'Baseline · the html prototype of the live app'
     : 'Baseline · every design from the meetings';
@@ -809,16 +1003,23 @@ export function projectVersionFolders(
   const nameById = new Map(
     projectSketchScreens(project).map((screen) => [screen.id, screen.name] as const),
   );
+  const versionNames = loadVersionNamesSafe(project.id);
 
   const folders: DesignFolder[] = [];
 
-  for (let version = BASELINE_VERSION; version <= Math.max(count, BASELINE_VERSION); version += 1) {
+  // `count` rather than a floor of one: a project with no rounds gets no folders.
+  for (let version = BASELINE_VERSION; version <= count; version += 1) {
     if (removed.includes(version)) continue;
-    const label = versionLabel(project, version);
+    const label = versionLabel(project, version, versionNames);
     const storageKey = versionFolderKey(project.id, version);
     const folder: DesignFolder = {
       id: versionFolderId(version),
-      name: `version ${version}`,
+      // The baseline is always "version 1" — it is the product as it stands
+      // rather than a round somebody opened, so there is nothing to name.
+      name:
+        version === BASELINE_VERSION
+          ? `version ${version}`
+          : versionDisplayName(version, versionNames),
       label,
       kind: 'version',
       versionNumber: version,

@@ -11,23 +11,110 @@ export const en: Record<string, string> = {
   'nav.spendOf': '${spend} / ${budget}',
   'nav.overBudget': 'Over budget: ${spend} spent of ${budget}',
   'nav.spentOf': '${spend} spent of ${budget}',
+  'shell.claudeOn': 'Claude connected',
+  'shell.claudeOff': 'Claude not connected',
+  'shell.claudeManage': 'Claude account connected — click to manage',
+  'shell.claudeConnectHint': 'Connect your Claude account to use AI features',
   'nav.mockupOnly': 'UI mockup only — no live data',
-
   // ── Tools / sidebar ──
-  'tool.business': 'Business',
-  'tool.design': 'Design',
-  'tool.developer': 'Developer',
-  'tool.qa': 'QA',
-
   // ── Sketcher tabs ──
   'tab.main': 'Main',
-  'tab.task': 'Task',
-  'tab.user': 'Draft',
-
+  'tab.overview': 'Overview',
+  'tab.drafts': 'Request',
+  'drafts.search': 'Search requests…',
+  'drafts.empty':
+    'Nothing here yet. Screens generated from a task, and screens moved over from a Customer project, wait here until they go into a round.',
+  'drafts.noMatch': 'No request matches that.',
+  'drafts.notInRound': 'Not in a round',
+  'drafts.open': 'Open',
+  'drafts.moveToMain': 'Move to Main',
+  'drafts.alreadyInMain': 'In Main',
+  'drafts.moveAll': 'Move all to Main',
+  'drafts.allMoved': 'Everything is in Main',
+  'drafts.willOpenRound': 'Moving opens a new round in Main',
+  'drafts.noPage': 'No page generated for this request yet',
+  'tab.ia': 'IA',
+  'tab.setting': 'Setting',
+  // ── IA tab ──
+  // ── Main views ──
+  'main.viewSwitch': 'Main view',
+  'main.viewFiles': 'Files',
+  'main.viewFlow': 'Screen Flow',
+  /** The switch sits in a 16rem column — beside "Files", "Flow" is unambiguous. */
+  'main.viewFlowShort': 'Flow',
+  'ia.title': 'IA',
+  'ia.count': '{count} screens',
+  'ia.search': 'Search depth or path…',
+  'ia.filterType': 'Screen type',
+  'ia.filterPlatform': 'Platform',
+  'ia.all': 'All',
+  'ia.allTypes': 'All types',
+  'ia.allPlatforms': 'All platforms',
+  'ia.clearFilters': 'Clear',
+  'ia.addRow': 'Add screen',
+  'ia.close': 'Close',
+  'ia.viewSwitch': 'IA view',
+  'ia.viewFlow': 'Screen Flow',
+  'ia.viewTable': 'Table View',
+  'ia.flowEmpty': 'No screens in this round yet.',
+  'ia.flowOther': 'Other modules / additional screens',
+  'ia.flowLegend': 'Diagram legend',
+  'ia.flowNoPreview': 'This row has no screen behind it yet.',
+  'ia.download': 'Download list',
+  'ia.downloadFiltered': 'Downloads the {count} screen(s) matching your search/filters',
+  'ia.reset': 'Reset',
+  'ia.resetConfirm':
+    'Reset the IA sheet to the round’s files? Rows and edits made only here will be lost.',
+  'ia.colNo': 'No',
+  'ia.colDepth1': 'Depth 1',
+  'ia.colDepth2': 'Depth 2',
+  'ia.colDepth3': 'Depth 3',
+  'ia.colDepth4': 'Depth 4',
+  'ia.colDepth5': 'Depth 5',
+  'ia.colPath': 'Path',
+  'ia.colScreenId': 'Screen ID',
+  'ia.colScreenType': 'Screen type',
+  'ia.colPlatform': 'Platform',
+  'ia.colWorkItem': 'Work item',
+  'ia.colPrd': 'PRD',
+  'ia.colFrd': 'FRD',
+  'ia.colLink': 'Link',
+  'ia.colMaintainer': 'Maintainer',
+  'ia.colMenuGroup': 'Menu group',
+  'ia.duplicateRow': 'Duplicate row',
+  'ia.deleteRow': 'Delete row',
+  'ia.openInMain': 'Open in Main',
+  'ia.openScreen': 'open this screen',
+  'ia.renameWorkItem': 'Rename',
+  'ia.workItemMissing': 'This screen is no longer in the round — the row is left as a note.',
+  'ia.empty': 'No screens yet. Add one, or add a design on Main.',
+  'ia.noMatch': 'No screen matches your search.',
+  'ia.placeholderDepth': '—',
+  'ia.placeholderText': '—',
+  'ia.depthHint': 'Sheet-only — editing this does not move the file in Main.',
+  'ia.rowRemoved': '“{name}” removed.',
+  'ia.undo': 'Undo',
+  // ── Report tab ──
+  'overview.exportHint':
+    'Downloads a zip: the report as a web page and Markdown, plus every design in this round',
+  'overview.export': 'Export',
+  'overview.preview': 'Preview',
+  'overview.draftNotice':
+    'This round is still in progress, so an export reflects it as it stands rather than recording what shipped. Release it on Main once it is complete.',
+  'overview.screens': 'Screens',
+  'overview.tasks': 'Tasks',
+  'overview.change': 'Changed',
+  'overview.new': 'new',
+  'overview.changed': 'changed',
+  'overview.carried': 'carried over',
+  'overview.designs': 'Designs in this round',
+  'overview.noDesigns': 'Nothing in this round yet — add a design on Main.',
+  'overview.noTasks': 'No tasks filed against this round.',
   // ── Explorer ──
   'explorer.title': 'Explorer',
   'explorer.newFile': 'New canvas file',
   'explorer.newVersion': 'Start the next version',
+  'explorer.searchFiles': 'Search designs',
   'explorer.collapse': 'Collapse folders',
   'explorer.collapseAll': 'Collapse all folders',
   'explorer.noVersions': 'No versions yet.',
@@ -44,13 +131,11 @@ export const en: Record<string, string> = {
   'explorer.carryOver': 'carry the released designs over',
   'explorer.baselineInfo':
     'version 1 is the baseline — the html prototype where the product is live, the meeting designs where it is not. Each round of change gets the next version.',
-
   // ── Version status ──
   'status.released': 'Released',
   'status.inProgress': 'In progress',
   'status.markAs': '{name} is {status} — mark it {next}',
   'status.versionStatus': 'version {version} is {status}.',
-
   // ── New design dialog ──
   'newDesign.title': 'New design file',
   'newDesign.name': 'Design name',
@@ -63,14 +148,12 @@ export const en: Record<string, string> = {
   'newDesign.listScreen': 'List screen',
   'newDesign.detailScreen': 'Detail / form screen',
   'newDesign.dashboard': 'Dashboard',
-
   // ── New folder dialog ──
   'newFolder.title': 'New folder in {name}',
   'newFolder.label': 'Folder name',
   'newFolder.placeholder': 'approval flow',
   'newFolder.hint': 'Design files can be created inside it, and it travels with the round.',
   'newFolder.create': 'Create folder',
-
   // ── Remove dialogs ──
   'remove.folderTitle': 'Remove {name}?',
   'remove.folderDesc':
@@ -80,12 +163,14 @@ export const en: Record<string, string> = {
     '{count} design file(s) in this round will be deleted with it. The baseline and the other versions are untouched.',
   'remove.cancel': 'Cancel',
   'remove.confirm': 'Remove {name}',
-
   // ── Flash messages ──
   'flash.saved': '{name} saved — markers cleared.',
   'flash.deleted': 'Deleted {name}.',
   'flash.moved': 'Moved {name} to {folder}.',
   'flash.removed': 'Removed {name}.',
+  'flash.markedAs': '{name} is now a {kind}.',
+  'flash.versionOpened':
+    '{name} opened — empty, because no round has been completed yet to copy from.',
   'flash.cloned': 'version {version} started from version {from} — {count} design(s) carried over.',
   'flash.clonedFolders':
     'version {version} started from version {from} — {count} design(s) in {folders} folder(s) carried over.',
@@ -96,41 +181,36 @@ export const en: Record<string, string> = {
   'flash.folderCreated': 'Folder {name} created in {parent}.',
   'flash.stillInProgress': 'version {version} is still in progress — release it first.',
   'flash.roundReleased': '{name} has been released — reopen it to make changes.',
-
   // ── File actions ──
   'file.edit': 'Edit {name}',
   'file.save': 'Save',
   'file.saveRound': 'Mark {name} as saved — clears the A and M markers',
-  'file.editCanvas': 'Edit {name} on its canvas',
   'file.preview': 'Preview {name}',
   'file.previewBrowser': 'Preview {name} in a new browser tab',
+  'file.markAs': 'Mark as a {kind}',
   'file.delete': 'Delete {name}',
   'file.readOnly': 'Read-only baseline',
   'file.releasedReadOnly': '(released — read-only)',
   'file.liveScreen': 'previews the live screen',
-
   // ── Preview / Edit ──
   'view.preview': 'Preview',
+  'view.page': 'Page',
   'view.edit': 'Edit',
   'view.openBrowser': 'Open in browser',
-
   // ── Badges ──
   'badge.html': 'html',
   'badge.liveScreen': 'live screen',
   'badge.wireframe': 'wireframe',
   'badge.localCli': 'local CLI',
-
   // ── Claude Code chat ──
   'chat.claudeCode': 'Claude Code',
   'chat.askAbout': 'Ask about {name}',
   'chat.greetingHint':
     'The screen you are previewing is in context — its layout and the file it belongs to.',
   'chat.pickFile': 'Pick a design file in the explorer to preview it.',
-
   // ── Floating action bar ──
   'action.improveAi': 'Improve by AI',
   'action.createTask': 'Create task',
-
   // ── Preview page ──
   'preview.prototypeHint': '{summary} · Edit UI changes this screen; Edit opens its canvas.',
   'preview.releasedHint':
@@ -140,7 +220,6 @@ export const en: Record<string, string> = {
   'preview.wireframeHint':
     'No live screen behind this file yet, so the preview shows the blocks drawn on its canvas.',
   'preview.notInVersion': '· Not in this version —',
-
   // ── User tab ──
   'user.team': 'Team',
   'user.addMember': 'Add member',
@@ -159,7 +238,6 @@ export const en: Record<string, string> = {
   'user.projectNotFound': 'That project does not exist.',
   'user.loadingTeam': 'Loading team…',
   'user.designCount': '{count} design(s) across {versions} version(s)',
-
   // ── Member form ──
   'member.name': 'Name',
   'member.namePlaceholder': 'Full name',
@@ -172,7 +250,6 @@ export const en: Record<string, string> = {
   'member.add': 'Add member',
   'member.edit': 'Edit',
   'member.remove': 'Remove',
-
   // ── Roles ──
   'role.projectLead': 'Project Lead',
   'role.developer': 'Developer',
@@ -180,7 +257,6 @@ export const en: Record<string, string> = {
   'role.qa': 'QA',
   'role.pm': 'PM',
   'role.other': 'Other',
-
   // ── Canvas editor ──
   'canvas.empty': 'This canvas is empty',
   'canvas.emptyHint': 'Drag a block in from the left, or click one to append it.',
@@ -188,7 +264,6 @@ export const en: Record<string, string> = {
   'canvas.helpText':
     'Click a block to select · drag the handle to reorder · ⌘Z undo · ⌘D duplicate · ⌫ delete · ⌥↑/↓ move',
   'canvas.loading': 'Loading canvas…',
-
   // ── Chat ──
   'chat.placeholder': 'Write a message...',
   'chat.attachFiles': 'Attach files',
@@ -205,14 +280,12 @@ export const en: Record<string, string> = {
   'chat.readUnavailable': 'Read-aloud is not available in this browser',
   'chat.nothingToRead': 'Nothing to read yet',
   'chat.disclaimer': 'Claude is AI and can make mistakes. Please double-check cited sources.',
-
   // ── Live preview ──
   'live.editMode': 'Edit mode',
   'live.done': 'Done',
   'live.editUi': 'Edit UI',
   'live.noLiveScreen': 'This design has no live screen behind it yet.',
   'live.resetEdits': "Throw away this file's edits",
-
   // ── Mockup board ──
   'board.variant': 'variant',
   'board.blocks': 'blocks',
@@ -223,7 +296,6 @@ export const en: Record<string, string> = {
   'board.variantOf': 'variant of ',
   'board.noScreens': 'No screens yet.',
   'board.footnote': 'Every frame is a live canvas — click one to edit it, and edits show up here.',
-
   // ── Task form ──
   'task.editTask': 'Edit task',
   'task.newTask': 'New task',
@@ -241,7 +313,6 @@ export const en: Record<string, string> = {
   'task.tagsPlaceholder': 'bug, billing',
   'task.saveChanges': 'Save changes',
   'task.create': 'Create task',
-
   // ── Task comments ──
   'comments.like': 'Like',
   'comments.deleteComment': 'Delete this comment',
@@ -256,7 +327,6 @@ export const en: Record<string, string> = {
   'comments.attachHint': 'Attach files — the comment records their names',
   'comments.maxAttachments': 'Up to {max} files per comment',
   'comments.post': 'Post the comment',
-
   // ── Task generate ──
   'generate.title': 'Generate the screens for this task',
   'generate.charsDesc': 'chars of description',
@@ -279,23 +349,42 @@ export const en: Record<string, string> = {
   'generate.drawingHint':
     'Runs the local Claude Code CLI — nothing leaves this machine except the prompt.',
   'generate.generating': 'Generating',
-
   // ── Project home ──
+  'action.taskCreated': 'Task created — see it in Overview.',
   'home.title': 'Your projects',
   'home.subtitle':
     'Turn a customer conversation into a versioned project brief, screens and a clickable prototype — every design file kept in the project it belongs to.',
-  'home.newProject': 'New project',
-  'home.newProjectHint':
-    'Creating a project is not part of this mockup — open one of the samples below.',
+  'home.create': 'Create {noun}',
   'home.search': 'Search projects',
+  'home.clearSearch': 'Clear search',
   'home.noArchived': 'Nothing archived yet.',
-  'home.noMatch': 'No projects match that search.',
-
+  'home.noMatch': 'No projects match that search',
+  'home.noMatchHint': 'Try a customer, an owner or a stage instead.',
+  'home.emptyTitle': 'No {noun} project yet',
+  'home.emptyHint':
+    'Start one and its first conversation becomes a brief, then screens you can click through.',
+  'home.open': 'Open',
+  'home.updated': 'Updated {when}',
+  'home.fileOne': '1 design file',
+  'home.files': '{count} design files',
+  'home.meetingOne': '1 meeting',
+  'home.meetings': '{count} meetings',
+  'home.liveScreens': '{count} live screens',
+  'home.noBrief': 'No brief yet — open it to start the first conversation.',
+  'home.workspace': 'This workspace',
+  'home.statProjects': 'Projects',
+  'home.statFiles': 'Design files',
+  'home.statMeetings': 'Meetings',
+  'home.statSpend': 'Claude spend',
+  // ── Project not in this browser ──
+  'project.missing': 'This project is not in this browser',
+  'project.missingHint':
+    'This mockup keeps everything in browser storage, so a project you create exists only in the browser — and at the address — where you created it. Open it there, or start it again here.',
+  'project.missingBack': 'Back to projects',
   // ── Project chrome ──
   'project.savedGitlab': 'Saved to GitLab',
   'project.committed': 'committed to GitLab',
   'project.notCommitted': 'not committed yet',
-
   // ── Reference files ──
   'files.referenceFiles': 'Reference files',
   'files.attach': 'Attach',
@@ -308,11 +397,9 @@ export const en: Record<string, string> = {
   'files.preview': 'Preview',
   'files.removeFile': 'Remove this reference',
   'files.moreFiles': '+{count} more',
-
   // ── Misc ──
   'misc.nothingInFolder': 'Nothing in {name} yet.',
   'misc.nothingAttached': 'Nothing attached to this meeting.',
-  'misc.copyCode': 'Copy code',
   'misc.dragToReorder': 'Drag to reorder layer',
   'misc.clickToSelect': 'Click to select · double-click to rename',
   'misc.showBlock': 'Show block',
@@ -323,8 +410,6 @@ export const en: Record<string, string> = {
   'misc.moveDown': 'Move down',
   'misc.remove': 'Remove',
   'misc.toggleVisibility': 'Toggle visibility',
-  'misc.notMockup': 'Not part of this mockup',
-
   // ── Canvas toolbar ──
   'canvas.undo': 'Undo · ⌘Z',
   'canvas.redo': 'Redo · ⇧⌘Z',
@@ -343,7 +428,6 @@ export const en: Record<string, string> = {
   'canvas.resetCanvas': 'Reset canvas',
   'canvas.openNewTab': 'Open this design in a new browser tab',
   'canvas.sendMessage': 'Send message',
-
   // ── Canvas property placeholders ──
   'prop.title': 'Title',
   'prop.meta': 'Meta, e.g. Due 2026-08-05',
@@ -351,7 +435,6 @@ export const en: Record<string, string> = {
   'prop.placeholder': 'Placeholder',
   'prop.optionsComma': 'Options, comma separated',
   'prop.buttonLabel': 'Button label',
-
   // ── Terminal ──
   'terminal.attachImage': 'Attach an image',
   'terminal.attachFile': 'Attach a file',
@@ -364,7 +447,6 @@ export const en: Record<string, string> = {
   'terminal.attachFiles': 'Attach files to this chat',
   'terminal.promptPlaceholder':
     'Ask Claude Code to solve it, e.g. "implement the date-range filter and show the tests"',
-
   // ── Research ──
   'research.searchChats': 'Search chats',
   'research.newFolder': 'New folder',
@@ -373,51 +455,26 @@ export const en: Record<string, string> = {
   'research.newChat': 'New chat in this folder',
   'research.deleteFolder': 'Delete this folder',
   'research.deleteChat': 'Delete this chat',
-
   // ── Task page ──
   'taskPage.generateDesign': 'Generate the html page and UI design for this task',
   'taskPage.editTask': 'Edit task',
   'taskPage.deleteTask': 'Delete task',
   'taskPage.closePanel': 'Close the task panel',
   'taskPage.unlinkTask': 'Unlink from this task',
-  'taskPage.edit': 'Edit',
-  'taskPage.delete': 'Delete',
-
   // ── Meeting page ──
-  'meeting.moveToVersion': 'Move to design version',
-  'meeting.closePreview': 'Close the file preview',
-  'meeting.closePanel': 'Close the meeting panel',
-  'meeting.generateDesigns': 'Generate designs',
-  'meeting.pickVersion': 'Pick version',
-  'meeting.nothingAttached': 'Nothing attached to this meeting.',
-
   // ── Board page ──
   'board.designFromScratch': 'Design from scratch or revise a screen',
   'board.maxScreens': 'Maximum screens to propose',
   'board.includeRefFiles': 'Include reference file text in the prompt',
   'board.selectMeeting': 'Select meeting',
-
   // ── Workspace page ──
   'workspace.nothingInFolder': 'Nothing in {name} yet.',
-
   // ── Builder ──
-  'builder.searchMockups': 'Search by title, domain, screen, author',
-  'builder.filterDomain': 'Filter by domain',
-  'builder.filterAuthor': 'Filter by author',
-  'builder.filterStatus': 'Filter by status',
-  'builder.searchSpecs': 'Search by menu name, path, description',
-  'builder.specStatus': 'Spec status',
-  'builder.searchSolutions': 'Search by menu name, path, link',
-  'builder.editSolution': 'Edit solution mockup',
-  'builder.searchRequirements': 'Search by title, kind, planner, developer',
-
   // ── Production / Admin ──
   'production.search': 'Search by menu path or route',
   'security.search': 'Search by file, command, type',
-
   // ── Project home ──
   'home.claudeSpend': 'Claude spend on this project',
-
   // ── Sections ──
   'sections.businessSections': 'Business sections',
   'sections.layers': 'Layers',

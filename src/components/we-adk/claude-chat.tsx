@@ -9,17 +9,32 @@
 import {
   ArrowUp,
   AudioLines,
+  Check,
   CircleStop,
+  Code2,
+  FileCode2,
+  FileText,
   Loader2,
   MessageSquare,
   Mic,
   Paperclip,
   Plus,
+  Sparkles,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from '@/components/ui';
 import { useLocale } from '@/lib/locale';
+import { claudeHeaders, useClaudeAccount } from '@/lib/we-adk/claude-account';
+import { ClaudeConnectNotice } from '@/components/we-adk/claude-connect';
+import {
+  ChatComposerMenu,
+  type ChatMenuView,
+  type EffortLevel,
+  type MentionFile,
+  type SessionUsage,
+} from '@/components/we-adk/chat-menu';
 import { formatFileSize } from '@/lib/we-adk-mock/meeting-files';
 import { type DesignProject } from '@/lib/we-adk-mock/projects';
 
@@ -42,10 +57,20 @@ export interface ChatTurn {
   attachments?: { name: string }[];
 }
 
+export interface ChatUsage {
+  costUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  durationMs?: number;
+}
+
 /** The slice of the CLI stream this pane cares about. */
 export function readChatEvent(
   line: string,
-): { kind: 'delta' | 'full' | 'error'; text: string } | { kind: 'ignore' } {
+):
+  | { kind: 'delta' | 'full' | 'error'; text: string }
+  | { kind: 'usage'; usage: ChatUsage }
+  | { kind: 'ignore' } {
   let event: Record<string, unknown>;
   try {
     event = JSON.parse(line) as Record<string, unknown>;
@@ -74,6 +99,23 @@ export function readChatEvent(
         event.subtype === 'error_max_turns'
           ? 'Claude stopped before answering — it went looking for something instead of replying. Ask again, more specifically.'
           : detail || 'Claude Code ended without a reply.',
+    };
+  }
+  if (event.type === 'result' && event.subtype === 'success') {
+    const usage =
+      typeof event.usage === 'object' && event.usage !== null
+        ? (event.usage as Record<string, unknown>)
+        : {};
+    const numberOf = (value: unknown): number | undefined =>
+      typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    return {
+      kind: 'usage',
+      usage: {
+        costUsd: numberOf(event.total_cost_usd),
+        inputTokens: numberOf(usage.input_tokens),
+        outputTokens: numberOf(usage.output_tokens),
+        durationMs: numberOf(event.duration_ms),
+      },
     };
   }
   if (event.type === 'assistant') {
@@ -109,6 +151,18 @@ interface ChatAttachment {
   text?: string;
   sizeKb: number;
 }
+
+/** Claude Code-style slash commands available in the composer. */
+const SLASH_COMMANDS = [
+  { id: 'attach', hint: 'Attach a file' },
+  { id: 'mention', hint: 'Mention a file from this project' },
+  { id: 'clear', hint: 'Clear conversation' },
+  { id: 'rewind', hint: 'Rewind to an earlier message' },
+  { id: 'model', hint: 'Switch model — /model opus·sonnet·haiku' },
+  { id: 'effort', hint: 'Set effort — /effort low·medium·high' },
+  { id: 'thinking', hint: 'Toggle thinking — /thinking on·off' },
+  { id: 'usage', hint: 'Account & usage' },
+] as const;
 
 const READABLE_EXTENSIONS = /\.(txt|md|csv|json|xml|yaml|yml|log|ts|tsx|js|jsx|py|html|css)$/i;
 function isReadableFileName(name: string): boolean {
@@ -196,8 +250,30 @@ type ChatBlock =
   | { type: 'heading'; depth: number; text: string }
   | { type: 'para'; text: string }
   | { type: 'list'; ordered: boolean; items: string[] }
-  | { type: 'code'; lang: string; lines: string[] }
+  | { type: 'code'; lang: string; meta: string; lines: string[] }
   | { type: 'rule' };
+
+/**
+ * Where a code block in a reply can be written to.
+ *
+ * Provided by hosts that own a real working tree (the Editor's workspace);
+ * everywhere else it is null and replies render as plain reading. The hint is
+ * the file path the block seems to be for, when the reply names one.
+ */
+export const ApplyCodeContext = createContext<
+  ((code: string, pathHint: string | null) => void) | null
+>(null);
+
+/** `js src/lib/x.ts` fence meta, or a `// src/lib/x.ts` first line. */
+function pathHintFor(meta: string, lines: string[]): string | null {
+  const looksLikePath = (value: string) => /^[\w.@-]+(\/[\w.\[\]@-]+)+\.\w+$/.test(value);
+  if (looksLikePath(meta.trim())) return meta.trim();
+  const first = (lines[0] ?? '')
+    .replace(/^(\/\/|#|\/\*|<!--)\s*/, '')
+    .replace(/\s*(\*\/|-->)\s*$/, '')
+    .trim();
+  return looksLikePath(first) ? first : null;
+}
 
 /**
  * The model answers in Markdown; rendering it raw is what made replies look
@@ -208,7 +284,7 @@ type ChatBlock =
 function parseChatMarkdown(text: string): ChatBlock[] {
   const blocks: ChatBlock[] = [];
   let paragraph: string[] = [];
-  let code: { lang: string; lines: string[] } | null = null;
+  let code: { lang: string; meta: string; lines: string[] } | null = null;
 
   const flush = () => {
     if (paragraph.length > 0) {
@@ -221,17 +297,17 @@ function parseChatMarkdown(text: string): ChatBlock[] {
     const line = raw.trim();
     if (code) {
       if (line.startsWith('```')) {
-        blocks.push({ type: 'code', lang: code.lang, lines: code.lines });
+        blocks.push({ type: 'code', lang: code.lang, meta: code.meta, lines: code.lines });
         code = null;
       } else {
         code.lines.push(raw);
       }
       continue;
     }
-    const fence = /^```(\w*)/.exec(line);
+    const fence = /^```(\w*)[ \t]*(.*)$/.exec(line);
     if (fence) {
       flush();
-      code = { lang: fence[1] ?? '', lines: [] };
+      code = { lang: fence[1] ?? '', meta: fence[2] ?? '', lines: [] };
       continue;
     }
     if (!line) {
@@ -267,12 +343,87 @@ function parseChatMarkdown(text: string): ChatBlock[] {
     }
     paragraph.push(line);
   }
-  if (code) blocks.push({ type: 'code', lang: code.lang, lines: code.lines });
+  if (code) blocks.push({ type: 'code', lang: code.lang, meta: code.meta, lines: code.lines });
   flush();
   return blocks;
 }
 
+/**
+ * A fenced block in a reply.
+ *
+ * A built screen is a few hundred lines of html, and printing it into the
+ * conversation buries the sentence that says what was built — you scroll past
+ * a wall of CSS to find out whether anything happened. A page is therefore
+ * summarised: what it is, how big it is, and the actions that matter. The code
+ * is one click away rather than gone, because the block is still the answer
+ * and someone occasionally needs to read it.
+ *
+ * Short snippets stay open. A three-line command is the message, not an
+ * attachment to it.
+ */
+function ChatCodeBlock({ block }: { block: Extract<ChatBlock, { type: 'code' }> }) {
+  const applyCode = useContext(ApplyCodeContext);
+  const [shown, setShown] = useState(false);
+  const hint = pathHintFor(block.meta, block.lines);
+  const lang = block.lang.toLowerCase();
+  const isPage = lang === 'html' || lang === 'htm';
+  /*
+   * Judged on each render rather than latched into state: a block streaming in
+   * grows past the threshold while it is on screen, and a summary that only
+   * appeared for blocks that were already long would miss exactly the ones
+   * being written now.
+   */
+  const summarise = isPage || block.lines.length > 20;
+  const open = shown || !summarise;
+  const label = hint ?? (isPage ? 'Page' : block.lang || 'Code');
+
+  return (
+    <div className="bg-muted/40 overflow-hidden rounded-lg border">
+      <div className="flex items-center gap-2 px-3.5 py-2">
+        {isPage ? (
+          <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
+        ) : (
+          <Code2 className="text-muted-foreground size-3.5 shrink-0" />
+        )}
+        <p className="text-muted-foreground min-w-0 flex-1 truncate text-[11px]">
+          {label}
+          {summarise && (
+            <span className="ml-1.5 font-mono">
+              {block.lines.length} line{block.lines.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </p>
+        {summarise && (
+          <button
+            type="button"
+            onClick={() => setShown((current) => !current)}
+            className="text-muted-foreground hover:text-foreground shrink-0 text-[11px] font-medium hover:underline"
+          >
+            {open ? 'Hide code' : 'Show code'}
+          </button>
+        )}
+        {applyCode && (
+          <button
+            type="button"
+            onClick={() => applyCode(block.lines.join('\n'), hint)}
+            title={hint ? `Write to ${hint}` : 'Write to a file in the workspace'}
+            className="text-primary shrink-0 text-[11px] font-medium hover:underline"
+          >
+            Apply to workspace
+          </button>
+        )}
+      </div>
+      {open && (
+        <pre className="overflow-x-auto px-3.5 pt-1 pb-3 font-mono text-xs leading-relaxed">
+          {block.lines.join('\n')}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 export function AssistantMarkdown({ text }: { text: string }) {
+  const applyCode = useContext(ApplyCodeContext);
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {parseChatMarkdown(text).map((block, index) => {
@@ -307,21 +458,7 @@ export function AssistantMarkdown({ text }: { text: string }) {
             );
           }
           case 'code':
-            return (
-              <div key={index} className="bg-muted/40 overflow-hidden rounded-lg border">
-                {block.lang && (
-                  <p className="text-muted-foreground px-3.5 pt-2 text-[11px]">{block.lang}</p>
-                )}
-                <pre
-                  className={cn(
-                    'overflow-x-auto px-3.5 pb-3 font-mono text-xs leading-relaxed',
-                    block.lang ? 'pt-1' : 'pt-3',
-                  )}
-                >
-                  {block.lines.join('\n')}
-                </pre>
-              </div>
-            );
+            return <ChatCodeBlock key={index} block={block} />;
           case 'rule':
             return <hr key={index} className="border-t" />;
           default:
@@ -342,6 +479,27 @@ export function AssistantMarkdown({ text }: { text: string }) {
  * exchange is handed back up to be saved — so a chat survives reloads and shows
  * up in the sidebar, the way Claude chat keeps history.
  */
+
+function ApplyNotesButton({ content, onApply }: { content: string; onApply: (notes: string) => void }) {
+  const [applied, setApplied] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={applied}
+      onClick={() => { onApply(content); setApplied(true); }}
+      className={cn(
+        'mt-2 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors',
+        applied
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+          : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground',
+      )}
+    >
+      {applied ? <Check className="size-3.5" /> : <FileText className="size-3.5" />}
+      {applied ? 'Applied to Notes' : 'Apply to Notes'}
+    </button>
+  );
+}
+
 export function ChatPane({
   project,
   contextText,
@@ -352,6 +510,11 @@ export function ChatPane({
   pendingPrompt,
   onPromptHandled,
   onPersist,
+  mentionFiles = [],
+  onGenerate,
+  onResponse,
+  onApplyNotes,
+  composerClassName,
   children,
 }: {
   project: DesignProject;
@@ -370,9 +533,20 @@ export function ChatPane({
   /** Called as the prompt is taken, so the caller can clear it. */
   onPromptHandled?: () => void;
   onPersist: (turns: ChatTurn[]) => void;
+  /** Project files the user can @-mention; their text rides along as an attachment. */
+  mentionFiles?: MentionFile[];
+  /** Called when the user wants to generate screens from the conversation. */
+  onGenerate?: (notes: string) => void;
+  /** Called after each assistant response completes — parent can auto-detect HTML. */
+  onResponse?: (responseText: string, userMessage: string) => void;
+  /** Called when the user clicks "Apply to Notes" on a suggested notes block. */
+  onApplyNotes?: (notes: string) => void;
+  /** Override the composer box className (default has bg/border/shadow). */
+  composerClassName?: string;
   children?: React.ReactNode;
 }) {
   const { t } = useLocale();
+  const { connected: claudeConnected } = useClaudeAccount();
   const [turns, setTurns] = useState<ChatTurn[]>(initialTurns);
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
@@ -381,6 +555,12 @@ export function ChatPane({
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const [effort, setEffort] = useState<EffortLevel>('medium');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuView, setMenuView] = useState<ChatMenuView>('root');
+  const [slashIndex, setSlashIndex] = useState(0);
+  const [sessionUsage, setSessionUsage] = useState<SessionUsage>({ turns: 0 });
   // Which voice features this browser actually has — checked after mount.
   const [voiceOk, setVoiceOk] = useState({ dictation: false, playback: false });
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -507,7 +687,7 @@ export function ChatPane({
     try {
       const response = await fetch('/api/sketcher/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...claudeHeaders() },
         signal: controller.signal,
         body: JSON.stringify({
           message,
@@ -516,6 +696,8 @@ export function ChatPane({
           folderLabel,
           projectName: project.name,
           model,
+          thinking,
+          effort,
           attachments: sent.map(({ sizeKb: _sizeKb, ...rest }) => rest),
         }),
       });
@@ -543,6 +725,14 @@ export function ChatPane({
               setStreamText(acc);
             } else if (event.kind === 'error') {
               errorText = event.text;
+            } else if (event.kind === 'usage') {
+              const turn = event.usage;
+              setSessionUsage((current) => ({
+                turns: current.turns + 1,
+                costUsd: (current.costUsd ?? 0) + (turn.costUsd ?? 0),
+                inputTokens: (current.inputTokens ?? 0) + (turn.inputTokens ?? 0),
+                outputTokens: (current.outputTokens ?? 0) + (turn.outputTokens ?? 0),
+              }));
             }
           }
         }
@@ -557,14 +747,32 @@ export function ChatPane({
     abortRef.current = null;
     setPending(false);
     setStreamText('');
+    let responseText = acc || (interrupted ? '(stopped)' : '(no reply)');
+
+    // Always strip HTML code blocks from responses — show clean summary instead
+    let autoGenerated = false;
+    if (!errorText && !interrupted && responseText) {
+      const hasHtml = /```html\s*\n[\s\S]*?```/.test(responseText);
+
+      if (hasHtml) {
+        if (onResponse) onResponse(responseText, message);
+
+        const lineCount = (responseText.match(/```html\s*\n([\s\S]*?)```/)?.[1]?.match(/\n/g) || []).length;
+        const cleanText = responseText.replace(/```html\s*\n[\s\S]*?```/g, '').trim();
+        const summary = ['```', `✓ Generated HTML (${lineCount} lines)`, ...(onResponse ? ['✓ Preview updated'] : []), '```'].join('\n');
+        responseText = cleanText ? `${cleanText}\n\n${summary}` : summary;
+        autoGenerated = true;
+      }
+    }
+
     const final: ChatTurn[] = [
       ...afterUser,
       errorText
         ? { role: 'assistant', text: errorText, error: true }
-        : { role: 'assistant', text: acc || (interrupted ? '(stopped)' : '(no reply)') },
+        : { role: 'assistant', text: responseText },
     ];
     setTurns(final);
-    onPersist(final);
+    if (!autoGenerated) onPersist(final);
   };
 
   // A prompt pushed in from a button goes out on arrival — the conversation
@@ -583,232 +791,286 @@ export function ChatPane({
 
   const rows = Math.min(6, Math.max(1, input.split('\n').length));
 
+  /* ----- Claude Code-style composer actions (menu + "/" commands) ----- */
+
+  const clearConversation = () => {
+    abortRef.current?.abort();
+    setTurns([]);
+    onPersist([]);
+  };
+
+  /** Drops everything from the picked user turn on, putting its text back. */
+  const rewindTo = (index: number) => {
+    const restored = turns[index];
+    const before = turns.slice(0, index);
+    setTurns(before);
+    onPersist(before);
+    if (restored) setInput(restored.text);
+  };
+
+  const mentionFile = (file: MentionFile) => {
+    setInput((current) => {
+      const base = current.startsWith('/') ? '' : current;
+      return `${base ? `${base.trimEnd()} ` : ''}@${file.name} `;
+    });
+    if (file.text) {
+      setAttachments((current) => {
+        if (current.length >= MAX_ATTACHMENTS || current.some((a) => a.name === file.name)) {
+          return current;
+        }
+        return [
+          ...current,
+          {
+            name: file.name,
+            kind: 'text',
+            text: file.text?.slice(0, MAX_TEXT_CHARS),
+            sizeKb: Math.max(1, Math.round((file.text?.length ?? 0) / 1024)),
+          },
+        ];
+      });
+    }
+  };
+
+  const rewindTargets = turns
+    .map((turn, index) => ({ turn, index }))
+    .filter((entry) => entry.turn.role === 'user')
+    .slice(-8)
+    .map((entry) => ({ index: entry.index, text: entry.turn.text }));
+
+  const openMenu = (view: ChatMenuView) => {
+    setMenuView(view);
+    setMenuOpen(true);
+  };
+
+  const slashActive = input.startsWith('/') && !input.includes('\n') && !pending;
+  const slashWord = slashActive ? (input.slice(1).split(/\s+/)[0] ?? '') : '';
+  const slashMatches = slashActive
+    ? SLASH_COMMANDS.filter((command) => command.id.startsWith(slashWord.toLowerCase()))
+    : [];
+
+  const runSlashCommand = (id: string, arg?: string): void => {
+    switch (id) {
+      case 'attach':
+        fileInputRef.current?.click();
+        break;
+      case 'mention':
+        openMenu('mention');
+        break;
+      case 'clear':
+        clearConversation();
+        break;
+      case 'rewind':
+        openMenu('rewind');
+        break;
+      case 'model': {
+        const picked = MODELS.find((entry) => entry.id === arg);
+        if (picked) setModel(picked.id);
+        else openMenu('root');
+        break;
+      }
+      case 'effort':
+        if (arg === 'low' || arg === 'medium' || arg === 'high') setEffort(arg);
+        else openMenu('root');
+        break;
+      case 'thinking':
+        setThinking(arg ? arg === 'on' : !thinking);
+        break;
+      case 'usage':
+        openMenu('root');
+        break;
+    }
+    setInput('');
+    setSlashIndex(0);
+  };
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-        {children}
-
-        {!children && turns.length === 0 && !pending && greeting && (
-          <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-            <MessageSquare className="size-5" />
-            <p className="text-foreground text-sm font-medium">{greeting}</p>
-            <p className="max-w-sm text-xs">
-              {greetingHint ??
-                'Every reference file in this project is in context — ask across all of them.'}
-            </p>
-          </div>
-        )}
-
-        {(turns.length > 0 || pending) && (
-          <div
-            className={cn(
-              'mx-auto flex w-full max-w-3xl flex-col gap-5 px-8 pt-6 pb-8',
-              children && 'border-t',
+      {/* Empty state */}
+      {turns.length === 0 && !pending && greeting && (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-4">
+          <div className="text-center">
+            <p className="text-muted-foreground text-sm font-medium">{greeting}</p>
+            {greetingHint && (
+              <p className="text-muted-foreground/70 mt-1 text-xs">{greetingHint}</p>
             )}
-          >
+          </div>
+        </div>
+      )}
+
+      {/* Chat messages */}
+      {(turns.length > 0 || pending) && (
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 pt-4 pb-3">
             {turns.map((turn, index) =>
               turn.role === 'user' ? (
                 <div key={index} className="max-w-[85%] self-end">
-                  <p className="bg-muted rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap">
-                    {turn.text}
-                  </p>
-                  {turn.attachments && turn.attachments.length > 0 && (
-                    <p className="text-muted-foreground mt-1 flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[10px]">
-                      {turn.attachments.map((file) => (
-                        <span key={file.name} className="flex items-center gap-0.5">
-                          <Paperclip className="size-2.5" />
-                          {file.name}
-                        </span>
-                      ))}
-                    </p>
-                  )}
+                  <p className="bg-muted rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap">{turn.text}</p>
                 </div>
               ) : turn.error ? (
-                <p
-                  key={index}
-                  className="text-destructive text-sm leading-relaxed whitespace-pre-wrap"
-                >
-                  {turn.text}
-                </p>
+                <p key={index} className="text-destructive text-sm whitespace-pre-wrap">{turn.text}</p>
               ) : (
-                <AssistantMarkdown key={index} text={turn.text} />
+                <div key={index}>
+                  <AssistantMarkdown text={turn.text} />
+                  {onApplyNotes && /```notes\s*\n[\s\S]*?```/.test(turn.text) && (() => {
+                    const notesContent = turn.text.match(/```notes\s*\n([\s\S]*?)```/)?.[1]?.trim();
+                    if (!notesContent) return null;
+                    return <ApplyNotesButton content={notesContent} onApply={onApplyNotes} />;
+                  })()}
+                </div>
               ),
             )}
-            {pending &&
-              (streamText ? (
-                <AssistantMarkdown text={streamText} />
-              ) : (
-                <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Reading the research…
-                </p>
-              ))}
+            {pending && (
+              streamText
+                ? <AssistantMarkdown text={streamText} />
+                : <p className="text-muted-foreground flex items-center gap-1.5 text-sm"><Loader2 className="size-3.5 animate-spin" />Thinking…</p>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Composer — the same card a chat app pins under its messages. */}
-      <div className="shrink-0 px-6 pt-2 pb-2">
-        <div className="bg-background mx-auto w-full max-w-3xl rounded-2xl border p-3 shadow-sm">
-          {attachments.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {attachments.map((file, index) => (
-                <span
-                  key={`${file.name}-${index}`}
-                  className="bg-muted/60 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]"
-                >
-                  <Paperclip className="size-3 shrink-0" />
-                  <span className="max-w-[12rem] truncate font-mono">{file.name}</span>
-                  <span className="text-muted-foreground">{formatFileSize(file.sizeKb)}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAttachments((current) => current.filter((_, at) => at !== index))
-                    }
-                    aria-label={`Remove ${file.name}`}
-                    className="text-muted-foreground hover:text-foreground"
+      {/* Composer */}
+      <div className="mt-auto shrink-0 px-4 pt-2 pb-2">
+          <div className={composerClassName ?? "bg-background mx-auto w-full max-w-3xl rounded-xl border p-2.5 shadow-sm"}>
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {attachments.map((file, index) => (
+                  <span
+                    key={`${file.name}-${index}`}
+                    className="bg-muted/60 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]"
                   >
-                    <X className="size-3" />
+                    <Paperclip className="size-3 shrink-0" />
+                    <span className="max-w-[12rem] truncate font-mono">{file.name}</span>
+                    <span className="text-muted-foreground">{formatFileSize(file.sizeKb)}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAttachments((current) => current.filter((_, at) => at !== index))
+                      }
+                      aria-label={`Remove ${file.name}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {slashActive && slashMatches.length > 0 && (
+              <div className="bg-popover mb-2 overflow-hidden rounded-md border">
+                {slashMatches.map((command, index) => (
+                  <button
+                    key={command.id}
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      runSlashCommand(command.id, input.slice(1).trim().split(/\s+/)[1]);
+                    }}
+                    className={cn(
+                      'flex w-full items-baseline gap-3 px-3 py-1.5 text-left text-xs',
+                      index === slashIndex ? 'bg-accent' : 'hover:bg-accent/60',
+                    )}
+                  >
+                    <span className="font-mono font-medium">/{command.id}</span>
+                    <span className="text-muted-foreground text-[11px]">{command.hint}</span>
                   </button>
-                </span>
-              ))}
-            </div>
-          )}
-          <label className="sr-only" htmlFor="research-message">
-            Ask about this research
-          </label>
-          <textarea
-            id="research-message"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                void send();
-              }
-            }}
-            rows={rows}
-            placeholder={t('chat.placeholder')}
-            disabled={pending}
-            className="placeholder:text-muted-foreground w-full resize-none bg-transparent px-1 pt-0.5 text-sm outline-none disabled:opacity-60"
-          />
-          <div className="mt-1.5 flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(event) => void addFiles(event)}
-              aria-hidden
-              tabIndex={-1}
+                ))}
+              </div>
+            )}
+            <label className="sr-only" htmlFor="research-message">
+              Ask about this research
+            </label>
+            <textarea
+              id="research-message"
+              value={input}
+              onChange={(event) => {
+                setInput(event.target.value);
+                setSlashIndex(0);
+              }}
+              onKeyDown={(event) => {
+                if (slashActive && slashMatches.length > 0) {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setSlashIndex((current) => (current + 1) % slashMatches.length);
+                    return;
+                  }
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setSlashIndex(
+                      (current) => (current - 1 + slashMatches.length) % slashMatches.length,
+                    );
+                    return;
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setInput('');
+                    return;
+                  }
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    const selected = slashMatches[slashIndex] ?? slashMatches[0];
+                    if (selected) {
+                      runSlashCommand(selected.id, input.slice(1).trim().split(/\s+/)[1]);
+                    }
+                    return;
+                  }
+                }
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  void send();
+                }
+              }}
+              rows={rows}
+              placeholder={t('chat.placeholder')}
+              disabled={pending}
+              className="placeholder:text-muted-foreground w-full resize-none bg-transparent px-1 pt-0.5 text-sm outline-none disabled:opacity-60"
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={pending || attachments.length >= MAX_ATTACHMENTS}
-              title={
-                attachments.length >= MAX_ATTACHMENTS
-                  ? t('chat.maxAttachments', { max: MAX_ATTACHMENTS })
-                  : t('chat.attachFilesHint')
-              }
-              aria-label={t('chat.attachFiles')}
-              className="text-muted-foreground hover:bg-muted hover:text-foreground rounded-md p-1 disabled:opacity-40"
-            >
-              <Plus className="size-4" />
-            </button>
-
-            <div className="ml-auto flex items-center gap-1">
-              <Select value={model} onValueChange={(value) => setModel(value as ModelId)}>
-                <SelectTrigger
-                  size="sm"
-                  aria-label={t('chat.model')}
-                  className="text-muted-foreground h-7 gap-1 border-0 px-1.5 text-xs font-medium shadow-none"
-                >
-                  {/* Explicit label so the choice shows before hydration too. */}
-                  <SelectValue>{MODELS.find((entry) => entry.id === model)?.label}</SelectValue>
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {MODELS.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
-                      {entry.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="mt-1.5 flex items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(event) => void addFiles(event)}
+                aria-hidden
+                tabIndex={-1}
+              />
               <button
                 type="button"
-                onClick={toggleDictation}
-                disabled={!voiceOk.dictation || pending}
-                aria-pressed={listening}
-                title={
-                  !voiceOk.dictation
-                    ? t('chat.dictateUnavailable')
-                    : listening
-                      ? t('chat.dictateStop')
-                      : t('chat.dictateStart')
-                }
-                aria-label={listening ? t('chat.dictateStop') : t('chat.dictateStart')}
-                className={cn(
-                  'rounded-md p-1 disabled:opacity-40',
-                  listening
-                    ? 'text-destructive animate-pulse'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={pending || attachments.length >= MAX_ATTACHMENTS}
+                title={t('chat.attachFilesHint')}
+                aria-label={t('chat.attachFiles')}
+                className="text-muted-foreground hover:bg-muted hover:text-foreground rounded-md p-1 disabled:opacity-40"
               >
-                <Mic className="size-4" />
+                <Plus className="size-4" />
               </button>
-              {pending ? (
-                <button
-                  type="button"
-                  onClick={() => abortRef.current?.abort()}
-                  title={t('chat.stopReply')}
-                  aria-label={t('chat.stopReply')}
-                  className="bg-foreground text-background rounded-md p-1"
-                >
-                  <CircleStop className="size-4" />
-                </button>
-              ) : input.trim() || attachments.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => void send()}
-                  aria-label={t('chat.send')}
-                  className="bg-foreground text-background rounded-md p-1"
-                >
-                  <ArrowUp className="size-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={toggleReadAloud}
-                  disabled={!voiceOk.playback || !lastReply}
-                  aria-pressed={speaking}
-                  title={
-                    !voiceOk.playback
-                      ? t('chat.readUnavailable')
-                      : !lastReply
-                        ? t('chat.nothingToRead')
-                        : speaking
-                          ? t('chat.stopReading')
-                          : t('chat.readAloud')
-                  }
-                  aria-label={speaking ? t('chat.stopReading') : t('chat.readAloud')}
-                  className={cn(
-                    'rounded-md p-1 disabled:opacity-40',
-                    speaking
-                      ? 'text-primary'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                >
-                  <AudioLines className="size-4" />
-                </button>
-              )}
+
+              <div className="ml-auto flex items-center gap-1">
+                {pending ? (
+                  <button
+                    type="button"
+                    onClick={() => abortRef.current?.abort()}
+                    title={t('chat.stopReply')}
+                    aria-label={t('chat.stopReply')}
+                    className="bg-foreground text-background rounded-md p-1"
+                  >
+                    <CircleStop className="size-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void send()}
+                    disabled={!input.trim() && attachments.length === 0}
+                    aria-label={t('chat.send')}
+                    className="bg-foreground text-background rounded-md p-1 disabled:opacity-30"
+                  >
+                    <ArrowUp className="size-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
-        <p className="text-muted-foreground/80 pt-1.5 pb-0.5 text-center text-[11px]">
-          {t('chat.disclaimer')}
-        </p>
-      </div>
     </div>
   );
 }

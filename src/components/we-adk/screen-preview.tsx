@@ -20,13 +20,34 @@ import {
   hasAppChrome,
 } from '@/components/we-adk/live-screen-preview';
 import { BlockPreview } from '@/components/we-adk/sketcher/block-preview';
+import { readPrototypeId } from '@/lib/we-adk/prototype';
 import { prototypeDesignBlocks } from '@/lib/we-adk/prototype-design';
+import {
+  inertPreviewHtml,
+  readPreviewNav,
+  readPreviewPick,
+  type PreviewLink,
+} from '@/lib/we-adk/mockup-pages';
 import {
   DEVICE_PRESETS,
   loadScreenBlocks,
   type CanvasBlock,
   type DevicePresetId,
 } from '@/lib/we-adk-mock/sketcher';
+
+/** Look up design HTML, falling back to the base (non-member) screen ID. */
+function loadDesignHtml(screenId: string): string | null {
+  try {
+    const html = window.localStorage.getItem(`we-adk:design-html:${screenId}`);
+    if (html) return html;
+    // Member-scoped screen — try the base ID from Main.
+    const { member, baseId } = readPrototypeId(screenId);
+    if (member && baseId !== screenId) {
+      return window.localStorage.getItem(`we-adk:design-html:${baseId}`);
+    }
+    return null;
+  } catch { return null; }
+}
 
 export type PreviewMode = 'live' | 'wireframe';
 
@@ -97,22 +118,35 @@ export function DeviceSwitcher({
  * screen on the canvas, block by block, with the palette to build from. Links
  * rather than state, so either view can be shared.
  */
+/**
+ * The Preview/Edit switch above a screen.
+ *
+ * A released round has no Edit side — the canvas behind it is frozen — so the
+ * control is dropped entirely rather than shown with one dead half. There is
+ * no label in its place: with only one thing to look at, naming it says
+ * nothing the screen itself does not already say.
+ */
 export function PreviewEditTabs({
   active,
   previewHref,
   editHref,
+  released = false,
 }: {
   active: 'preview' | 'edit';
   previewHref: string;
   editHref: string;
+  /** Released rounds are read-only, so the switch becomes a label. */
+  released?: boolean;
 }) {
+  if (released) return null;
+
   const tabs: { id: 'preview' | 'edit'; label: string; href: string; hint: string }[] = [
     { id: 'preview', label: 'Preview', href: previewHref, hint: 'The screen as it is built' },
     {
       id: 'edit',
-      label: 'Edit',
+      label: 'Page',
       href: editHref,
-      hint: 'The canvas it is built from, with every block',
+      hint: 'The page itself — click anything on it to change it',
     },
   ];
   return (
@@ -174,13 +208,21 @@ export function PreviewModeSwitcher({
 /* Surface                                                             */
 /* ------------------------------------------------------------------ */
 
-function WireframeFrame({ screenId, seedPattern }: { screenId: string; seedPattern: string }) {
+function WireframeFrame({ screenId, seedPattern, allowSeed = true }: { screenId: string; seedPattern: string; allowSeed?: boolean }) {
   // The canvas lives in localStorage, so it can only be read after mount.
   const [blocks, setBlocks] = useState<CanvasBlock[] | null>(null);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    setBlocks(loadScreenBlocks(screenId, seedPattern, () => prototypeDesignBlocks(screenId)));
-  }, [screenId, seedPattern]);
+    setBlocks(loadScreenBlocks(screenId, allowSeed ? seedPattern : '', () => prototypeDesignBlocks(screenId)));
+  }, [screenId, seedPattern, allowSeed, revision]);
+
+  // Re-read blocks when the canvas editor saves.
+  useEffect(() => {
+    const handler = () => setRevision((v) => v + 1);
+    window.addEventListener('we-adk:canvas-saved', handler);
+    return () => window.removeEventListener('we-adk:canvas-saved', handler);
+  }, []);
 
   if (blocks === null) {
     return <p className="text-muted-foreground py-16 text-center text-sm">Loading the design…</p>;
@@ -204,6 +246,77 @@ function WireframeFrame({ screenId, seedPattern }: { screenId: string; seedPatte
   );
 }
 
+/**
+ * If a screen has AI-generated HTML stored, render it in an iframe.
+ * Otherwise render the children (wireframe fallback).
+ */
+function GeneratedHtmlPreview({
+  screenId,
+  links = [],
+  onOpenScreen,
+  pick = false,
+  onPickControl,
+  children,
+}: {
+  screenId: string;
+  /**
+   * The screens this one can reach. Without them a generated page's own
+   * navigation is pinned and dead — which is right for a page shown alone, and
+   * wrong everywhere the rest of the set is sitting in a list beside it.
+   */
+  links?: PreviewLink[];
+  onOpenScreen?: (id: string) => void;
+  /** Outline the controls and report the one clicked, instead of following it. */
+  pick?: boolean;
+  onPickControl?: (index: number) => void;
+  children: React.ReactNode;
+}) {
+  const [html, setHtml] = useState<string | null>(null);
+  const reload = () => setHtml(loadDesignHtml(screenId));
+  useEffect(reload, [screenId]);
+  // Listen for updates from the chat
+  useEffect(() => {
+    const handler = () => reload();
+    window.addEventListener('we-adk:html-updated', handler);
+    return () => window.removeEventListener('we-adk:html-updated', handler);
+  });
+
+  /*
+   * A click inside the page asking for another screen.
+   *
+   * Guarded on the id being one this preview was told about: the listener is
+   * on the window, and two previews on one page would otherwise both answer a
+   * message meant for whichever was clicked.
+   */
+  useEffect(() => {
+    if (!onOpenScreen && !onPickControl) return;
+    const onMessage = (event: MessageEvent) => {
+      const chosen = readPreviewPick(event.data);
+      if (chosen !== null) return onPickControl?.(chosen);
+      const to = readPreviewNav(event.data);
+      if (to && links.some((link) => link.id === to)) onOpenScreen?.(to);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [onOpenScreen, onPickControl, links]);
+
+  if (!html) return <>{children}</>;
+
+  return (
+    <iframe
+      // Links to the rest of the set are followed by the host; everything else
+      // is pinned, because following a real one would navigate this frame to
+      // that path on this origin — the workspace itself, inside its own
+      // preview.
+      srcDoc={inertPreviewHtml(html, links, screenId, pick)}
+      title="Generated design"
+      className="min-h-[600px] w-full border-0"
+      style={{ height: '100%' }}
+      sandbox="allow-scripts"
+    />
+  );
+}
+
 export function ScreenPreviewSurface({
   screenId,
   seedPattern,
@@ -215,6 +328,11 @@ export function ScreenPreviewSurface({
   startEditing = false,
   showEditToggle = true,
   hrefForRoute,
+  onNavigate,
+  links,
+  onOpenScreen,
+  pick,
+  onPickControl,
   className,
 }: {
   screenId: string;
@@ -237,15 +355,33 @@ export function ScreenPreviewSurface({
   showEditToggle?: boolean;
   /** Where the previewed screen's own links should go. */
   hrefForRoute?: (route: string) => string | null;
+  /** Handle links in place instead — the preview navigates itself. */
+  onNavigate?: (route: string) => void;
+  /** The other screens of this set, and what to do when one is asked for. */
+  links?: PreviewLink[];
+  onOpenScreen?: (id: string) => void;
+  /** Wiring mode: outline the controls and report the one clicked. */
+  pick?: boolean;
+  onPickControl?: (index: number) => void;
   className?: string;
 }) {
   const live = mode === 'live' && canPreviewLive(screenId);
-  // No page behind it, but it belongs to one of the app's routes: the design
-  // goes inside the app's frame, the way a version 1 file does.
-  const chromed = !live && chrome && mode === 'live' && hasAppChrome(route);
+  // The app's sidebar and header wrap both the live screen and the wireframe,
+  // so the two modes look the same — only the content area differs.
+  const chromed = !live && chrome && hasAppChrome(route);
+  // Check if this screen has generated HTML stored
+  const [hasGeneratedHtml, setHasGeneratedHtml] = useState(false);
+  useEffect(() => {
+    const read = () => setHasGeneratedHtml(!!loadDesignHtml(screenId));
+    read();
+    // A page saved elsewhere — the Page tab, or the chat beside this preview —
+    // has to switch this surface over, not wait for a navigation.
+    window.addEventListener('we-adk:html-updated', read);
+    return () => window.removeEventListener('we-adk:html-updated', read);
+  }, [screenId]);
   // Both of those read as a viewport; loose blocks take only the height they
   // need.
-  const framed = live || chromed;
+  const framed = live || chromed || hasGeneratedHtml;
   const width = deviceWidth(device);
   const height = DEVICE_HEIGHTS[device];
   // Full width caps neither dimension: the surface fills whatever it is inside.
@@ -272,8 +408,27 @@ export function ScreenPreviewSurface({
           startEditing={startEditing}
           showEditToggle={showEditToggle}
           hrefForRoute={hrefForRoute}
+          onNavigate={onNavigate}
           className="flex-1"
         />
+      ) : hasGeneratedHtml ? (
+        /*
+         * A stored page wins over the blocks, and over the app's chrome.
+         *
+         * It is the most recent statement of what this screen is — the Page
+         * tab is where a design is edited now — and it is a whole document,
+         * carrying its own frame. Wrapping it in `DesignChromeFrame` would put
+         * the app's sidebar around a page that already has one.
+         */
+        <GeneratedHtmlPreview
+          screenId={screenId}
+          links={links}
+          onOpenScreen={onOpenScreen}
+          pick={pick}
+          onPickControl={onPickControl}
+        >
+          <WireframeFrame screenId={screenId} seedPattern={seedPattern} />
+        </GeneratedHtmlPreview>
       ) : chromed && route ? (
         <DesignChromeFrame route={route} hrefForRoute={hrefForRoute}>
           <WireframeFrame screenId={screenId} seedPattern={seedPattern} />

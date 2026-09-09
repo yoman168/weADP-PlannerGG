@@ -22,7 +22,7 @@ import { type ProjectTask } from '@/lib/we-adk-mock/tasks';
 /** Up to four files per comment, the same ceiling the chat composer sets. */
 const MAX_ATTACHMENTS = 4;
 
-type Tab = 'all' | 'comment';
+type Tab = 'all' | 'comment' | 'activity';
 
 /* ------------------------------------------------------------------ */
 /* People                                                              */
@@ -77,11 +77,14 @@ function Avatar({ name, className }: { name: string; className?: string }) {
 
 function Entry({
   entry,
+  readOnly = false,
   onLike,
   onPin,
   onDelete,
 }: {
   entry: TaskComment;
+  /** Build activity is a record of what happened — it cannot be edited. */
+  readOnly?: boolean;
   onLike: () => void;
   onPin: () => void;
   onDelete: () => void;
@@ -89,7 +92,7 @@ function Entry({
   const { t } = useLocale();
   const likes = entry.likes ?? [];
   const liked = likes.includes(CURRENT_PERSON);
-  const mine = entry.author === CURRENT_PERSON;
+  const mine = !readOnly && entry.author === CURRENT_PERSON;
 
   return (
     <div className="group/entry flex items-start gap-3 py-4">
@@ -128,23 +131,25 @@ function Entry({
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={onLike}
-          aria-pressed={liked}
-          className={cn(
-            'mt-2 flex items-center gap-1.5 text-xs',
-            liked ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          <Smile className="size-4" />
-          {t('comments.like')}
-          {likes.length > 0 && <span className="tabular-nums">{likes.length}</span>}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={onLike}
+            aria-pressed={liked}
+            className={cn(
+              'mt-2 flex items-center gap-1.5 text-xs',
+              liked ? 'text-foreground font-medium' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Smile className="size-4" />
+            {t('comments.like')}
+            {likes.length > 0 && <span className="tabular-nums">{likes.length}</span>}
+          </button>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        {mine && entry.kind === 'comment' && (
+        {!readOnly && mine && entry.kind === 'comment' && (
           <button
             type="button"
             onClick={onDelete}
@@ -155,20 +160,22 @@ function Entry({
             <X className="size-3.5" />
           </button>
         )}
-        <button
-          type="button"
-          onClick={onPin}
-          aria-pressed={entry.pinned === true}
-          title={entry.pinned ? t('comments.unpin') : t('comments.pin')}
-          aria-label={entry.pinned ? 'Unpin this entry' : 'Pin this entry'}
-          className={cn(
-            entry.pinned
-              ? 'text-foreground'
-              : 'text-muted-foreground/60 hover:text-foreground opacity-0 transition-opacity group-hover/entry:opacity-100 focus-visible:opacity-100',
-          )}
-        >
-          <Pin className={cn('size-4', entry.pinned && 'fill-current')} />
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={onPin}
+            aria-pressed={entry.pinned === true}
+            title={entry.pinned ? t('comments.unpin') : t('comments.pin')}
+            aria-label={entry.pinned ? 'Unpin this entry' : 'Pin this entry'}
+            className={cn(
+              entry.pinned
+                ? 'text-foreground'
+                : 'text-muted-foreground/60 hover:text-foreground opacity-0 transition-opacity group-hover/entry:opacity-100 focus-visible:opacity-100',
+            )}
+          >
+            <Pin className={cn('size-4', entry.pinned && 'fill-current')} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -187,11 +194,18 @@ export function TaskCommentThread({
   project,
   task,
   entries,
+  activity = [],
   onChange,
 }: {
   project: DesignProject;
   task: ProjectTask;
   entries: TaskComment[];
+  /**
+   * What happened to the task outside the thread — the build's steps, in the
+   * same feed as what people said about it. Read-only: these are a record of
+   * events, so they cannot be liked, pinned or deleted the way a comment can.
+   */
+  activity?: TaskComment[];
   onChange: (entries: TaskComment[]) => void;
 }) {
   const { t } = useLocale();
@@ -201,7 +215,16 @@ export function TaskCommentThread({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const comments = commentCount(entries);
-  const shown = tab === 'comment' ? entries.filter((entry) => entry.kind === 'comment') : entries;
+  // One feed: what people wrote, what the board did, and what the build did,
+  // in the order it happened. Kept in a set so an id cannot appear twice.
+  const activityIds = new Set(activity.map((entry) => entry.id));
+  const merged = [...entries, ...activity].sort((a, b) => a.at.localeCompare(b.at));
+  const shown =
+    tab === 'comment'
+      ? merged.filter((entry) => entry.kind === 'comment')
+      : tab === 'activity'
+        ? merged.filter((entry) => entry.kind === 'system')
+        : merged;
   // Pinned entries stay on top; everything else keeps thread order.
   const ordered = [...shown].sort((a, b) => Number(b.pinned === true) - Number(a.pinned === true));
 
@@ -244,8 +267,9 @@ export function TaskCommentThread({
   );
 
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'all', label: t('comments.all'), count: entries.length },
+    { id: 'all', label: t('comments.all'), count: merged.length },
     { id: 'comment', label: t('comments.comment'), count: comments },
+    { id: 'activity', label: 'Activity', count: merged.length - comments },
   ];
 
   return (
@@ -275,13 +299,16 @@ export function TaskCommentThread({
           <p className="text-muted-foreground py-6 text-center text-xs">
             {tab === 'comment'
               ? t('comments.noComments')
-              : t('comments.noActivity')}
+              : tab === 'activity'
+                ? 'Nothing has happened to this task yet.'
+                : t('comments.noActivity')}
           </p>
         ) : (
           ordered.map((entry) => (
             <Entry
               key={entry.id}
               entry={entry}
+              readOnly={activityIds.has(entry.id)}
               onLike={() => onChange(toggleTaskCommentLike(project.id, task, entry.id))}
               onPin={() => pin(entry)}
               onDelete={() => onChange(removeTaskComment(project.id, task, entry.id))}

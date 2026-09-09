@@ -6,12 +6,37 @@ import {
   ChevronRight,
   Clock,
   CreditCard,
+  Pencil,
+  Plus,
   Receipt,
+  RefreshCw,
+  Sparkles,
+  Trash2,
   TriangleAlert,
   Wallet,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { Badge, Button, Card, Progress, cn } from '@/components/ui';
+import { useState } from 'react';
+import {
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Progress,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Separator,
+  cn,
+} from '@/components/ui';
 import {
   EditableSection,
   cardLabel,
@@ -155,6 +180,118 @@ const CATEGORIES = [
   { label: 'Other', share: 10, amount: '₩4,872,900' },
 ];
 
+interface WhatsNewItem {
+  id: string;
+  title: string;
+  description: string;
+  tag: 'Feature' | 'Improvement' | 'Fix';
+}
+
+interface WhatsNewVersion {
+  version: string;
+  date: string;
+  items: WhatsNewItem[];
+}
+
+const WHATS_NEW: WhatsNewVersion[] = [
+  {
+    version: 'version 2',
+    date: '2026-08-15',
+    items: [
+      {
+        id: 'wn-1',
+        title: 'Bulk approve by calendar month',
+        description: 'Approve an entire month of corporate card charges at once instead of one by one.',
+        tag: 'Feature',
+      },
+      {
+        id: 'wn-2',
+        title: 'Business Call setting',
+        description: 'Added a new Setting tab to manage Screen ID mappings for each screen.',
+        tag: 'Feature',
+      },
+      {
+        id: 'wn-3',
+        title: 'Receipt auto-match',
+        description: 'Uploaded receipts are now matched to charges automatically using amount and date.',
+        tag: 'Improvement',
+      },
+      {
+        id: 'wn-4',
+        title: 'Returned expense notifications',
+        description: 'Submitters now receive an email when their expense report is returned for correction.',
+        tag: 'Feature',
+      },
+      {
+        id: 'wn-5',
+        title: 'Corporate card detail view',
+        description: 'View full charge details, attached receipt and approval history from the card list.',
+        tag: 'Feature',
+      },
+      {
+        id: 'wn-6',
+        title: 'Tax invoice date range filter',
+        description: 'Filter invoices by custom date range instead of the current month only.',
+        tag: 'Improvement',
+      },
+      {
+        id: 'wn-7',
+        title: 'Approval queue overdue sorting',
+        description: 'Overdue items now appear at the top of the approval queue automatically.',
+        tag: 'Improvement',
+      },
+      {
+        id: 'wn-8',
+        title: 'Close status accuracy fix',
+        description: 'Fixed an issue where blocked items were not counted correctly across cost centres.',
+        tag: 'Fix',
+      },
+      {
+        id: 'wn-9',
+        title: 'Duplicate receipt warning',
+        description: 'System now warns when the same receipt is attached to more than one expense.',
+        tag: 'Feature',
+      },
+      {
+        id: 'wn-10',
+        title: 'Multi-currency expense support',
+        description: 'Personal expenses can now be submitted in foreign currencies with auto-conversion to KRW.',
+        tag: 'Feature',
+      },
+    ],
+  },
+  {
+    version: 'version 1',
+    date: '2026-07-20',
+    items: [
+      {
+        id: 'wn-v1-1',
+        title: 'Dashboard',
+        description: 'Summary cards, spend-by-category chart and recent activity feed in a single view.',
+        tag: 'Feature',
+      },
+      {
+        id: 'wn-v1-2',
+        title: 'Close status',
+        description: 'Month-end close status and blocker tracking across cost centres.',
+        tag: 'Feature',
+      },
+      {
+        id: 'wn-v1-3',
+        title: 'Personal expense return flow',
+        description: 'Returned reports show the reason inline so the submitter can fix and resend.',
+        tag: 'Feature',
+      },
+    ],
+  },
+];
+
+const TAG_STYLE: Record<WhatsNewItem['tag'], string> = {
+  Feature: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  Improvement: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  Fix: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+};
+
 /* ------------------------------------------------------------------ */
 /* Defaults                                                             */
 /* ------------------------------------------------------------------ */
@@ -192,13 +329,136 @@ const RECENT_DEFAULTS = {
   label: 'Recent Activity',
 };
 
+const WHATS_NEW_DEFAULTS = {
+  visible: true,
+  sectionType: 'list' as const,
+  label: "What's New",
+};
+
 /* ------------------------------------------------------------------ */
 /* Page                                                                 */
 /* ------------------------------------------------------------------ */
 
+const TAG_OPTIONS: WhatsNewItem['tag'][] = ['Feature', 'Improvement', 'Fix'];
+
+function WhatsNewEditDialog({
+  open,
+  initial,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  initial?: WhatsNewItem;
+  onClose: () => void;
+  onSave: (item: WhatsNewItem) => void;
+}) {
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [tag, setTag] = useState<WhatsNewItem['tag']>(initial?.tag ?? 'Feature');
+
+  // Reset when dialog opens with new data
+  const key = initial?.id ?? '__new__';
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{initial ? 'Edit Entry' : 'Add Entry'}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Title</Label>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="What changed?"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Description</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of the change"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Tag</Label>
+            <Select value={tag} onValueChange={(v) => setTag(v as WhatsNewItem['tag'])}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TAG_OPTIONS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            disabled={!title.trim()}
+            onClick={() => {
+              onSave({
+                id: initial?.id ?? `wn-${Date.now()}`,
+                title: title.trim(),
+                description: description.trim(),
+                tag,
+              });
+              onClose();
+            }}
+          >
+            {initial ? 'Save' : 'Add'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function DashboardPage() {
   const header = useSectionConfig('dashboard-header', HEADER_DEFAULTS);
   const stats = useSectionConfig('dashboard-stats', STATS_DEFAULTS);
+
+  const [releases, setReleases] = useState(WHATS_NEW);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<WhatsNewItem | undefined>(undefined);
+  /** Which version the add/edit targets. */
+  const [editingVersion, setEditingVersion] = useState<string>('');
+
+  const openAdd = (version: string) => {
+    setEditingItem(undefined);
+    setEditingVersion(version);
+    setEditOpen(true);
+  };
+
+  const openEdit = (version: string, item: WhatsNewItem) => {
+    setEditingItem(item);
+    setEditingVersion(version);
+    setEditOpen(true);
+  };
+
+  const handleSave = (item: WhatsNewItem) => {
+    setReleases((prev) =>
+      prev.map((r) => {
+        if (r.version !== editingVersion) return r;
+        const exists = r.items.some((i) => i.id === item.id);
+        return {
+          ...r,
+          items: exists ? r.items.map((i) => (i.id === item.id ? item : i)) : [...r.items, item],
+        };
+      }),
+    );
+  };
+
+  const handleDelete = (version: string, itemId: string) => {
+    setReleases((prev) =>
+      prev.map((r) =>
+        r.version === version ? { ...r, items: r.items.filter((i) => i.id !== itemId) } : r,
+      ),
+    );
+  };
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -206,7 +466,12 @@ export default function DashboardPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{header.title}</h1>
-            <p className="text-muted-foreground mt-1 text-sm">{header.subtitle}</p>
+            <div className="mt-1 flex items-center gap-2">
+              <p className="text-muted-foreground text-sm">{header.subtitle}</p>
+              <Button variant="ghost" size="sm" className="text-muted-foreground h-6 gap-1 px-2 text-xs" asChild>
+                <Link href="/eacc/dashboard/date-picker">Change period</Link>
+              </Button>
+            </div>
           </div>
           <Button size="sm" asChild>
             <Link href="/eacc/close">Go to close status</Link>
@@ -336,6 +601,92 @@ export default function DashboardPage() {
           </div>
         </Card>
       </EditableSection>
+
+      <EditableSection id="dashboard-whats-new" defaults={WHATS_NEW_DEFAULTS}>
+        <Card className="shadow-sm">
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="text-muted-foreground size-4" />
+              <h2 className="text-sm font-semibold">What&apos;s New</h2>
+            </div>
+          </div>
+          <div className="flex flex-col">
+            {releases.map((release, idx) => (
+              <div key={release.version}>
+                <div
+                  className={cn(
+                    'bg-muted/50 flex items-center justify-between px-4 py-2',
+                    idx > 0 && 'border-t',
+                  )}
+                >
+                  <span className="text-xs font-semibold">{release.version}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {release.date}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-1.5 text-[11px]"
+                      onClick={() => openAdd(release.version)}
+                    >
+                      <Plus className="size-3" />
+                      Add
+                    </Button>
+                  </div>
+                </div>
+                {release.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="group/item flex items-start gap-3 border-t px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium">{item.title}</p>
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium',
+                            TAG_STYLE[item.tag],
+                          )}
+                        >
+                          {item.tag}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground mt-0.5 text-xs">{item.description}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(release.version, item)}
+                        title="Edit"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Pencil className="size-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(release.version, item.id)}
+                        title="Delete"
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="size-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </EditableSection>
+
+      <WhatsNewEditDialog
+        key={editingItem?.id ?? '__new__'}
+        open={editOpen}
+        initial={editingItem}
+        onClose={() => setEditOpen(false)}
+        onSave={handleSave}
+      />
     </div>
   );
 }

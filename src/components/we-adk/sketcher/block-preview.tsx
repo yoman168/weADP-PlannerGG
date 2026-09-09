@@ -159,6 +159,50 @@ export function BlockPreview({ block }: { block: CanvasBlock }) {
   const { kind, props } = block;
 
   switch (kind) {
+    /*
+     * The canvas normally lifts this block out and draws it *around* the rest,
+     * so this case is for the places that render a screen's blocks as a plain
+     * list — a thumbnail, the design canvas, a second shell someone added by
+     * hand. Drawing nothing there would leave a block that cannot be seen or
+     * picked, so it draws as the nav it stands for.
+     */
+    case 'appShell': {
+      const groups: { label: string; items: string[] }[] = [];
+      for (const pair of props.pairs ?? []) {
+        const heading = (pair.key ?? '').trim();
+        const item = (pair.value ?? '').trim();
+        if (!item) continue;
+        const last = groups[groups.length - 1];
+        if (last && last.label === heading) last.items.push(item);
+        else groups.push({ label: heading, items: [item] });
+      }
+      return (
+        <Card className="gap-0 p-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="bg-foreground text-background flex size-6 items-center justify-center rounded-md text-[10px] font-bold">
+              {(props.label ?? 'A').trim().charAt(0).toUpperCase() || 'A'}
+            </span>
+            <p className="text-sm font-semibold">{props.label ?? 'App'}</p>
+            <Badge variant="outline" className="ml-auto text-[10px]">
+              App shell
+            </Badge>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+            {groups.map((group, index) => (
+              <div key={`${group.label}-${index}`} className="min-w-0">
+                {group.label && (
+                  <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+                    {group.label}
+                  </p>
+                )}
+                <p className="text-muted-foreground text-xs">{group.items.join(' · ')}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      );
+    }
+
     case 'screenHeader':
       return (
         <div className="flex flex-wrap items-center justify-between gap-4">

@@ -6,10 +6,12 @@ import {
   ImagePlus,
   Loader2,
   Paperclip,
+  Plus,
   SquareTerminal,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import {
   Badge,
   Button,
@@ -310,7 +312,7 @@ export function ClaudeTerminal({
     try {
       const response = await fetch('/api/sketcher/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...claudeHeaders() },
         signal: controller.signal,
         body: JSON.stringify({
           message: text,
@@ -380,32 +382,6 @@ export function ClaudeTerminal({
 
   return (
     <div className="bg-background flex h-full min-h-0 flex-col">
-      {/* Header */}
-      <div className="flex shrink-0 flex-col gap-1 border-b px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <SquareTerminal className="text-primary size-4" />
-          <p className="text-sm font-semibold">Claude Code</p>
-          <Badge variant="outline" className="text-[10px]">
-            local CLI
-          </Badge>
-          <Select value={model} onValueChange={pickModel}>
-            <SelectTrigger size="sm" className="ml-auto h-7 w-24 text-xs" aria-label={t('terminal.claudeModel')}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MODELS.map((entry) => (
-                <SelectItem key={entry.id} value={entry.id}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <p className="text-muted-foreground truncate text-xs">
-          {folder.name}/ · {folder.files.length} design file{folder.files.length === 1 ? '' : 's'}{' '}
-          in context{liveModel ? ` · ${liveModel}` : ''}
-        </p>
-      </div>
 
       {/* Conversation */}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
@@ -531,23 +507,12 @@ export function ClaudeTerminal({
             variant="ghost"
             size="sm"
             className="size-7 p-0"
-            title={t('terminal.attachImage')}
-            aria-label={t('terminal.attachImage')}
-            disabled={pending || attachments.length >= MAX_ATTACHMENTS}
-            onClick={() => imageInputRef.current?.click()}
-          >
-            <ImagePlus className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-7 p-0"
             title={t('terminal.attachFile')}
             aria-label={t('terminal.attachFile')}
             disabled={pending || attachments.length >= MAX_ATTACHMENTS}
             onClick={() => fileInputRef.current?.click()}
           >
-            <Paperclip className="size-3.5" />
+            <Plus className="size-3.5" />
           </Button>
           {pending ? (
             <Button

@@ -88,7 +88,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Bulk Approve — July 2026',
-  subtitle: 'Corporate Card > Bulk Approve',
+  subtitle: 'eACC Cloud > Expense Management > Corporate Card',
 };
 
 const PERIOD_DEFAULTS = {

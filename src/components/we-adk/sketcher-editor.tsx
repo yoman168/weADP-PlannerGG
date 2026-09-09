@@ -14,6 +14,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  ArrowDown,
   ArrowUp,
   Check,
   Code2,
@@ -29,8 +30,8 @@ import {
   RotateCcw,
   ClipboardList,
   Sparkles,
-  SquareTerminal,
   Trash2,
+  X,
   Undo2,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -39,11 +40,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
+  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -57,14 +60,16 @@ import {
 import { AssistantMarkdown, readChatEvent } from '@/components/we-adk/claude-chat';
 import { DesignHtmlButton } from '@/components/we-adk/design-html-button';
 import {
-  businessCanvasHref,
+  businessEditHref,
   businessPreviewHref,
   previewHref,
 } from '@/components/we-adk/mockup-board';
 import { DeviceSwitcher, PreviewEditTabs } from '@/components/we-adk/screen-preview';
+import { DesignChromeFrame, hasAppChrome, loadSidebarOverrides, saveSidebarOverrides, type SidebarOverrides } from '@/components/we-adk/live-screen-preview';
 import { useOptionalBusinessWorkspace } from '@/components/we-adk/business-workspace';
 import { useLocale } from '@/lib/locale';
 import { BlockPreview } from '@/components/we-adk/sketcher/block-preview';
+import { ScreenShell, splitShell } from '@/components/we-adk/sketcher/screen-shell';
 import { LAYER_DRAG_PREFIX, LayersPanel } from '@/components/we-adk/sketcher/layers-panel';
 import { PALETTE_DRAG_PREFIX, Palette } from '@/components/we-adk/sketcher/palette';
 import { PropertyInspector } from '@/components/we-adk/sketcher/property-inspector';
@@ -84,11 +89,108 @@ import {
 import { isHtmlDesignFile } from '@/lib/we-adk/design-html';
 import { aiResponseSchema, describeCanvas } from '@/lib/we-adk/sketcher-operations';
 import { pushCanvasToScreen } from '@/lib/we-adk/design-sync';
-import { findPrototypeFile, prototypeConfigKeyForScreen } from '@/lib/we-adk/prototype';
+import { findPrototypeByRoute, findPrototypeFile, prototypeConfigKeyForScreen } from '@/lib/we-adk/prototype';
 import { prototypeDesignBlocks } from '@/lib/we-adk/prototype-design';
 import { resolveScreen } from '@/lib/we-adk/screen-registry';
+import { EACC_NAV } from '@/lib/eacc/nav';
 
 const CANVAS_DROP_ID = 'sketcher-canvas';
+
+/* ------------------------------------------------------------------ */
+/* Sidebar property inspector                                          */
+/* ------------------------------------------------------------------ */
+
+function SidebarInspector({
+  overrides,
+  onChange,
+  onDeselect,
+}: {
+  overrides: SidebarOverrides;
+  onChange: (next: SidebarOverrides) => void;
+  onDeselect: () => void;
+}) {
+  const allItems = EACC_NAV.flatMap((g) => g.items);
+
+  const update = (href: string, patch: { label?: string; visible?: boolean }) => {
+    onChange({ ...overrides, [href]: { ...overrides[href], ...patch } });
+  };
+
+  const toggleVisibility = (href: string) => {
+    const current = overrides[href]?.visible !== false;
+    update(href, { visible: !current });
+  };
+
+  return (
+    <aside className="bg-background flex w-72 shrink-0 flex-col border-l">
+      <div className="mx-2 mt-3 mb-1">
+        <p className="text-sm font-medium">Properties</p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-4 px-3 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <Badge variant="secondary">Sidebar</Badge>
+            <button
+              type="button"
+              aria-label="Deselect"
+              onClick={onDeselect}
+              className="text-muted-foreground hover:text-foreground p-1"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs font-normal">Layer name</span>
+            <Input value="Sidebar" readOnly className="h-8" />
+          </div>
+
+          <div className="flex flex-col gap-1.5 border-t pt-4">
+            <span className="text-muted-foreground text-xs">Navigation</span>
+            {allItems.map((item, index) => {
+              const ov = overrides[item.href];
+              const visible = ov?.visible !== false;
+              return (
+                <div key={item.href} className={cn('flex items-center gap-1', !visible && 'opacity-40')}>
+                  <Input
+                    value={ov?.label ?? item.label}
+                    onChange={(e) => update(item.href, { label: e.target.value })}
+                    className="h-7 text-xs"
+                  />
+                  <div className="flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      aria-label="Move up"
+                      disabled={index === 0}
+                      className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0.5"
+                    >
+                      <ArrowUp className="size-3" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Move down"
+                      disabled={index === allItems.length - 1}
+                      className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0.5"
+                    >
+                      <ArrowDown className="size-3" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={visible ? 'Hide' : 'Show'}
+                      onClick={() => toggleVisibility(item.href)}
+                      className="text-muted-foreground hover:text-destructive p-0.5"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 /** The two ways to work on a screen, in tab order. Preview is the default. */
 const VIEW_MODES = [
@@ -313,7 +415,22 @@ export function SketcherEditor({
   const prototype = screenId ? findPrototypeFile(screenId) : null;
   const navTabs = Boolean(embedded && projectId && screenId);
   const workspace = useOptionalBusinessWorkspace();
-  const isReleased = workspace?.isReleased ?? false;
+  /**
+   * Frozen when the round this screen belongs to is released.
+   *
+   * `workspace.isReleased` describes the round that is *open*, which is not
+   * always the round the open screen came from — so the folder in the URL wins
+   * whenever it names one, and the workspace flag is the fallback.
+   */
+  const isReleased = useMemo(() => {
+    const round = folderId
+      ? (workspace?.folders ?? [])
+          .flatMap((folder) => [folder, ...(folder.children ?? [])])
+          .find((folder) => folder.id === folderId)
+      : undefined;
+    if (round) return round.versionStatus === 'Released';
+    return workspace?.isReleased ?? false;
+  }, [folderId, workspace?.folders, workspace?.isReleased]);
 
   // A screen opened from Builder gets its own seed layout and its own saved canvas.
   const opened = useMemo(
@@ -344,11 +461,23 @@ export function SketcherEditor({
               seed: () =>
                 prototypeDesignBlocks(opened.id) ?? createPatternBlocks(opened.seedPattern),
             }
-          : {},
-      [opened],
+          : screenId
+            ? {
+                // Unresolved screen (e.g. a customer meeting) — use the
+                // screenId directly, so the blocks generated for that meeting
+                // are picked up. It starts empty rather than on a stock list
+                // page: a screen with no canvas yet should look like one, so
+                // that generating it is the obvious next move.
+                storageKey: `${CANVAS_STORAGE_KEY}:${screenId}`,
+                seed: () => [],
+              }
+            : {},
+      [opened, screenId],
     ),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sidebarSelected, setSidebarSelected] = useState(false);
+  const [sidebarOverrides, setSidebarOverrides] = useState<SidebarOverrides>(() => loadSidebarOverrides());
   const [leftTab, setLeftTab] = useState('blocks');
   const [device, setDevice] = useState<DevicePresetId>('full');
   // Opens on Preview normally; an html file arrives here from its Design tab,
@@ -366,6 +495,7 @@ export function SketcherEditor({
   const [chat, setChat] = useState<ChatEntry[]>([]);
   const [message, setMessage] = useState(AI_MESSAGE_SEED);
   const [pending, setPending] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(true);
   // Edit turns instructions into canvas operations; Ask is a conversation
   // about the screen, streamed from the same local Claude Code install.
   const [chatMode, setChatMode] = useState<'edit' | 'ask'>('edit');
@@ -391,6 +521,7 @@ export function SketcherEditor({
 
   const select = useCallback((id: string) => {
     setSelectedId(id);
+    setSidebarSelected(false);
   }, []);
 
   /* ------------------------------ actions ------------------------------ */
@@ -443,32 +574,28 @@ export function SketcherEditor({
   const blocksSignature = JSON.stringify(canvas.blocks);
 
   useEffect(() => {
-    if (!prototype || !canvas.hydrated) return;
+    if (!canvas.hydrated) return;
     const timer = window.setTimeout(() => {
       const current = canvasRef.current;
       if (!current.dirty) return;
       current.save();
-      if (configKey) pushCanvasToScreen(configKey, current.blocks);
-      // The explorer's A / M markers are derived from storage, which nothing
-      // else tells it has changed.
+      if (prototype && configKey) pushCanvasToScreen(configKey, current.blocks);
       workspace?.refreshChanges();
+      window.dispatchEvent(new Event('we-adk:canvas-saved'));
     }, 400);
     return () => window.clearTimeout(timer);
     // canvas is read through the ref so this runs on content change, not identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prototype, canvas.hydrated, blocksSignature, configKey]);
+  }, [canvas.hydrated, blocksSignature, prototype, configKey]);
 
   const handleSave = useCallback(() => {
     const saved = canvas.save();
-    // Saving an html file's canvas also updates the screen its Preview shows,
-    // so the two tabs never disagree about the same file.
-    if (saved) workspace?.refreshChanges();
-    if (saved && prototype && configKey) {
-      pushCanvasToScreen(configKey, canvas.blocks);
-      flash('Canvas saved · Preview updated');
-      return;
+    if (saved) {
+      workspace?.refreshChanges();
+      if (prototype && configKey) pushCanvasToScreen(configKey, canvas.blocks);
+      window.dispatchEvent(new Event('we-adk:canvas-saved'));
     }
-    flash(saved ? 'Canvas saved' : 'Could not save — storage unavailable');
+    flash(saved ? 'Canvas saved · Preview updated' : 'Could not save — storage unavailable');
   }, [canvas, flash, prototype, configKey, workspace]);
 
   /* --------------------------- drag & drop --------------------------- */
@@ -777,7 +904,6 @@ export function SketcherEditor({
 
   /* ------------------------------ render ------------------------------ */
 
-  const blockIds = canvas.blocks.map((block) => block.id);
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -817,11 +943,7 @@ export function SketcherEditor({
                     {headerName && (
                       <span className="text-muted-foreground truncate text-xs">{headerName}</span>
                     )}
-                    {isHtml ? (
-                      <Badge variant="info" className="shrink-0 text-[10px]">
-                        {t('badge.html')}
-                      </Badge>
-                    ) : (
+                    {!isHtml && (
                       <Badge variant="outline" className="shrink-0 text-[10px]">
                         {t('badge.wireframe')}
                       </Badge>
@@ -925,30 +1047,16 @@ export function SketcherEditor({
                     <TooltipContent>{t('canvas.resetLayout')}</TooltipContent>
                   </Tooltip>
                 </div>
-                {navTabs && projectId && screenId && (
-                  onSwitchToPreview ? (
-                    <div className="bg-muted flex rounded-md p-0.5">
-                      <button
-                        type="button"
-                        onClick={onSwitchToPreview}
-                        className="text-muted-foreground hover:text-foreground rounded px-2.5 py-1 text-[11px]"
-                      >
-                        {t('view.preview')}
-                      </button>
-                      <span className="bg-background shadow-xs rounded px-2.5 py-1 text-[11px] font-medium">
-                        {t('view.edit')}
-                      </span>
-                    </div>
-                  ) : (
-                    <PreviewEditTabs
-                      active="edit"
-                      previewHref={businessPreviewHref(projectId, screenId, folderId)}
-                      editHref={businessCanvasHref(projectId, screenId, folderId)}
-                    />
-                  )
+                {navTabs && projectId && screenId && !onSwitchToPreview && (
+                  <PreviewEditTabs
+                    active="edit"
+                    released={isReleased}
+                    previewHref={businessPreviewHref(projectId, screenId, folderId)}
+                    editHref={businessEditHref(projectId, screenId, folderId)}
+                  />
                 )}
                 <DeviceSwitcher device={device} onChange={setDevice} />
-                {!navTabs && (
+                {!navTabs && !isReleased && (
                   <div className="bg-muted flex rounded-md p-0.5">
                     {VIEW_MODES.map((mode) => {
                       const active = mode.preview === preview;
@@ -1007,18 +1115,6 @@ export function SketcherEditor({
               </div>
             </div>
 
-            {!preview && (
-              <div className="flex w-[26rem] shrink-0 items-center gap-2 border-l px-3 py-2">
-                <SquareTerminal className="text-primary size-4 shrink-0" />
-                <span className="text-sm font-semibold">{t('chat.claudeCode')}</span>
-                <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-                  {prototype?.fileName ?? opened?.name ?? 'Scratch canvas'}
-                </span>
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  {t('badge.localCli')}
-                </Badge>
-              </div>
-            )}
           </div>
 
           <div className="flex min-h-0 flex-1">
@@ -1056,68 +1152,120 @@ export function SketcherEditor({
             )}
 
             {/* Canvas */}
-            <main
-              // Scrolls both ways: with the chat open the column can be
-              // narrower than the frame, and clipping it would hide the design.
-              className="min-w-0 flex-1 overflow-auto bg-[#f4f5f7] p-6 dark:bg-[#0b0e14]"
-              onClick={() => setSelectedId(null)}
-            >
-              <div
-                ref={setCanvasDropRef}
-                onClick={(event) => event.stopPropagation()}
-                style={deviceWidth > 0 ? { maxWidth: `${deviceWidth}px` } : undefined}
-                className={cn(
-                  'mx-auto flex flex-col gap-1 rounded-xl border bg-background p-5 shadow-sm transition-colors',
-                  isOver && 'border-primary/60 ring-primary/20 ring-2',
-                )}
-              >
-                <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
-                  {canvas.blocks.map((block) => (
-                    <CanvasBlockShell
-                      key={block.id}
-                      block={block}
-                      selected={block.id === selectedId}
-                      preview={preview}
-                      onSelect={() => select(block.id)}
-                      onDuplicate={() => duplicateBlock(block.id)}
-                      onDelete={() => deleteBlock(block.id)}
-                      onToggleHidden={() => canvas.toggleHidden(block.id)}
-                    />
-                  ))}
-                </SortableContext>
+            {(() => {
+              const canvasRoute = prototype?.route ?? file?.route ?? opened?.route;
+              /*
+               * A screen that carries its own `appShell` is framed by that.
+               * `DesignChromeFrame` is the eACC app's nav specifically — right
+               * for a prototype of that app, wrong for a customer's product —
+               * so the block wins wherever a screen has one.
+               */
+              const { shell, content } = splitShell(canvas.blocks);
+              const showChrome = !shell && hasAppChrome(canvasRoute);
+              const framed = Boolean(shell) || showChrome;
 
-                {canvas.blocks.length === 0 && (
-                  <div className="flex flex-col items-center gap-2 py-16 text-center">
-                    <p className="text-sm font-medium">{t('canvas.empty')}</p>
-                    <p className="text-muted-foreground text-xs">{t('canvas.emptyHint')}</p>
-                    <Button size="sm" variant="outline" onClick={() => addPattern('listPage')}>
-                      {t('canvas.startList')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-              {!preview && (
-                <p className="text-muted-foreground mt-3 text-center text-[10px]">
-                  {t('canvas.helpText')}
-                </p>
-              )}
+              const blocksContent = (
+                <div
+                  ref={setCanvasDropRef}
+                  onClick={(event) => event.stopPropagation()}
+                  style={deviceWidth > 0 ? { maxWidth: `${deviceWidth}px` } : undefined}
+                  className={cn(
+                    framed
+                      ? 'flex flex-col gap-1 p-5'
+                      : 'mx-auto flex flex-col gap-1 rounded-xl border bg-background p-5 shadow-sm transition-colors',
+                    isOver && 'border-primary/60 ring-primary/20 ring-2',
+                  )}
+                >
+                  <SortableContext
+                    items={content.map((block) => block.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {content.map((block) => (
+                      <CanvasBlockShell
+                        key={block.id}
+                        block={block}
+                        selected={block.id === selectedId}
+                        preview={preview}
+                        onSelect={() => select(block.id)}
+                        onDuplicate={() => duplicateBlock(block.id)}
+                        onDelete={() => deleteBlock(block.id)}
+                        onToggleHidden={() => canvas.toggleHidden(block.id)}
+                      />
+                    ))}
+                  </SortableContext>
 
-              {/* Floating action bar — hidden for released versions */}
-              {!isReleased && (
-                <div className="sticky bottom-4 z-40 flex justify-center pt-4">
-                  <div className="flex items-center gap-2 rounded-full border bg-background px-2 py-1.5 shadow-lg">
-                    <Button size="sm" variant="outline" className="gap-1.5 rounded-full">
-                      <Sparkles className="size-3.5" />
-                      {t('action.improveAi')}
-                    </Button>
-                    <Button size="sm" variant="outline" className="gap-1.5 rounded-full">
-                      <ClipboardList className="size-3.5" />
-                      {t('action.createTask')}
-                    </Button>
-                  </div>
+                  {content.length === 0 && (
+                    <div className="flex flex-col items-center gap-2 py-16 text-center">
+                      <p className="text-sm font-medium">{t('canvas.empty')}</p>
+                      <p className="text-muted-foreground text-xs">{t('canvas.emptyHint')}</p>
+                      <Button size="sm" variant="outline" onClick={() => addPattern('listPage')}>
+                        {t('canvas.startList')}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </main>
+              );
+
+              return (
+                <main
+                  className="min-w-0 flex-1 overflow-auto bg-[#f4f5f7] dark:bg-[#0b0e14]"
+                  onClick={() => { setSelectedId(null); setSidebarSelected(false); }}
+                >
+                  {shell ? (
+                    <div className="flex min-h-full flex-col overflow-x-auto rounded-xl border bg-background shadow-sm">
+                      <ScreenShell
+                        block={shell}
+                        selected={selectedId === shell.id}
+                        onSelect={preview ? undefined : () => select(shell.id)}
+                      >
+                        {blocksContent}
+                      </ScreenShell>
+                    </div>
+                  ) : showChrome ? (
+                    <div className="flex min-h-full flex-col rounded-xl border bg-background shadow-sm">
+                      <DesignChromeFrame
+                        route={canvasRoute!}
+                        hrefForRoute={projectId ? (route) => {
+                          const target = findPrototypeByRoute(route);
+                          return target ? businessEditHref(projectId, target.id, folderId) : null;
+                        } : undefined}
+                        sidebarSelected={sidebarSelected}
+                        onSidebarSelect={preview ? undefined : () => {
+                          setSidebarSelected(true);
+                          setSelectedId(null);
+                        }}
+                        sidebarOverrides={sidebarOverrides}
+                      >
+                        {blocksContent}
+                      </DesignChromeFrame>
+                    </div>
+                  ) : (
+                    <div className="p-6">{blocksContent}</div>
+                  )}
+                  {!preview && (
+                    <p className="text-muted-foreground mt-3 text-center text-[10px]">
+                      {t('canvas.helpText')}
+                    </p>
+                  )}
+
+                  {/* Floating action bar — hidden for released versions */}
+                  {!isReleased && (
+                    <div className="sticky bottom-4 z-40 flex justify-center pt-4">
+                      <div className="flex items-center gap-2 rounded-full border bg-background px-2 py-1.5 shadow-lg">
+                        <Button size="sm" variant="outline" className="gap-1.5 rounded-full">
+                          <Sparkles className="size-3.5" />
+                          {t('action.improveAi')}
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-1.5 rounded-full">
+                          <ClipboardList className="size-3.5" />
+                          {t('action.createTask')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </main>
+              );
+            })()}
 
             {/* Right: the block inspector, on screen while a block is selected —
                 with the chat permanently docked, the canvas needs the room back
@@ -1140,168 +1288,198 @@ export function SketcherEditor({
                 </div>
               </aside>
             )}
+            {!preview && sidebarSelected && (
+              <SidebarInspector
+                overrides={sidebarOverrides}
+                onChange={(next) => {
+                  setSidebarOverrides(next);
+                  saveSidebarOverrides(next);
+                }}
+                onDeselect={() => setSidebarSelected(false)}
+              />
+            )}
 
-            {/* Claude sits beside the canvas — part of the workspace, not
-                something to go and open. Its header is a cell of the toolbar
-                row above, so the two line up. */}
+            {/* AI Chat — collapsible, same pattern as the task tab */}
             {!preview && (
-              <aside className="bg-background flex w-[26rem] shrink-0 flex-col border-l">
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <div className="flex-1 overflow-y-auto px-3.5 py-3 text-sm">
-                    {chat.length === 0 && !pending && (
-                      <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-                        <MessageSquare className="size-5" />
-                        <p className="text-foreground text-sm font-medium">
-                          Ask about {prototype?.name ?? opened?.name ?? 'this canvas'}
-                        </p>
-                        <p className="max-w-sm text-xs">
-                          The canvas is in context as it stands. Edit changes it directly; Ask talks
-                          about it without touching anything. ⌘Z undoes any change.
-                        </p>
-                      </div>
-                    )}
+              chatCollapsed ? (
+                <button
+                  type="button"
+                  onClick={() => setChatCollapsed(false)}
+                  title="Open AI chat"
+                  aria-label="Open AI chat"
+                  className="fixed right-6 bottom-6 z-40 flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 shadow-lg transition-colors hover:bg-muted"
+                >
+                  <MessageSquare className="size-4 text-muted-foreground" />
+                  <span className="text-xs font-medium">AI Chat</span>
+                </button>
+              ) : (
+                <aside className="bg-background flex w-[26rem] shrink-0 flex-col border-l">
+                  <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
+                    <span className="text-xs font-medium text-muted-foreground">AI Chat</span>
+                    <button
+                      type="button"
+                      onClick={() => setChatCollapsed(true)}
+                      title="Close chat"
+                      aria-label="Close chat"
+                      className="text-muted-foreground hover:text-foreground rounded p-0.5"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto px-3.5 py-3 text-sm">
+                      {chat.length === 0 && !pending && (
+                        <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                          <MessageSquare className="size-5" />
+                          <p className="text-foreground text-sm font-medium">
+                            Ask about {prototype?.name ?? opened?.name ?? 'this canvas'}
+                          </p>
+                          <p className="max-w-sm text-xs">
+                            The canvas is in context as it stands. Edit changes it directly; Ask talks
+                            about it without touching anything. ⌘Z undoes any change.
+                          </p>
+                        </div>
+                      )}
 
-                    <div className="flex flex-col gap-3">
-                      {chat.map((entry, index) =>
-                        entry.from === 'me' ? (
-                          <div key={index} className="flex justify-end">
-                            <p className="bg-muted max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap">
-                              {entry.text}
-                            </p>
-                          </div>
-                        ) : (
-                          <div key={index} className="flex gap-2">
-                            <span className="bg-primary mt-1.5 size-2 shrink-0 rounded-full" />
+                      <div className="flex flex-col gap-3">
+                        {chat.map((entry, index) =>
+                          entry.from === 'me' ? (
+                            <div key={index} className="flex justify-end">
+                              <p className="bg-muted max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap">
+                                {entry.text}
+                              </p>
+                            </div>
+                          ) : (
+                            <div key={index} className="flex gap-2">
+                              <span className="bg-primary mt-1.5 size-2 shrink-0 rounded-full" />
+                              <div className="min-w-0 flex-1">
+                                <AssistantMarkdown text={entry.text} />
+                              </div>
+                            </div>
+                          ),
+                        )}
+
+                        {pending && (
+                          <div className="flex gap-2">
+                            <span className="bg-primary mt-1.5 size-2 shrink-0 animate-pulse rounded-full" />
                             <div className="min-w-0 flex-1">
-                              <AssistantMarkdown text={entry.text} />
+                              {streamText ? (
+                                <AssistantMarkdown text={streamText} />
+                              ) : (
+                                <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                  {chatMode === 'ask'
+                                    ? 'Reading the canvas…'
+                                    : 'Claude Code is working…'}
+                                </p>
+                              )}
                             </div>
                           </div>
-                        ),
-                      )}
+                        )}
+                      </div>
+                      <div ref={chatEndRef} />
+                    </div>
 
-                      {pending && (
-                        <div className="flex gap-2">
-                          <span className="bg-primary mt-1.5 size-2 shrink-0 animate-pulse rounded-full" />
-                          <div className="min-w-0 flex-1">
-                            {streamText ? (
-                              <AssistantMarkdown text={streamText} />
-                            ) : (
-                              <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                    <div className="shrink-0 px-3 pt-2 pb-2">
+                      <div className="border-input focus-within:border-ring rounded-xl border px-3 py-2 shadow-sm">
+                        <label className="sr-only" htmlFor="canvas-message">
+                          Message about this canvas
+                        </label>
+                        <textarea
+                          id="canvas-message"
+                          value={message}
+                          onChange={(event) => setMessage(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !event.shiftKey) {
+                              event.preventDefault();
+                              void submitChat();
+                            }
+                          }}
+                          rows={Math.min(6, Math.max(1, message.split('\n').length))}
+                          disabled={pending}
+                          placeholder={
+                            chatMode === 'ask'
+                              ? `Ask about ${opened?.name ?? 'this canvas'} …`
+                              : 'e.g. "make the table dense and drop the CEO column"'
+                          }
+                          className="placeholder:text-muted-foreground w-full resize-none bg-transparent px-1 pt-0.5 text-sm outline-none disabled:opacity-60"
+                        />
+
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <div className="bg-muted flex rounded-md p-0.5 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setChatMode('edit')}
+                              aria-pressed={chatMode === 'edit'}
+                              className={cn(
+                                'rounded px-2 py-0.5',
+                                chatMode === 'edit'
+                                  ? 'bg-background font-medium shadow-xs'
+                                  : 'text-muted-foreground',
+                              )}
+                            >
+                              Edit canvas
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setChatMode('ask')}
+                              aria-pressed={chatMode === 'ask'}
+                              className={cn(
+                                'rounded px-2 py-0.5',
+                                chatMode === 'ask'
+                                  ? 'bg-background font-medium shadow-xs'
+                                  : 'text-muted-foreground',
+                              )}
+                            >
+                              Ask
+                            </button>
+                          </div>
+
+                          <div className="ml-auto flex items-center gap-1">
+                            <Select
+                              value={chatModel}
+                              onValueChange={(value) =>
+                                setChatModel(value as 'sonnet' | 'opus' | 'haiku')
+                              }
+                            >
+                              <SelectTrigger
+                                size="sm"
+                                aria-label={t('chat.model')}
+                                className="text-muted-foreground h-7 gap-1 border-0 px-1.5 text-xs font-medium shadow-none"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent align="end">
+                                <SelectItem value="sonnet">Sonnet</SelectItem>
+                                <SelectItem value="opus">Opus</SelectItem>
+                                <SelectItem value="haiku">Haiku</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              className="size-7 rounded-full p-0"
+                              title={t('terminal.send')}
+                              aria-label={t('canvas.sendMessage')}
+                              disabled={pending || message.trim().length === 0}
+                              onClick={() => void submitChat()}
+                            >
+                              {pending ? (
                                 <Loader2 className="size-3.5 animate-spin" />
-                                {chatMode === 'ask'
-                                  ? 'Reading the canvas…'
-                                  : 'Claude Code is working…'}
-                              </p>
-                            )}
+                              ) : (
+                                <ArrowUp className="size-3.5" />
+                              )}
+                            </Button>
                           </div>
                         </div>
-                      )}
-                    </div>
-                    <div ref={chatEndRef} />
-                  </div>
-
-                  {/* Composer in the same shape as the preview's: one box, the
-                      controls along its bottom edge, a note underneath. */}
-                  <div className="shrink-0 px-3 pt-2 pb-2">
-                    <div className="border-input focus-within:border-ring rounded-xl border px-3 py-2 shadow-sm">
-                      <label className="sr-only" htmlFor="canvas-message">
-                        Message Claude Code about this canvas
-                      </label>
-                      <textarea
-                        id="canvas-message"
-                        value={message}
-                        onChange={(event) => setMessage(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && !event.shiftKey) {
-                            event.preventDefault();
-                            void submitChat();
-                          }
-                        }}
-                        rows={Math.min(6, Math.max(1, message.split('\n').length))}
-                        disabled={pending}
-                        placeholder={
-                          chatMode === 'ask'
-                            ? `Ask about ${opened?.name ?? 'this canvas'} …`
-                            : 'e.g. "make the table dense and drop the CEO column"'
-                        }
-                        className="placeholder:text-muted-foreground w-full resize-none bg-transparent px-1 pt-0.5 text-sm outline-none disabled:opacity-60"
-                      />
-
-                      <div className="mt-1.5 flex items-center gap-2">
-                        {/* Edit changes the canvas; Ask answers about it. */}
-                        <div className="bg-muted flex rounded-md p-0.5 text-[11px]">
-                          <button
-                            type="button"
-                            onClick={() => setChatMode('edit')}
-                            aria-pressed={chatMode === 'edit'}
-                            className={cn(
-                              'rounded px-2 py-0.5',
-                              chatMode === 'edit'
-                                ? 'bg-background font-medium shadow-xs'
-                                : 'text-muted-foreground',
-                            )}
-                          >
-                            Edit canvas
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setChatMode('ask')}
-                            aria-pressed={chatMode === 'ask'}
-                            className={cn(
-                              'rounded px-2 py-0.5',
-                              chatMode === 'ask'
-                                ? 'bg-background font-medium shadow-xs'
-                                : 'text-muted-foreground',
-                            )}
-                          >
-                            Ask
-                          </button>
-                        </div>
-
-                        <div className="ml-auto flex items-center gap-1">
-                          <Select
-                            value={chatModel}
-                            onValueChange={(value) =>
-                              setChatModel(value as 'sonnet' | 'opus' | 'haiku')
-                            }
-                          >
-                            <SelectTrigger
-                              size="sm"
-                              aria-label={t('chat.model')}
-                              className="text-muted-foreground h-7 gap-1 border-0 px-1.5 text-xs font-medium shadow-none"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent align="end">
-                              <SelectItem value="sonnet">Sonnet</SelectItem>
-                              <SelectItem value="opus">Opus</SelectItem>
-                              <SelectItem value="haiku">Haiku</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            size="sm"
-                            className="size-7 rounded-full p-0"
-                            title={t('terminal.send')}
-                            aria-label={t('canvas.sendMessage')}
-                            disabled={pending || message.trim().length === 0}
-                            onClick={() => void submitChat()}
-                          >
-                            {pending ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : (
-                              <ArrowUp className="size-3.5" />
-                            )}
-                          </Button>
-                        </div>
                       </div>
-                    </div>
 
-                    <p className="text-muted-foreground/80 pt-1.5 pb-0.5 text-center text-[11px]">
-                      Runs on the Claude Code CLI installed on this machine · Enter to send
-                    </p>
+                      <p className="text-muted-foreground/80 pt-1.5 pb-0.5 text-center text-[11px]">
+                        Runs on the Claude Code CLI installed on this machine · Enter to send
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </aside>
+                </aside>
+              )
             )}
           </div>
         </div>

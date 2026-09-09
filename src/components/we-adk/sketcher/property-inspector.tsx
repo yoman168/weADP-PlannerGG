@@ -610,46 +610,6 @@ function ButtonListEditor({
             </Select>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground w-8 shrink-0 text-[10px]">Color</span>
-            <div className="flex flex-wrap gap-1">
-              {BUTTON_COLORS.map((color) => {
-                const active = (item.color ?? 'default') === color;
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    title={color}
-                    aria-label={`${color} colour`}
-                    aria-pressed={active}
-                    onClick={() => patch(index, { color })}
-                    className={cn(
-                      'size-5 rounded-full border transition-transform',
-                      BUTTON_COLOR_SWATCH[color],
-                      active
-                        ? 'ring-ring scale-110 ring-2 ring-offset-1'
-                        : 'border-transparent hover:scale-105',
-                    )}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Live preview so the type/colour pairing is obvious before you leave the panel. */}
-          <div className="flex items-center gap-1.5 border-t pt-1.5">
-            <span className="text-muted-foreground w-8 shrink-0 text-[10px]">Preview</span>
-            <Button
-              size="sm"
-              variant={item.variant}
-              // Illustrative preview of the chosen type/colour, not a control.
-              tabIndex={-1}
-              aria-hidden
-              className={cn('h-6 px-2 text-[11px]', buttonColorClass(item.color, item.variant))}
-            >
-              {item.label || 'Button'}
-            </Button>
-          </div>
         </div>
       ))}
       <Button

@@ -22,74 +22,56 @@ export const INVOICE_ROWS: InvoiceRow[] = [
   {
     status: 'Draft',
     createdAt: '2026-07-27',
-    supplierName: 'LG Vendor',
-    supplierBizNo: '111',
+    supplierName: 'Item A',
+    supplierBizNo: '001',
     supplierCeo: '',
-    amount: 2_080_579,
-    taxInvoiceNo: 'Invoice',
+    amount: 1_200,
+    taxInvoiceNo: 'Type 1',
   },
   {
     status: 'Draft',
-    createdAt: '2026-07-27',
-    supplierName: 'Visionlyu Co., Ltd.',
-    supplierBizNo: '2208195788',
+    createdAt: '2026-07-25',
+    supplierName: 'Item B',
+    supplierBizNo: '002',
     supplierCeo: '',
-    amount: 100,
-    taxInvoiceNo: 'Invoice',
+    amount: 850,
+    taxInvoiceNo: 'Type 1',
   },
   {
-    status: 'Draft',
+    status: 'In progress',
     createdAt: '2026-07-23',
-    supplierName: 'Visionlyu Co., Ltd.',
-    supplierBizNo: '2208195788',
+    supplierName: 'Item C',
+    supplierBizNo: '003',
     supplierCeo: '',
-    amount: 654,
-    taxInvoiceNo: 'Invoice',
+    amount: 3_400,
+    taxInvoiceNo: 'Type 2',
   },
   {
     status: 'Draft',
-    createdAt: '2026-07-23',
-    supplierName: 'Visionlyu Co., Ltd.',
-    supplierBizNo: '2208195788',
-    supplierCeo: 'Ttukttak Kim',
-    amount: 943.21,
-    taxInvoiceNo: 'Tax invoice',
+    createdAt: '2026-07-20',
+    supplierName: 'Item D',
+    supplierBizNo: '004',
+    supplierCeo: '',
+    amount: 560,
+    taxInvoiceNo: 'Type 1',
+  },
+  {
+    status: 'Submitted',
+    createdAt: '2026-07-18',
+    supplierName: 'Item E',
+    supplierBizNo: '005',
+    supplierCeo: '',
+    amount: 2_100,
+    taxInvoiceNo: 'Type 2',
   },
   {
     status: 'Draft',
-    createdAt: '2026-07-06',
-    supplierName: 'iBeeree Inc...',
-    supplierBizNo: '2148733800',
-    supplierCeo: 'Gwangcheon Jeong',
-    amount: -319_000,
-    taxInvoiceNo: 'Revised tax...',
-  },
-  {
-    status: 'Draft',
-    createdAt: '2026-07-03',
-    supplierName: 'Financial Settlement Assoc...',
-    supplierBizNo: '1298208745',
-    supplierCeo: 'Byungmin Chae',
-    amount: 220_000,
-    taxInvoiceNo: 'Tax invoice',
-  },
-  {
-    status: 'Draft',
-    createdAt: '2026-07-03',
-    supplierName: 'Haedong Camtech',
-    supplierBizNo: '6201170567',
-    supplierCeo: 'Dongwoo Bang',
-    amount: 341_000,
-    taxInvoiceNo: 'Tax invoice',
-  },
-  {
-    status: 'Draft',
-    createdAt: '2026-07-03',
-    supplierName: 'The Office Garden Co...',
-    supplierBizNo: '1058633625',
-    supplierCeo: 'Byungwan Yoo',
-    amount: 728_200,
-    taxInvoiceNo: 'Tax invoice',
+    createdAt: '2026-07-15',
+    supplierName: 'Item F',
+    supplierBizNo: '006',
+    supplierCeo: '',
+    amount: 4_750,
+    taxInvoiceNo: 'Type 1',
   },
 ];
 
@@ -137,6 +119,7 @@ export function sampleRowCells(columns: string[], row: InvoiceRow): string[] {
 /* ------------------------------------------------------------------ */
 
 export type BlockKind =
+  | 'appShell'
   | 'screenHeader'
   | 'heading'
   | 'paragraph'
@@ -326,6 +309,37 @@ export interface BlockDefinition {
 }
 
 export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
+  /*
+   * The app's own frame, rather than something inside it.
+   *
+   * A screen drawn as a bare column of blocks reads as a fragment; the product
+   * it belongs to is a sidebar, a name and a place in the nav. This block
+   * carries those, and the canvas draws it *around* the rest of the blocks
+   * instead of among them — one per screen, wherever it sits in the order.
+   *
+   * Nav lives in `pairs` so the inspector's existing pair editor can edit it:
+   * `key` is the group heading, `value` the item under it. Consecutive pairs
+   * sharing a key are drawn as one group.
+   */
+  appShell: {
+    kind: 'appShell',
+    label: 'App shell',
+    icon: 'pattern',
+    defaults: {
+      label: 'Acme',
+      subtitle: '',
+      activeIndex: 0,
+      pairs: [
+        { key: 'Main', value: 'Dashboard' },
+        { key: 'Main', value: 'Products' },
+        { key: 'Main', value: 'Adjustments' },
+        { key: 'Inbound', value: 'Receiving' },
+        { key: 'Inbound', value: 'Suppliers' },
+        { key: 'History', value: 'Stock log' },
+        { key: 'History', value: 'Settings' },
+      ],
+    },
+  },
   screenHeader: {
     kind: 'screenHeader',
     label: 'Screen header',
@@ -495,13 +509,13 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     defaults: {
       label: 'Results',
       columns: [
-        'Evidence status',
-        'Created date',
-        'Supplier name',
-        'Supplier biz. no.',
-        'Supplier CEO',
+        'Status',
+        'Created',
+        'Name',
+        'Category',
+        'Description',
         'Amount',
-        'Tax invoice',
+        'Type',
       ],
       rows: 6,
       showHeader: true,
@@ -515,9 +529,9 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     icon: 'stat',
     defaults: {
       pairs: [
-        { key: 'Total', value: '269' },
-        { key: 'Draft', value: '259' },
-        { key: 'Approved', value: '10' },
+        { key: 'Total', value: '24' },
+        { key: 'Active', value: '18' },
+        { key: 'Completed', value: '6' },
       ],
     },
   },
@@ -528,9 +542,9 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     defaults: {
       label: 'Details',
       pairs: [
-        { key: 'Supplier', value: 'Visionlyu Co., Ltd.' },
-        { key: 'Business no.', value: '2208195788' },
-        { key: 'Amount', value: '943.21' },
+        { key: 'Name', value: 'Sample item' },
+        { key: 'ID', value: '000001' },
+        { key: 'Amount', value: '1,000' },
       ],
     },
   },
@@ -546,12 +560,10 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     icon: 'tabs',
     defaults: {
       tabs: [
-        { label: 'Draft', count: 259 },
-        { label: 'Unsubmitted', count: 10 },
-        { label: 'In approval', count: 0 },
-        { label: 'Approved', count: 0 },
-        { label: 'Rejected', count: 0 },
-        { label: 'All', count: 269 },
+        { label: 'All', count: 24 },
+        { label: 'Active', count: 18 },
+        { label: 'Pending', count: 4 },
+        { label: 'Completed', count: 2 },
       ],
       activeIndex: 0,
     },
@@ -567,8 +579,8 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     label: 'Banner',
     icon: 'badge',
     defaults: {
-      label: 'Returned to you',
-      helpText: 'Add the missing receipt and resubmit.',
+      label: 'Notice',
+      helpText: 'Action required — review and update.',
       tone: 'amber',
     },
   },
@@ -577,16 +589,16 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     label: 'Settings rows',
     icon: 'switch',
     defaults: {
-      label: 'Policy',
+      label: 'Settings',
       pairs: [
         {
-          key: 'Close the month automatically',
-          value: 'Locks the period once every cost centre reports complete.',
+          key: 'Enable notifications',
+          value: 'Send alerts when items need attention.',
           checked: true,
         },
         {
-          key: 'Require evidence before approval',
-          value: 'A charge with no receipt cannot be approved.',
+          key: 'Auto-approve low-risk items',
+          value: 'Items below the threshold are approved automatically.',
           checked: true,
         },
       ],
@@ -597,18 +609,18 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     label: 'Task list',
     icon: 'tabs',
     defaults: {
-      label: 'What needs me',
+      label: 'Action items',
       pairs: [
         {
-          key: '8 items blocking the close',
-          value: 'Missing evidence in Operations and R&D',
+          key: '3 items need review',
+          value: 'Pending approval from team lead',
           note: 'Due 2026-08-05',
           tone: 'red',
         },
         {
-          key: '12 corporate card charges to approve',
-          value: 'July 2026 · ₩3,684,900',
-          note: 'Due 2026-08-02',
+          key: '5 items in progress',
+          value: 'On track for deadline',
+          note: 'Due 2026-08-10',
           tone: 'amber',
         },
       ],
@@ -621,8 +633,8 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     defaults: {
       label: 'History',
       pairs: [
-        { key: 'Created the receipt', value: 'Kim Minsu · 2026-07-31 14:22' },
-        { key: 'Attached receipt-scan.pdf', value: 'Kim Minsu · 2026-07-31 14:24' },
+        { key: 'Item created', value: 'User · 2026-07-31 14:22' },
+        { key: 'File attached', value: 'User · 2026-07-31 14:24' },
       ],
     },
   },
@@ -631,10 +643,10 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     label: 'Attachments',
     icon: 'empty',
     defaults: {
-      label: 'Evidence',
+      label: 'Attachments',
       pairs: [
-        { key: 'receipt-scan.pdf', value: '412 KB' },
-        { key: 'card-slip.jpg', value: '188 KB' },
+        { key: 'document.pdf', value: '412 KB' },
+        { key: 'photo.jpg', value: '188 KB' },
       ],
     },
   },
@@ -643,10 +655,10 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     label: 'Metric bars',
     icon: 'progress',
     defaults: {
-      label: 'Spend by category',
+      label: 'By category',
       pairs: [
-        { key: 'Software', value: '₩16,564,000', progress: 34 },
-        { key: 'Travel', value: '₩13,154,500', progress: 27 },
+        { key: 'Category A', value: '34%', progress: 34 },
+        { key: 'Category B', value: '27%', progress: 27 },
       ],
     },
   },
@@ -654,7 +666,7 @@ export const BLOCK_CATALOG: Record<BlockKind, BlockDefinition> = {
     kind: 'progressSummary',
     label: 'Progress summary',
     icon: 'progress',
-    defaults: { label: 'Completion', progress: 64, helpText: '172 of 269 processed' },
+    defaults: { label: 'Completion', progress: 64, helpText: '16 of 24 completed' },
   },
 };
 
@@ -669,7 +681,7 @@ export const PATTERN_CATALOG: PatternDefinition[] = [
     id: 'listPage',
     label: 'List page',
     blocks: [
-      { kind: 'screenHeader', props: { label: 'Purchase Tax Invoice' } },
+      { kind: 'screenHeader', props: { label: 'List' } },
       { kind: 'statusTabs' },
       { kind: 'dateRange' },
       { kind: 'table' },
@@ -679,7 +691,7 @@ export const PATTERN_CATALOG: PatternDefinition[] = [
     id: 'detailPage',
     label: 'Detail page',
     blocks: [
-      { kind: 'screenHeader', props: { label: 'Invoice detail' } },
+      { kind: 'screenHeader', props: { label: 'Detail' } },
       { kind: 'keyValue' },
       { kind: 'divider' },
       { kind: 'table', props: { label: 'Line items', rows: 3 } },
@@ -715,6 +727,7 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
   {
     label: 'Screen skeleton',
     entries: [
+      { type: 'block', kind: 'appShell' },
       { type: 'block', kind: 'screenHeader' },
       { type: 'block', kind: 'divider' },
       { type: 'block', kind: 'spacer' },
@@ -830,6 +843,12 @@ const ALIGN_FIELD: FieldSpec = {
 };
 
 export const PROPERTY_SCHEMA: Record<BlockKind, FieldSpec[]> = {
+  appShell: [
+    { key: 'label', type: 'text', label: 'App name' },
+    { key: 'subtitle', type: 'text', label: 'Tagline' },
+    { key: 'pairs', type: 'pairList', label: 'Navigation', keyHeader: 'Group', valueHeader: 'Item' },
+    { key: 'activeIndex', type: 'number', label: 'Current item (0-based)' },
+  ],
   screenHeader: [
     { key: 'label', type: 'text', label: 'Title' },
     { key: 'subtitle', type: 'text', label: 'Breadcrumb / subtitle' },

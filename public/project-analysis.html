@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WE-ADK — Stack &amp; Process Flow</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0:#f6f5f2; --surface-1:#fcfcfb; --surface-2:#efeeea;
+    --line:#e2e1dc; --line-strong:#cfcec8;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7b7a75;
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#4a3aa7;
+    --s1-wash:rgba(42,120,214,.10); --s2-wash:rgba(235,104,52,.10);
+    --s3-wash:rgba(27,175,122,.10); --s4-wash:rgba(74,58,167,.10);
+    --good:#008300; --warn:#eda100; --crit:#e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-0:#131312; --surface-1:#1a1a19; --surface-2:#242422;
+      --line:#333331; --line-strong:#45443f;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#95948b;
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#9085e9;
+      --s1-wash:rgba(57,135,229,.14); --s2-wash:rgba(217,89,38,.14);
+      --s3-wash:rgba(25,158,112,.14); --s4-wash:rgba(144,133,233,.14);
+      --good:#3fa93f; --warn:#c98500; --crit:#e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0:#131312; --surface-1:#1a1a19; --surface-2:#242422;
+    --line:#333331; --line-strong:#45443f;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#95948b;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#9085e9;
+    --s1-wash:rgba(57,135,229,.14); --s2-wash:rgba(217,89,38,.14);
+    --s3-wash:rgba(25,158,112,.14); --s4-wash:rgba(144,133,233,.14);
+    --good:#3fa93f; --warn:#c98500; --crit:#e66767;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--surface-0); color:var(--text-primary);
+    font-family: ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:15px; line-height:1.55;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:40px 24px 96px; }
+  code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px;
+         background:var(--surface-2); padding:1px 5px; border-radius:4px; }
+
+  header.top { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap; }
+  h1 { font-size:30px; line-height:1.2; margin:0 0 6px; letter-spacing:-.02em; font-weight:640; }
+  .sub { color:var(--text-secondary); margin:0; max-width:64ch; }
+  button.theme { border:1px solid var(--line-strong); background:var(--surface-1); color:var(--text-secondary);
+    border-radius:8px; padding:7px 13px; font:inherit; font-size:13px; cursor:pointer; }
+  button.theme:hover { border-color:var(--text-muted); color:var(--text-primary); }
+
+  section { margin-top:46px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.09em; color:var(--text-muted);
+       font-weight:640; margin:0 0 4px; }
+  .lede { color:var(--text-secondary); margin:0 0 18px; font-size:14px; max-width:72ch; }
+  .card { background:var(--surface-1); border:1px solid var(--line); border-radius:12px; padding:22px 24px; }
+
+  /* ---- pipeline ---- */
+  .pipe { display:grid; grid-template-columns:repeat(4,1fr); gap:0; align-items:stretch; }
+  .stage { border:1px solid var(--line); border-radius:10px; padding:16px; background:var(--surface-1); position:relative; }
+  .pipe > .arrow { display:flex; align-items:center; justify-content:center; color:var(--text-muted); width:34px; }
+  .pipeflow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; }
+  .pipeflow .stage { flex:1 1 200px; }
+  .stage .n { font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--text-muted); }
+  .stage h3 { margin:6px 0 3px; font-size:16px; font-weight:640; }
+  .stage .who { font-size:12px; color:var(--text-muted); margin:0 0 8px; }
+  .stage p { margin:0; font-size:13.5px; color:var(--text-secondary); }
+  .stage .bar { height:3px; border-radius:2px; margin-bottom:12px; }
+  .st-chip { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px;
+             border:1px solid var(--line-strong); color:var(--text-muted); margin-top:10px; }
+
+  /* ---- stack ---- */
+  .stack-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); gap:14px; align-items:stretch; }
+  .layer { border:1px solid var(--line); border-radius:10px; padding:16px 18px; background:var(--surface-1); }
+  .layer .lh { display:flex; align-items:center; gap:9px; margin-bottom:11px; }
+  .layer .lh .sw { width:10px; height:10px; border-radius:3px; flex:none; }
+  .layer .lh strong { font-size:13px; letter-spacing:.02em; }
+  .layer ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:12px; }
+  .layer li { font-size:13.5px; color:var(--text-secondary); }
+  .layer li b { color:var(--text-primary); font-weight:600; display:block; line-height:1.35; }
+  .layer li span { color:var(--text-muted); font-size:12.5px; display:block; line-height:1.45; }
+
+  /* ---- flow steps ---- */
+  .phase { margin-bottom:8px; }
+  .phase-head { display:flex; align-items:center; gap:10px; margin:26px 0 12px; }
+  .phase-head:first-child { margin-top:0; }
+  .phase-head .dot { width:11px; height:11px; border-radius:3px; flex:none; }
+  .phase-head strong { font-size:14px; font-weight:640; }
+  .phase-head span { font-size:12.5px; color:var(--text-muted); }
+  .steps { display:flex; flex-direction:column; gap:0; margin-left:5px; border-left:2px solid var(--line); padding-left:22px; }
+  .step { position:relative; padding:12px 0; }
+  .step::before { content:''; position:absolute; left:-28px; top:19px; width:9px; height:9px;
+                  border-radius:50%; background:var(--surface-1); border:2px solid var(--line-strong); }
+  .step.ai::before { background:var(--s1); border-color:var(--s1); }
+  .step h4 { margin:0 0 3px; font-size:14.5px; font-weight:620; display:flex; gap:9px; align-items:baseline; flex-wrap:wrap; }
+  .step p { margin:0; font-size:13.5px; color:var(--text-secondary); max-width:76ch; }
+  .tag { font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; font-weight:700;
+         padding:2px 7px; border-radius:4px; }
+  .tag.ai { background:var(--s1-wash); color:var(--s1); }
+  .tag.human { background:var(--surface-2); color:var(--text-muted); }
+
+  /* ---- request path diagram ---- */
+  .diagram { width:100%; height:auto; display:block; }
+  .dg-label { font:600 12px ui-sans-serif,-apple-system,sans-serif; fill:var(--text-primary); }
+  .dg-sub   { font:11px ui-sans-serif,-apple-system,sans-serif; fill:var(--text-muted); }
+  .dg-note  { font:11px ui-monospace,Menlo,monospace; fill:var(--text-secondary); }
+  .dg-box   { fill:var(--surface-2); stroke:var(--line-strong); stroke-width:1; }
+  .dg-line  { stroke:var(--text-muted); stroke-width:2; fill:none; }
+
+  /* ---- guard notes ---- */
+  .note { display:grid; grid-template-columns:auto 1fr; gap:13px; padding:15px 0; border-bottom:1px solid var(--line); }
+  .note:last-child { border-bottom:0; padding-bottom:0; }
+  .note:first-child { padding-top:0; }
+  .note .d { width:9px; height:9px; border-radius:50%; margin-top:7px; flex:none; }
+  .note .d.ok{background:var(--good)} .note .d.warn{background:var(--warn)} .note .d.crit{background:var(--crit)}
+  .note h4 { margin:0 0 3px; font-size:14.5px; font-weight:620; }
+  .note p { margin:0; font-size:13.5px; color:var(--text-secondary); max-width:78ch; }
+
+  /* ---- modes ---- */
+  .modes { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .mode { border:1px solid var(--line); border-radius:11px; padding:18px 20px; background:var(--surface-1); }
+  .mode .mh { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+  .mode .mh .sw { width:11px; height:11px; border-radius:3px; flex:none; }
+  .mode h3 { margin:0; font-size:17px; font-weight:640; }
+  .mode .tagline { font-size:12.5px; color:var(--text-muted); margin:0 0 12px; }
+  .mode p { margin:0 0 12px; font-size:13.5px; color:var(--text-secondary); }
+  .mode dl { margin:0; display:grid; grid-template-columns:auto 1fr; gap:7px 12px; font-size:13px; }
+  .mode dt { color:var(--text-muted); white-space:nowrap; }
+  .mode dd { margin:0; color:var(--text-secondary); }
+  @media (max-width:700px){ .modes{grid-template-columns:1fr} }
+
+  /* ---- tabs ---- */
+  .tabrow { display:grid; grid-template-columns:150px 1fr; gap:16px; padding:16px 0; border-bottom:1px solid var(--line); }
+  .tabrow:last-child { border-bottom:0; padding-bottom:0; }
+  .tabrow:first-child { padding-top:0; }
+  .tabrow .tn { display:flex; flex-direction:column; gap:3px; }
+  .tabrow .tn b { font-size:15px; font-weight:640; }
+  .tabrow .tn span { font-size:11.5px; color:var(--text-muted); font-family:ui-monospace,Menlo,monospace; }
+  .tabrow .tb p { margin:0; font-size:13.5px; color:var(--text-secondary); max-width:74ch; }
+  .subs { margin-top:12px; display:flex; flex-direction:column; gap:9px;
+          border-left:2px solid var(--line); padding-left:16px; }
+  .sub-item { font-size:13.5px; color:var(--text-secondary); }
+  .sub-item b { color:var(--text-primary); font-weight:600; }
+  .sub-item .rt { font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:var(--text-muted); margin-left:6px; }
+  @media (max-width:700px){ .tabrow{grid-template-columns:1fr; gap:8px} }
+
+  /* ---- personas ---- */
+  .personas { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .personas th, .personas td { text-align:left; padding:11px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .personas th { font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); font-weight:600; }
+  .personas tr:last-child td { border-bottom:0; }
+  .personas td:first-child { white-space:nowrap; font-weight:600; }
+  .personas td:nth-child(2) { color:var(--text-secondary); }
+  .personas td:last-child { color:var(--text-secondary); }
+  .chip { display:inline-block; font-size:11px; padding:2px 7px; border-radius:4px;
+          background:var(--s1-wash); color:var(--s1); font-weight:600; }
+  .chip.no { background:var(--surface-2); color:var(--text-muted); }
+
+  /* ---- control grid ---- */
+  .ctrls { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+  .ctrl { border:1px solid var(--line); border-radius:9px; padding:13px 15px; background:var(--surface-1); }
+  .ctrl b { font-size:13px; display:block; margin-bottom:3px; }
+  .ctrl span { font-size:12.5px; color:var(--text-secondary); }
+
+  footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--line); color:var(--text-muted); font-size:12.5px; }
+  @media (max-width:760px){ .pipeflow .stage{flex:1 1 100%} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>WE-ADK — Stack &amp; Process Flow</h1>
+    <p class="sub">What the system is built on, the path a customer conversation takes to become
+      shipped code, and the mechanics underneath it.</p>
+  </div>
+  <button class="theme" id="themeBtn" type="button">Toggle theme</button>
+</header>
+
+<!-- ================= WHAT IT IS ================= -->
+<section>
+  <h2>What it is</h2>
+  <div class="card">
+    <p style="margin:0; color:var(--text-secondary); max-width:76ch;">
+      WE-ADK is an AI-assisted product development pipeline: four tools inside one project, carrying work
+      from a customer meeting through to running code. Every stage shares one Claude engine, and the whole
+      stack is cloned and customised per business line — <b style="color:var(--text-primary)">BZP, BIZ,
+      Local Currency, Voucher, KOSIGN</b>. The eACC Cloud screens in this same app are not a second product
+      so much as the worked example: version 1 of a real project, walked as 25 live screens.
+    </p>
+  </div>
+</section>
+
+<!-- ================= TECH STACK ================= -->
+<section>
+  <h2>Tech stack</h2>
+  <p class="lede">Only the pieces that carry weight. There is no database, no ORM, no state-management
+    library and no data-fetching library — deliberately.</p>
+  <div class="stack-grid">
+
+    <div class="layer">
+      <div class="lh"><span class="sw" style="background:var(--s1)"></span><strong>FOUNDATION</strong></div>
+      <ul>
+        <li><b>Next.js 15</b><span>App Router — pages and API route handlers in one process</span></li>
+        <li><b>React 19</b><span>UI, almost entirely client components</span></li>
+        <li><b>TypeScript 5.8</b><span>the load-bearing correctness layer</span></li>
+        <li><b>Zod</b><span>runtime validation on every API boundary</span></li>
+      </ul>
+    </div>
+
+    <div class="layer">
+      <div class="lh"><span class="sw" style="background:var(--s2)"></span><strong>INTERFACE</strong></div>
+      <ul>
+        <li><b>Tailwind v4</b><span>styling</span></li>
+        <li><b>Radix UI</b><span>8 of the 15 UI primitives, shadcn-style</span></li>
+        <li><b>Excalidraw</b><span>the whiteboard / sketch board</span></li>
+        <li><b>dnd-kit</b><span>block canvas drag &amp; drop</span></li>
+        <li><b>Recharts</b><span>DevAdmin usage &amp; cost charts</span></li>
+      </ul>
+    </div>
+
+    <div class="layer">
+      <div class="lh"><span class="sw" style="background:var(--s3)"></span><strong>ENGINE &amp; STATE</strong></div>
+      <ul>
+        <li><b>Claude Code CLI</b><span>spawned per request — the AI engine</span></li>
+        <li><b>localStorage</b><span>the actual persistence layer</span></li>
+        <li><b>git</b><span>source of truth for the Developer workspace</span></li>
+      </ul>
+    </div>
+
+    <div class="layer">
+      <div class="lh"><span class="sw" style="background:var(--s4)"></span><strong>DELIVERY</strong></div>
+      <ul>
+        <li><b>GitLab</b><span>codebase &amp; configuration management</span></li>
+        <li><b>OpenNext + Wrangler</b><span>Cloudflare Workers build target</span></li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= THE FOUR TOOLS ================= -->
+<section>
+  <h2>The four tools</h2>
+  <p class="lede">Sketcher, Builder and Developer live inside a project and run in order.
+    DevAdmin sits above them all at org level.</p>
+  <div class="pipeflow" style="gap:12px;">
+    <div class="stage">
+      <div class="bar" style="background:var(--s1)"></div>
+      <div class="n">STAGE 01</div>
+      <h3>Sketcher</h3>
+      <p class="who">PM · PL</p>
+      <p>Meeting notes and concept mockups. A folder per project, design files grouped by the
+        meeting they came from.</p>
+      <span class="st-chip">Prototype</span>
+    </div>
+    <div class="stage">
+      <div class="bar" style="background:var(--s2)"></div>
+      <div class="n">STAGE 02</div>
+      <h3>Builder</h3>
+      <p class="who">Planners · product owners</p>
+      <p>Solution mockups become real working screens, handed to development as a formal
+        requirements spec.</p>
+      <span class="st-chip">Live on BZP</span>
+    </div>
+    <div class="stage">
+      <div class="bar" style="background:var(--s3)"></div>
+      <div class="n">STAGE 03</div>
+      <h3>Developer</h3>
+      <p class="who">Developers</p>
+      <p>Harness-based development. AI builds with full awareness of each business unit's rules
+        and domain context.</p>
+      <span class="st-chip">Operating</span>
+    </div>
+    <div class="stage">
+      <div class="bar" style="background:var(--s4)"></div>
+      <div class="n">ORG LEVEL</div>
+      <h3>DevAdmin</h3>
+      <p class="who">Engineering managers</p>
+      <p>Token, usage, cost and security operations — visibility and control as AI-assisted
+        development scales.</p>
+      <span class="st-chip">Under construction</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PROJECT MODES ================= -->
+<section>
+  <h2>Two project modes</h2>
+  <p class="lede">The entry screen splits every project into one of two tabs. They are not a status —
+    they are two different workspaces with different chrome, and a project can be moved between them.</p>
+  <div class="modes">
+
+    <div class="mode">
+      <div class="mh"><span class="sw" style="background:var(--s1)"></span><h3>Planner</h3></div>
+      <p class="tagline">The full pipeline · default</p>
+      <p>A real project running the complete process: rounds, versions, consolidation, IA, tasks, members
+        and the hand-off to Builder. Opening one lands you in the six-tab Sketcher workspace with the
+        version explorer down the left edge.</p>
+      <dl>
+        <dt>Structure</dt><dd>Project → version → design file → canvas</dd>
+        <dt>Organised by</dt><dd>Round, not meeting</dd>
+        <dt>Chrome</dt><dd>Full — six tabs plus the version rail</dd>
+        <dt>Card shows</dt><dd>Customer, status, last movement, cost to date</dd>
+      </dl>
+    </div>
+
+    <div class="mode">
+      <div class="mh"><span class="sw" style="background:var(--s2)"></span><h3>Mini Mockup</h3></div>
+      <p class="tagline">One meeting, one screen · lightweight</p>
+      <p>A stripped-down workspace for moving fast: no rounds, no versions, no consolidation. Each entry is
+        a single meeting holding its own notes and its own generated screen. Used when someone needs a
+        picture out of a conversation, not a project.</p>
+      <dl>
+        <dt>Structure</dt><dd>Project → meeting → preview</dd>
+        <dt>Organised by</dt><dd>Meeting, in one flat list</dd>
+        <dt>Chrome</dt><dd>Skipped entirely — its own three-pane layout</dd>
+        <dt>Each entry is</dt><dd>A meeting note or a wireframe</dd>
+      </dl>
+    </div>
+
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h4 style="margin:0 0 8px; font-size:14.5px; font-weight:620;">How a Mini Mockup entry works</h4>
+    <p style="margin:0 0 12px; font-size:13.5px; color:var(--text-secondary); max-width:76ch;">
+      Three panes, resizable: the meeting list on the left, notes and chat in the middle, the screen on the
+      right. You write or paste the notes, press generate, and Claude returns a complete standalone HTML page
+      built from those notes — all CSS inline, no external fonts or scripts, seeded with plausible Korean
+      names, Won amounts and dates so it reads as a real product rather than lorem ipsum.
+    </p>
+    <div class="ctrls">
+      <div class="ctrl"><b>Two entry kinds</b><span>A meeting note generates a finished screen; a
+        wireframe generates the low-fidelity version instead.</span></div>
+      <div class="ctrl"><b>Preview or canvas</b><span>The right pane toggles between the rendered HTML and
+        the block canvas — the HTML is parsed into editable blocks.</span></div>
+      <div class="ctrl"><b>Chat per meeting</b><span>Each meeting keeps its own conversation, so the
+        assistant only ever sees that one meeting's context.</span></div>
+      <div class="ctrl"><b>Stoppable</b><span>Generation runs against an abort controller — the stop button
+        genuinely cancels the run.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FULL PROCESS FLOW ================= -->
+<section>
+  <h2>Full process flow</h2>
+  <p class="lede">The path from a customer conversation to shipped code. Blue markers are steps where
+    Claude does the work; grey markers are human decisions.</p>
+  <div class="card">
+
+    <div class="phase-head"><span class="dot" style="background:var(--s1)"></span>
+      <strong>Discovery</strong><span>— Sketcher, one round per meeting</span></div>
+    <div class="steps">
+      <div class="step">
+        <h4>Customer meeting <span class="tag human">Human</span></h4>
+        <p>A PM comes out of a meeting with notes, decisions, open questions and reference material —
+          the customer's own sheets, a transcript, an RFP.</p>
+      </div>
+      <div class="step ai">
+        <h4>Notes become concept screens <span class="tag ai">Claude</span></h4>
+        <p>The notes and extracted reference text are sent to Claude, which proposes the screens they
+          imply — pre-requirements, favouring clarity over completeness, inventing nothing the customer
+          did not raise. Where a production screen already exists, it proposes the revised version of
+          that screen instead of designing from scratch.</p>
+      </div>
+      <div class="step">
+        <h4>Screens land as editable blocks <span class="tag human">Human</span></h4>
+        <p>Each proposed screen arrives on the board as a stack of typed blocks — headings, inputs,
+          tables, button bars. The PM rearranges them on the block canvas, then asks the customer
+          "is this what you meant?"</p>
+      </div>
+      <div class="step">
+        <h4>The round is frozen as a version <span class="tag human">Human</span></h4>
+        <p>Version 1 is the baseline — every concept design the meetings produced, in one place, and
+          read-only so the record of what was first agreed stays intact. The next design creates
+          version 2, and each round after that gets its own version folder.</p>
+      </div>
+    </div>
+
+    <div class="phase-head"><span class="dot" style="background:var(--s1)"></span>
+      <strong>Consolidation</strong><span>— many meetings become one design</span></div>
+    <div class="steps">
+      <div class="step ai">
+        <h4>Contradictions are surfaced, not silently resolved <span class="tag ai">Claude</span></h4>
+        <p>Sketches drawn one meeting at a time overlap and contradict each other. Everything the
+          project knows is assembled into a single context block and consolidated into one canonical
+          screen set, the decisions that constrain it, and — separately — the contradictions a human
+          still has to settle.</p>
+      </div>
+      <div class="step">
+        <h4>Structure, work and actors are defined <span class="tag human">Human</span></h4>
+        <p>The IA tab fixes information architecture and screen order, Task captures the work the round
+          carries, and User defines the actors. Overview reads all three back.</p>
+      </div>
+      <div class="step">
+        <h4>The round is written up as a document <span class="tag human">Human</span></h4>
+        <p>A business analyst hands the round to people who will never open the app: screens, order,
+          work, decisions and open questions, exported as Markdown for a repository or HTML for a browser.</p>
+      </div>
+    </div>
+
+    <div class="phase-head"><span class="dot" style="background:var(--s2)"></span>
+      <strong>Specification</strong><span>— Builder</span></div>
+    <div class="steps">
+      <div class="step">
+        <h4>Solution mockups become work mockups <span class="tag human">Human</span></h4>
+        <p>Planners turn the agreed concept into screens that actually work, against an assigned design
+          system so components and tokens are settled rather than argued.</p>
+      </div>
+      <div class="step">
+        <h4>The formal handoff package is assembled <span class="tag human">Human</span></h4>
+        <p>Requirements spec (PRD), feature specs, screen designs, unit and integration test definitions,
+          and user manuals — the eight Builder tabs — become the contract development builds against.</p>
+      </div>
+    </div>
+
+    <div class="phase-head"><span class="dot" style="background:var(--s3)"></span>
+      <strong>Development</strong><span>— Developer, one task at a time</span></div>
+    <div class="steps">
+      <div class="step">
+        <h4>A task enters the Build workspace <span class="tag human">Human</span></h4>
+        <p>One task moves through four stages — <b>Build → Test → Review → QA</b>. A stage can fail
+          (the work is wrong) or block (the work cannot proceed: a missing decision, an unavailable
+          dependency); the two get different responses.</p>
+      </div>
+      <div class="step ai">
+        <h4>Claude Code executes against a real clone <span class="tag ai">Claude</span></h4>
+        <p>Not a mock. The file explorer lists an actual git checkout decorated with <code>git status</code>,
+          so what "exists" and what "changed" are the repository's answers. Claude builds with the business
+          unit's rules and domain context in scope.</p>
+      </div>
+      <div class="step">
+        <h4>The product renders live, then checks run <span class="tag human">Human</span></h4>
+        <p>The work renders as a running product while it is built. Checks run, the diff is reviewed,
+          and the task is handed to QA — which can be shared out by token link to a reviewer with no account.</p>
+      </div>
+    </div>
+
+    <div class="phase-head"><span class="dot" style="background:var(--s4)"></span>
+      <strong>Operations</strong><span>— DevAdmin, continuous</span></div>
+    <div class="steps">
+      <div class="step">
+        <h4>Usage, cost and security are watched across the org <span class="tag human">Human</span></h4>
+        <p>Every Claude run reports duration, cost, token counts and model. DevAdmin aggregates that by
+          group, project and user, alongside token administration and security review — the control layer
+          that makes AI-assisted development safe to scale.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= THE SIX TABS ================= -->
+<section>
+  <h2>Inside a Planner project — the six tabs</h2>
+  <p class="lede">The tab order follows the work rather than importance: the round's task is agreed, someone
+    drafts against it, Main is what that settles into, and the Dashboard reads all three back. Every tab is
+    scoped to the round selected on the version rail, and a released round is read-only everywhere.</p>
+  <div class="card">
+
+    <div class="tabrow">
+      <div class="tn"><b>Dashboard</b><span>/overview</span></div>
+      <div class="tb">
+        <p>The round read whole. Main, Task and Member are all working views answering "what am I doing
+          next" — nothing answered "what <em>is</em> this round", which is the question asked at a hand-off,
+          at a status meeting, and by anyone who did not sit through the round being built. This reads
+          across the other tabs and puts that answer in one place, then exports it as a zip, because the
+          people asking usually do not have the app open.</p>
+      </div>
+    </div>
+
+    <div class="tabrow">
+      <div class="tn"><b>Main</b><span>/ · the default</span></div>
+      <div class="tb">
+        <p>The design files themselves, in a version explorer that behaves like an editor's file tree:
+          the project nav and the tree stay mounted, and opening a file swaps only the pane on the right.
+          Main is one tab with four views, and the tab stays lit across all of them.</p>
+        <div class="subs">
+          <div class="sub-item"><b>Files</b><span class="rt">/sketcher</span><br>
+            The tree — project → version → design file. Version 1 is the locked baseline; each later round
+            gets its own folder. Files are added by generating from notes, copying a screen that already
+            runs in production, or starting blank.</div>
+          <div class="sub-item"><b>Board</b><span class="rt">/board</span><br>
+            The round's frames laid out together, beside the meeting notes they came from. This is where
+            "Generate screens" is pressed — notes in, proposed screens out — and where a generated set is
+            materialised into real design files.</div>
+          <div class="sub-item"><b>Canvas</b><span class="rt">/canvas?screen=…</span><br>
+            One screen, edited as an ordered stack of typed blocks — headings, inputs, tables, button bars.
+            Blocks are dragged with dnd-kit, and each one maps to the design-system component that governs
+            it, so clicking a block points at the spec rather than at a guess.</div>
+          <div class="sub-item"><b>Preview</b><span class="rt">/preview</span><br>
+            The screen rendered as a real page, with the chat pane beside it for review and edits, and an
+            export to standalone HTML.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabrow">
+      <div class="tn"><b>IA</b><span>/ia</span></div>
+      <div class="tb">
+        <p>The round's screens as one flat sitemap sheet — one row per screen, its folder spread into depth
+          columns, the shape a real IA document takes. It seeds itself from the round's files so it never
+          opens empty, and any edit freezes to its own overlay, so a rename here cannot fight the file it
+          was drawn from.</p>
+      </div>
+    </div>
+
+    <div class="tabrow">
+      <div class="tn"><b>Task</b><span>/task</span></div>
+      <div class="tb">
+        <p>The work the round carries: title, description, category, tags, comments and attachments. A task
+          is already a brief, so it can be handed straight to the screen generator — and the pane remembers
+          which designs came out of which task, so it can link back to them. A design generated from a task
+          goes to the person who owns the task rather than into the round directly. This is also where the
+          Excalidraw whiteboard lives, for sketching a task out by hand.</p>
+      </div>
+    </div>
+
+    <div class="tabrow">
+      <div class="tn"><b>Member</b><span>/user</span></div>
+      <div class="tb">
+        <p>Who is on the team, and each person's own workspace of forked screens. It started inside this tab
+          and moved into shared code once Task needed it too, so both tabs write to the same place and agree
+          on what a workspace is. Browser-only — every member and every forked screen lives in localStorage.</p>
+      </div>
+    </div>
+
+    <div class="tabrow">
+      <div class="tn"><b>Setting</b><span>/setting</span></div>
+      <div class="tb">
+        <p>Project-level conventions rather than preferences: the screen ID suffix format, IA depth
+          configuration, and regenerating screen IDs across the project when that format changes.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= HOW IT WORKS ================= -->
+<section>
+  <h2>How it works</h2>
+  <p class="lede">One Next.js process serves the UI and the API. When a screen needs AI, the route handler
+    spawns your local Claude CLI as a child process and returns parsed JSON — there is no model API in the app.</p>
+  <div class="card">
+    <svg class="diagram" viewBox="0 0 900 260" role="img"
+         aria-label="Request path: browser posts to a Next.js route handler, which validates with Zod, spawns the Claude CLI as a child process with tools disabled, parses the JSON reply, and returns it to the browser, which persists the result to localStorage.">
+      <!-- boxes -->
+      <rect class="dg-box" x="8"   y="60" width="150" height="72" rx="9"/>
+      <rect class="dg-box" x="228" y="60" width="180" height="72" rx="9"/>
+      <rect class="dg-box" x="478" y="60" width="180" height="72" rx="9"/>
+      <rect class="dg-box" x="728" y="60" width="164" height="72" rx="9"/>
+
+      <text class="dg-label" x="83"  y="88"  text-anchor="middle">Browser</text>
+      <text class="dg-sub"   x="83"  y="106" text-anchor="middle">client component</text>
+      <text class="dg-sub"   x="83"  y="121" text-anchor="middle">sends x-claude-token</text>
+
+      <text class="dg-label" x="318" y="88"  text-anchor="middle">Route handler</text>
+      <text class="dg-sub"   x="318" y="106" text-anchor="middle">loopback guard → Zod</text>
+      <text class="dg-sub"   x="318" y="121" text-anchor="middle">builds the prompt</text>
+
+      <text class="dg-label" x="568" y="88"  text-anchor="middle">claude CLI</text>
+      <text class="dg-sub"   x="568" y="106" text-anchor="middle">child process, tools OFF</text>
+      <text class="dg-sub"   x="568" y="121" text-anchor="middle">runs as your account</text>
+
+      <text class="dg-label" x="810" y="88"  text-anchor="middle">localStorage</text>
+      <text class="dg-sub"   x="810" y="106" text-anchor="middle">parsed screens,</text>
+      <text class="dg-sub"   x="810" y="121" text-anchor="middle">canvas edits, versions</text>
+
+      <!-- arrows -->
+      <path class="dg-line" d="M158 88 L222 88" marker-end="url(#ah)"/>
+      <path class="dg-line" d="M408 88 L472 88" marker-end="url(#ah)"/>
+      <path class="dg-line" d="M568 132 L568 168 L318 168 L318 136" marker-end="url(#ah)"/>
+      <path class="dg-line" d="M318 190 L318 206 L83 206 L83 136" marker-end="url(#ah)"/>
+      <path class="dg-line" d="M158 110 L700 110 L700 96 L722 96" marker-end="url(#ah)" opacity="0" />
+      <path class="dg-line" d="M83 60 L83 40 L810 40 L810 56" marker-end="url(#ah)"/>
+
+      <text class="dg-note" x="190" y="80"  text-anchor="middle">POST</text>
+      <text class="dg-note" x="440" y="80"  text-anchor="middle">spawn</text>
+      <text class="dg-note" x="446" y="163" text-anchor="middle">stdout JSON + usage</text>
+      <text class="dg-note" x="205" y="201" text-anchor="middle">validated payload</text>
+      <text class="dg-note" x="446" y="33"  text-anchor="middle">persist — no database, no server state</text>
+
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-muted)"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <div class="note">
+      <span class="d ok"></span>
+      <div>
+        <h4>Tools are switched off — and the two paths do it differently</h4>
+        <p>These routes only ask Claude for text or JSON, so each run is capped at a single turn with no
+          session persistence, and the CLI is launched outside the repo so the project's own
+          <code>CLAUDE.md</code> is never auto-loaded. The chat route empties the tool set with
+          <code>--tools ""</code>. The shared bridge behind generate, consolidate and the Developer prompt
+          passes <code>--allowed-tools ""</code> instead — which a code comment in the chat route states does
+          <em>not</em> actually empty the set, leaving every tool in place. Worth a look: the two paths are
+          not equivalent, and only one of them uses the flag the codebase says works.</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="d ok"></span>
+      <div>
+        <h4>Every user brings their own Claude account</h4>
+        <p>The browser sends the token from <code>claude setup-token</code> on each request and the CLI runs
+          as that account. Host credentials — <code>ANTHROPIC_API_KEY</code> and six siblings — are stripped
+          from the child environment, and the config directory is moved outside <code>~/.claude</code> so the
+          host machine's own login can never be picked up. Usage is therefore attributable per person, which
+          is what DevAdmin reports on.</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="d warn"></span>
+      <div>
+        <h4>13 of the 14 routes refuse non-local requests</h4>
+        <p>Every AI and workspace route checks that the request arrived on <code>localhost</code> and rejects
+          it otherwise — the code comments say plainly that this exists because the app has been exposed
+          through a tunnel before. Only <code>/api/prototype/[slug]</code> is public. Over a tunnel the UI
+          loads and browses, but generation, chat and the Developer console are off unless
+          <code>SKETCHER_AI_ALLOW_REMOTE=1</code> is set. That is the guard working, not a fault.</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="d warn"></span>
+      <div>
+        <h4>Persistence is the browser</h4>
+        <p>Design files, canvas edits and versions live in <code>localStorage</code>, keyed by version. Work
+          survives a reload without pretending there is a backend — but it is per-browser, and clearing site
+          data clears the project.</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="d crit"></span>
+      <div>
+        <h4>Production builds statically export, which drops the API</h4>
+        <p><code>output: 'export'</code> is set whenever <code>NODE_ENV</code> is production, and a static
+          export cannot serve route handlers. Every endpoint above exists in development and disappears from
+          the deployed artifact — which is why a duplicate copy of the API is kept under
+          <code>src/app/_api/</code> as the workaround.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= AI CHAT ================= -->
+<section>
+  <h2>How the AI chat works</h2>
+  <p class="lede">The chat is not one assistant with a system prompt. It is a Claude Code terminal pinned to
+    whatever you have open, and the folder it is pinned to decides both what it can see and what it is
+    allowed to do.</p>
+
+  <div class="card">
+    <h4 style="margin:0 0 10px; font-size:14.5px; font-weight:620;">1 · It streams, rather than waiting</h4>
+    <p style="margin:0 0 16px; font-size:13.5px; color:var(--text-secondary); max-width:78ch;">
+      Generate and consolidate buffer a single JSON envelope and return it when the model is done. The chat
+      does not. It spawns the CLI in <code>stream-json</code> mode and forwards its NDJSON lines to the browser
+      as they arrive — the same events the real Claude Code UI is drawn from — so text appears the moment the
+      model produces it, and the stop button cancels a run that is already underway.
+    </p>
+
+    <h4 style="margin:0 0 10px; font-size:14.5px; font-weight:620;">2 · The folder is the context</h4>
+    <p style="margin:0 0 16px; font-size:13.5px; color:var(--text-secondary); max-width:78ch;">
+      Each conversation is pinned to one folder and receives everything that folder knows — notes, decisions,
+      reference files, sketches — up to 16,000 characters, plus the last 30 turns. The instruction is explicit:
+      it knows only what is in that context, and if the folder does not answer something it says so rather than
+      inventing. Answers are terminal-style — direct, concrete, no pleasantries, short answers to short questions.
+    </p>
+
+    <h4 style="margin:0 0 10px; font-size:14.5px; font-weight:620;">3 · Where you are decides who it is</h4>
+    <p style="margin:0 0 14px; font-size:13.5px; color:var(--text-secondary); max-width:78ch;">
+      The folder label selects one of six roles, each with its own skills — and, importantly, its own limits.
+    </p>
+    <table class="personas">
+      <thead><tr><th>Where</th><th>Role</th><th>What it does</th><th>Builds UI</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Meeting</td><td>Meeting assistant</td>
+          <td>Brainstorms ideas, spots what the notes are missing, and rewrites the notes on request</td>
+          <td><span class="chip">Yes</span></td>
+        </tr>
+        <tr>
+          <td>Research</td><td>Research analyst</td>
+          <td>Summarises and compares reference files, quotes its source so you can verify, extracts
+            requirements and user stories into tables</td>
+          <td><span class="chip">Yes</span></td>
+        </tr>
+        <tr>
+          <td>Preview</td><td>Design reviewer &amp; code editor</td>
+          <td>Reviews layout, hierarchy and flow; edits the screen's HTML in place, applying only what was
+            asked rather than redesigning</td>
+          <td><span class="chip">Yes</span></td>
+        </tr>
+        <tr>
+          <td>Version folder</td><td>Design lead</td>
+          <td>Reads across every file in the round — cross-screen consistency, navigation gaps, screens the
+            round is missing</td>
+          <td><span class="chip">Yes</span></td>
+        </tr>
+        <tr>
+          <td>Task</td><td>Task assistant</td>
+          <td>Breaks work into subtasks, drafts acceptance criteria and test cases, flags overlap with other
+            tasks in the round</td>
+          <td><span class="chip no">No — by design</span></td>
+        </tr>
+        <tr>
+          <td>Project root</td><td>Design assistant</td>
+          <td>Plans what screens the project needs, suggests flows and information architecture</td>
+          <td><span class="chip">Yes</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="margin:14px 0 0; font-size:13px; color:var(--text-muted); max-width:78ch;">
+      The Task role is the interesting one: it is explicitly forbidden from emitting HTML or designing
+      screens, and told to redirect you to the Main tab instead. Design happens where designs are stored.
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h4 style="margin:0 0 12px; font-size:14.5px; font-weight:620;">4 · The reply is a control, not just text</h4>
+    <p style="margin:0 0 14px; font-size:13.5px; color:var(--text-secondary); max-width:78ch;">
+      Two fenced block types are intercepted before the reply is rendered, which is what makes the chat part
+      of the workflow rather than a sidebar to it.
+    </p>
+    <div class="ctrls">
+      <div class="ctrl"><b>A <code>notes</code> block</b><span>Renders with an <b>Apply to Notes</b> button.
+        The model is told to output the complete notes, not a diff, so accepting is a clean replacement.</span></div>
+      <div class="ctrl"><b>An <code>html</code> block</b><span>Auto-saved as a design file and rendered in the
+        preview. The model is instructed to return the code block <em>only</em> — no text around it — because
+        the system is parsing, not reading.</span></div>
+    </div>
+    <p style="margin:14px 0 0; font-size:13px; color:var(--text-secondary); max-width:78ch;">
+      Generated HTML follows a fixed house style carried in the prompt: all CSS inline, no CDN links or Google
+      Fonts, 8px spacing grid, system font stack, semantic status colours, and realistic seed data.
+      The result is a standalone file that opens anywhere.
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h4 style="margin:0 0 12px; font-size:14.5px; font-weight:620;">5 · What you control per turn</h4>
+    <div class="ctrls">
+      <div class="ctrl"><b>Model</b><span>Opus 5, Sonnet 5 or Haiku — Haiku is the default, so the cheap model
+        handles the common case.</span></div>
+      <div class="ctrl"><b>Extended thinking</b><span>Toggled per turn, not per session.</span></div>
+      <div class="ctrl"><b>Effort</b><span>Low, medium or high — mirroring Claude Code's own setting.</span></div>
+      <div class="ctrl"><b>Attachments</b><span>Up to four. Images go as base64 (~2 MB cap); text files are read
+        in the browser and inlined.</span></div>
+      <div class="ctrl"><b>File mentions</b><span>Reference a project file directly in the message.</span></div>
+      <div class="ctrl"><b>Voice</b><span>Dictation in, read-aloud out.</span></div>
+      <div class="ctrl"><b>Usage</b><span>Each run reports duration, cost, tokens and model — this is what
+        DevAdmin aggregates.</span></div>
+      <div class="ctrl"><b>Timeout</b><span>Five minutes per run, then the process is killed.</span></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <div class="note">
+      <span class="d ok"></span>
+      <div>
+        <h4>The chat talks about the folder; it cannot touch it</h4>
+        <p>A text-only turn runs with <code>--tools ""</code> and a one-turn cap: the assistant reads the
+          context it was handed and writes text back, with no filesystem access. Attaching an <em>image</em>
+          is the single deliberate exception — the run is granted <code>Read</code> scoped by absolute glob
+          to that attachment's temp folder and allowed four turns, so it can look at the picture and nothing
+          else. Either way, nothing lands in the project until you press Apply or a fenced HTML block is
+          saved as a design file.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Compiled from the WE-ADK architecture definition and the route, bridge and domain modules in this
+  repository. Stage status labels are the app's own.
+</footer>
+
+</div>
+<script>
+  (function () {
+    var KEY='weadk-analysis-theme', root=document.documentElement, saved=null;
+    try { saved=localStorage.getItem(KEY); } catch(e){}
+    if (saved) root.setAttribute('data-theme', saved);
+    document.getElementById('themeBtn').addEventListener('click', function(){
+      var isDark = root.getAttribute('data-theme')==='dark' ||
+        (!root.hasAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem(KEY,next); } catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

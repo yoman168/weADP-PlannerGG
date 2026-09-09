@@ -1,5 +1,6 @@
 import { ThemeProvider } from 'next-themes';
 import type { Metadata } from 'next';
+import { ToastContainer } from '@/components/ui/toast';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -11,7 +12,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-dvh font-sans">
+      {/* Exactly the viewport, so a full-height app shell cannot leave a band
+          of body background showing beneath it. */}
+      <body className="h-dvh overflow-hidden font-sans">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -19,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           disableTransitionOnChange
         >
           {children}
+          <ToastContainer />
         </ThemeProvider>
       </body>
     </html>

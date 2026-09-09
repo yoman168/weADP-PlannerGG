@@ -67,7 +67,7 @@ const HEADER_DEFAULTS = {
   sectionType: 'header' as const,
   label: 'Page Header',
   title: 'Expense Report — July week 5',
-  subtitle: 'Personal Expense > EXP-2026-00412',
+  subtitle: 'eACC Cloud > Expense Management > Personal Expense',
 };
 
 const RETURN_DEFAULTS = {
@@ -267,16 +267,12 @@ export default function PersonalExpenseDetailPage() {
                             variant="outline"
                             size="sm"
                             className="h-6 gap-1 px-2 text-[11px]"
-                            onClick={() =>
-                              setLines((prev) =>
-                                prev.map((entry) =>
-                                  entry.id === line.id ? { ...entry, receipt: true } : entry,
-                                ),
-                              )
-                            }
+                            asChild
                           >
-                            <Paperclip className="size-2.5" />
-                            Attach
+                            <Link href="/eacc/personal-expense/receipt">
+                              <Paperclip className="size-2.5" />
+                              Attach
+                            </Link>
                           </Button>
                         )}
                       </td>
