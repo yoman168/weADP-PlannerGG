@@ -86,6 +86,7 @@ import {
   type ChatEntry,
   type DevicePresetId,
 } from '@/lib/we-adk-mock/sketcher';
+import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import { isHtmlDesignFile } from '@/lib/we-adk/design-html';
 import { aiResponseSchema, describeCanvas } from '@/lib/we-adk/sketcher-operations';
 import { pushCanvasToScreen } from '@/lib/we-adk/design-sync';
@@ -757,7 +758,7 @@ export function SketcherEditor({
     try {
       const response = await fetch('/api/sketcher/ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...claudeHeaders() },
         body: JSON.stringify({ instruction: text, blocks: canvas.blocks }),
       });
       const payload: unknown = await response.json().catch(() => null);
@@ -853,7 +854,7 @@ export function SketcherEditor({
     try {
       const response = await fetch('/api/sketcher/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...claudeHeaders() },
         body: JSON.stringify({
           message: text,
           history,
