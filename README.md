@@ -72,7 +72,7 @@ pnpm dev                # the workspace on 3000, outside Docker
 ```
 
 For the API on its own, `backend/README.md` has the details. One trap: there is no linked
-system JDK on a stock macOS, so `./mvnw` fails with "Unable to locate a Java Runtime" until
+system JDK on a stock macOS, so `./gradlew` fails with "Unable to locate a Java Runtime" until
 `export JAVA_HOME=/opt/homebrew/opt/openjdk@21`.
 
 Other scripts: `pnpm build`, `pnpm typecheck`, and the three contract scripts under

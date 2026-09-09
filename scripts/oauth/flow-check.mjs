@@ -7,7 +7,7 @@
  * MockMvc builds requests with no query string, and the authorization endpoint requires its
  * parameters to have arrived in one — so the redirect to sign in can only be proven here.
  *
- *   SECURITY_MODE=oauth2 ... ./mvnw spring-boot:run     # in backend/
+ *   SECURITY_MODE=oauth2 ... ./gradlew bootRun            # in backend/
  *   node scripts/oauth/flow-check.mjs                   # then this
  *
  * Override the target with AS_URL, the account with AS_EMAIL and AS_PASSWORD.

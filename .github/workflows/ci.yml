@@ -21,12 +21,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: maven
+          cache: gradle
 
       # Testcontainers needs a Docker daemon; ubuntu-latest has one.
+      #
+      # --no-daemon because a CI runner is used once: a background daemon would outlive the
+      # step, hold the build cache open and gain nothing.
       - name: Test
         working-directory: backend
-        run: ./mvnw -B --no-transfer-progress verify
+        run: ./gradlew --no-daemon build
 
       # The contract is exported from the running service, because springdoc builds it from
       # the Spring context rather than from source. Postgres is required for that context to
@@ -49,7 +52,7 @@ jobs:
           DB_PASSWORD: weadk
           PORT: '8080'
         run: |
-          ./mvnw -B -q -DskipTests spring-boot:run &
+          ./gradlew --no-daemon -x test bootRun &
           for _ in $(seq 1 60); do
             curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1 && break
             sleep 2

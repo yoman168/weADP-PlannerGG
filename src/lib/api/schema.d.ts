@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What this service is. Open without a token, on purpose. */
+        get: operations["toWorkspace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ai/canvas": {
         parameters: {
             query?: never;
@@ -326,7 +343,7 @@ export interface paths {
         };
         /**
          * Everything the caller can see, in one read.
-         * @description One request rather than one per key: the code that consumes this reads synchronously from inside render paths, so it hydrates once at load.
+         * @description One request rather than one per key: the code that consumes this reads synchronously from inside render paths, so it hydrates once at load. Carries an ETag, so an unchanged workspace costs a 304 and no body.
          */
         get: operations["snapshot"];
         /** Apply a batch of writes and deletions. */
@@ -915,6 +932,28 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    toWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     canvas: {
         parameters: {
             query?: never;

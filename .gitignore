@@ -18,9 +18,11 @@ next-env.d.ts
 out
 .wrangler
 
-# Maven's output. 189 class files and jars, rebuilt by every `mvn` run and by the api
-# container on every start.
-backend/target
+# Gradle's output and its per-project caches, rebuilt by every `./gradlew` run and by the
+# api image build. The wrapper itself is committed — including gradle-wrapper.jar, which is
+# how the pinned Gradle version and its checksum travel with the repo.
+backend/build
+backend/.gradle
 *.class
 
 # Real credentials for the prod stack. `deploy/prod.env.example` is the template; the dev

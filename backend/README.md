@@ -14,10 +14,10 @@ pnpm stack:prod           # api on 8180, alongside
 
 # Or on its own, against a Postgres you already have:
 export JAVA_HOME=/opt/homebrew/opt/openjdk@21   # no linked system JDK on stock macOS
-DB_URL=jdbc:postgresql://localhost:5433/weadk ./mvnw spring-boot:run
+DB_URL=jdbc:postgresql://localhost:5433/weadk ./gradlew bootRun
 ```
 
-`./mvnw verify` runs the tests. They need a Docker daemon and `JAVA_HOME` — the ones that
+`./gradlew build` runs the tests. They need a Docker daemon and `JAVA_HOME` — the ones that
 matter boot the whole context against a real Postgres of their own, because that is the only
 way to catch an entity that disagrees with its table. They are independent of the compose
 stack, so they pass whether or not it is running, but Docker itself has to be up.
@@ -105,7 +105,7 @@ token to offer.
 ```bash
 SECURITY_MODE=oauth2 \
 WEADK_AUTH_SEED_EMAIL=you@example.com WEADK_AUTH_SEED_PASSWORD=… \
-  ./mvnw spring-boot:run
+  ./gradlew bootRun
 ```
 
 This service becomes the authorization server. A person signs in at `/login`, which is

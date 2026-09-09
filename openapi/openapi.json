@@ -1294,6 +1294,29 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/": {
+      "get": {
+        "operationId": "toWorkspace",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "summary": "What this service is. Open without a token, on purpose.",
+        "tags": [
+          "Root"
+        ]
+      }
+    },
     "/api/ai/canvas": {
       "post": {
         "description": "The operations come back as the model wrote them. They are validated against the block catalogue on the client, which owns it.",
@@ -2214,7 +2237,7 @@
     },
     "/api/state": {
       "get": {
-        "description": "One request rather than one per key: the code that consumes this reads synchronously from inside render paths, so it hydrates once at load.",
+        "description": "One request rather than one per key: the code that consumes this reads synchronously from inside render paths, so it hydrates once at load. Carries an ETag, so an unchanged workspace costs a 304 and no body.",
         "operationId": "snapshot",
         "responses": {
           "200": {
@@ -2302,6 +2325,10 @@
     }
   ],
   "tags": [
+    {
+      "description": "What this service is, and where the workspace is.",
+      "name": "Root"
+    },
     {
       "description": "Conversations, and the screens they produced.",
       "name": "Meetings"

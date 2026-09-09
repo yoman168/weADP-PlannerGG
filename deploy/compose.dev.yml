@@ -15,8 +15,14 @@ services:
     volumes:
       - ../backend:/app
       # Named, so the dependency cache survives a rebuild. Without it every start
-      # re-downloads Spring.
-      - maven:/root/.m2
+      # re-downloads Spring. It must match GRADLE_USER_HOME in the Dockerfile's dev stage,
+      # which is where the build stage's warmed cache was copied to.
+      - gradle:/home/gradle-cache
+      # Anonymous, masking the host's build output. The host tree is built by macOS Gradle
+      # and mounting it in would have the container reuse those classes and its own
+      # file locks.
+      - /app/build
+      - /app/.gradle
     working_dir: /app
 
   web:
@@ -41,4 +47,4 @@ services:
     command: ['pnpm', 'dev', '--hostname', '0.0.0.0']
 
 volumes:
-  maven:
+  gradle:
