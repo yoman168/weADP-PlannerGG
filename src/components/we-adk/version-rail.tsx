@@ -24,6 +24,7 @@ import {
 } from '@/lib/we-adk-mock/versions';
 import { type ProjectTask } from '@/lib/we-adk-mock/tasks';
 import { type VersionStatus } from '@/lib/we-adk-mock/types';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** `'all'` is every round at once. */
 export type VersionScope = number | 'all';
@@ -123,7 +124,7 @@ function useRailWidth(): [number, (next: number) => void, (next: number) => void
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(WIDTH_KEY);
+      const raw = workspaceStore.getItem(WIDTH_KEY);
       const parsed = Number(raw);
       if (Number.isFinite(parsed) && parsed > 0) setWidth(clampWidth(parsed));
     } catch {
@@ -139,7 +140,7 @@ function useRailWidth(): [number, (next: number) => void, (next: number) => void
     const value = clampWidth(next);
     setWidth(value);
     try {
-      window.localStorage.setItem(WIDTH_KEY, String(value));
+      workspaceStore.setItem(WIDTH_KEY, String(value));
     } catch {
       // Storage unavailable — it just will not survive a reload.
     }

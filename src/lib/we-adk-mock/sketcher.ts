@@ -1,8 +1,9 @@
 /**
  * Sketcher canvas model — block catalog, per-kind defaults and the property
  * schema that drives the inspector. Mock data only: nothing here talks to an
- * API, and canvases persist to localStorage so edits survive a reload.
+ * API, and canvases persist to workspace state so edits survive a reload.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Sample data used by the data/table previews                         */
@@ -1058,7 +1059,7 @@ export function isCanvasBlockArray(value: unknown): value is CanvasBlock[] {
 /**
  * Blocks for a Builder screen: whatever the user last saved, otherwise `seed`
  * if the caller has a layout for this screen, otherwise the seed pattern.
- * Browser-only (reads localStorage).
+ * Reads workspace state.
  */
 export function loadScreenBlocks(
   screenId: string,
@@ -1066,7 +1067,7 @@ export function loadScreenBlocks(
   seed?: () => CanvasBlock[] | null,
 ): CanvasBlock[] {
   try {
-    const raw = window.localStorage.getItem(screenStorageKey(screenId));
+    const raw = workspaceStore.getItem(screenStorageKey(screenId));
     if (raw) {
       const parsed: unknown = JSON.parse(raw);
       if (isCanvasBlockArray(parsed)) return parsed;

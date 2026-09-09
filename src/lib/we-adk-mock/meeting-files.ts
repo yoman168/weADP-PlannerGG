@@ -4,9 +4,10 @@
  * a recording, the RFP.
  *
  * Seeded files below are sample data. Files a user attaches in the UI are kept
- * in localStorage as metadata only: this is a mockup, so it records the name,
+ * in workspace state as metadata only: this is a mockup, so it records the name,
  * size and type rather than pretending to store the bytes.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type MeetingFileKind =
   'pdf' | 'doc' | 'sheet' | 'image' | 'audio' | 'video' | 'link' | 'zip';
@@ -33,7 +34,7 @@ export interface MeetingFile {
   uploaded?: boolean;
   /**
    * Base64 data URL for image files uploaded via the UI (capped at ~500 KB
-   * raw so localStorage does not overflow). Absent for seeded files.
+   * raw so the value stays a sane size). Absent for seeded files.
    */
   dataUrl?: string;
 }
@@ -574,7 +575,7 @@ function isMeetingFileArray(value: unknown): value is MeetingFile[] {
 
 export function loadUploadedFiles(sessionId: string): MeetingFile[] {
   try {
-    const raw = window.localStorage.getItem(storeKey(sessionId));
+    const raw = workspaceStore.getItem(storeKey(sessionId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return isMeetingFileArray(parsed) ? parsed : [];
@@ -585,7 +586,7 @@ export function loadUploadedFiles(sessionId: string): MeetingFile[] {
 
 function saveUploadedFiles(sessionId: string, files: MeetingFile[]): void {
   try {
-    window.localStorage.setItem(storeKey(sessionId), JSON.stringify(files));
+    workspaceStore.setItem(storeKey(sessionId), JSON.stringify(files));
   } catch {
     // Storage unavailable — the reference simply won't persist.
   }
@@ -734,7 +735,7 @@ export function createNamedFile(folderId: string, name: string): MeetingFile {
 }
 
 /* ------------------------------------------------------------------ */
-/* Custom folders (user-created, stored in localStorage)              */
+/* Custom folders (user-created, in workspace state)              */
 /* ------------------------------------------------------------------ */
 
 export interface CustomFolder {
@@ -751,7 +752,7 @@ function customFoldersKey(projectId: string): string {
 
 export function loadCustomFolders(projectId: string): CustomFolder[] {
   try {
-    const raw = window.localStorage.getItem(customFoldersKey(projectId));
+    const raw = workspaceStore.getItem(customFoldersKey(projectId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -763,7 +764,7 @@ export function loadCustomFolders(projectId: string): CustomFolder[] {
 
 export function saveCustomFolders(projectId: string, folders: CustomFolder[]): void {
   try {
-    window.localStorage.setItem(customFoldersKey(projectId), JSON.stringify(folders));
+    workspaceStore.setItem(customFoldersKey(projectId), JSON.stringify(folders));
   } catch {
     // Storage unavailable.
   }

@@ -1,0 +1,159 @@
+spring:
+  application:
+    name: we-adk-api
+
+  # Spring MVC on virtual threads: one carrier thread pool, blocking JDBC calls
+  # no longer pin a platform thread. Requires Java 21.
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/weadk}
+    username: ${DB_USER:weadk}
+    password: ${DB_PASSWORD:weadk}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema. Hibernate validates that the mapping matches
+      # what the migrations built, and refuses to start when it does not.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  compression:
+    # The workspace state read is JSON that compresses about six times over —
+    # measured, not guessed. Every page load pays for it, so this is the cheapest
+    # improvement available anywhere in this service.
+    #
+    # gzip, because that is what Tomcat does natively. Brotli is roughly three times
+    # better again on this payload and needs a reverse proxy to provide it; worth
+    # doing at the edge, not worth a dependency here.
+    enabled: ${COMPRESSION_ENABLED:true}
+    mime-types: application/json,application/problem+json,text/html,text/css,application/javascript,text/plain,application/x-ndjson
+    # Below this the header overhead and the CPU are not worth it.
+    min-response-size: 2KB
+  servlet:
+    session:
+      # In `oauth2` mode this is what silent renewal rests on: an expiring access token is
+      # renewed by a redirect through /oauth2/authorize, which succeeds without a password
+      # for as long as this session lives. Short and people retype their password all day.
+      #
+      # Sessions are in memory, so a restart does sign everyone out. Fine for one instance;
+      # a clustered deployment wants Spring Session backed by this database.
+      timeout: ${SESSION_TIMEOUT:12h}
+      cookie:
+        http-only: true
+        same-site: lax
+
+weadk:
+  security:
+    # open   — /api/** unauthenticated. Local development and CI, where there is no issuer.
+    # jwt    — a bearer token is required, verified against weadk.auth.jwt.secret or an
+    #          external issuer. Tokens come from POST /api/auth/login.
+    # oauth2 — this service is the issuer: a sign-in page, authorization code flow with
+    #          PKCE, and RS256 tokens it signs itself. See weadk.oauth2 below.
+    mode: ${SECURITY_MODE:open}
+  cors:
+    # The Next dev server. Comma-separated.
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000}
+  anthropic:
+    # Absent in dev; the generation endpoints report unavailable rather than failing.
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${ANTHROPIC_MODEL:claude-opus-5}
+
+  auth:
+    # Sign-in is a separate question from whether tokens are required above. With a secret
+    # set this service signs its own HS256 tokens and POST /api/auth/login works; without
+    # one it only verifies tokens from the issuer configured under
+    # spring.security.oauth2.resourceserver, and local sign-in answers 501.
+    #
+    # At least 32 bytes, or startup fails with that message rather than signing weakly.
+    jwt:
+      secret: ${WEADK_AUTH_JWT_SECRET:}
+    ttl: ${WEADK_AUTH_TTL:12h}
+    issuer: ${WEADK_AUTH_ISSUER:we-adk-api}
+    seed:
+      # The first account, created once and only when the user table is empty — so a
+      # redeploy cannot reset a password that has since been changed. Both are needed.
+      email: ${WEADK_AUTH_SEED_EMAIL:}
+      password: ${WEADK_AUTH_SEED_PASSWORD:}
+      name: ${WEADK_AUTH_SEED_NAME:}
+
+  oauth2:
+    # Only read when weadk.security.mode is oauth2.
+    #
+    # The issuer is what goes in every token and what the discovery documents advertise, so
+    # it has to be the URL the browser actually reaches this service on — not `localhost`
+    # once anything sits in front of it.
+    issuer: ${OAUTH2_ISSUER:http://localhost:8080}
+    access-token-ttl: ${OAUTH2_ACCESS_TTL:30m}
+    refresh-token-ttl: ${OAUTH2_REFRESH_TTL:14d}
+    client:
+      # A public client: a browser application cannot keep a secret, so it has none and
+      # PKCE is required instead.
+      id: ${OAUTH2_CLIENT_ID:we-adk-workspace}
+      # A mismatch here is the most common reason an OAuth2 flow fails, and it is seeded
+      # into the database on first boot — so correct it here and in oauth2_registered_client.
+      redirect-uris: ${OAUTH2_REDIRECT_URIS:http://localhost:3000/auth/callback}
+      post-logout-redirect-uris: ${OAUTH2_POST_LOGOUT_URIS:http://localhost:3000/login}
+
+  ai:
+    # Which model each alias from the workspace's model picker means. The picker sends
+    # "sonnet", not a dated id, so this is the part that moves when a model is superseded.
+    models:
+      opus: ${WEADK_AI_MODEL_OPUS:claude-opus-5}
+      sonnet: ${WEADK_AI_MODEL_SONNET:claude-sonnet-5}
+      haiku: ${WEADK_AI_MODEL_HAIKU:claude-haiku-4-5}
+    # Everything else under weadk.ai — per-endpoint timeouts, output ceilings and the USD
+    # rate card that prices ai_usage rows — defaults in AiProperties. Override by
+    # environment when needed, e.g. WEADK_AI_TIMEOUT_CHAT=900s.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  # Both are on by default, which is right for an internal service and worth being able to
+  # turn off: a public deployment has no reason to publish its own API surface.
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:true}
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:true}
+    path: /swagger-ui.html
+    # Alphabetical tags and grouped methods, so the twenty operations stay findable.
+    tags-sorter: alpha
+    operations-sorter: method
+    # Keeps a pasted bearer token across reloads. Without it, every reload in `jwt` mode
+    # means signing in again before the next Try it out.
+    persist-authorization: true
+    try-it-out-enabled: true
+    display-request-duration: true
+
+logging:
+  level:
+    org.hibernate.orm.deprecation: error

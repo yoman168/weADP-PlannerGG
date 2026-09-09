@@ -53,7 +53,7 @@ export interface ResolvedScreen {
 }
 
 /**
- * Browser-only: files the user created live in localStorage.
+ * Files the user created are workspace state, held in the API.
  *
  * `projectId` is the project the editor was opened from. Sketcher and real
  * screens know their own project from the data; Builder work mockups are shared

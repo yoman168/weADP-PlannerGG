@@ -13,6 +13,7 @@ import {
   nextBlockId,
 } from '@/lib/we-adk-mock/sketcher';
 import { type CanvasOperation } from '@/lib/we-adk/sketcher-operations';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 interface History {
   past: CanvasBlock[][];
@@ -23,14 +24,14 @@ interface History {
 const MAX_HISTORY = 50;
 
 export interface UseCanvasOptions {
-  /** localStorage key — pass a per-screen key so screens keep separate canvases. */
+  /** Workspace-state key — pass a per-screen key so screens keep separate canvases. */
   storageKey?: string;
   /** Blocks to start from when nothing has been saved under `storageKey` yet. */
   seed?: () => CanvasBlock[];
 }
 
 /**
- * Canvas state with real undo/redo history plus localStorage persistence.
+ * Canvas state with real undo/redo history plus persistence through the API.
  * Every mutation goes through `commit`, which pushes the previous state onto
  * the undo stack and clears the redo stack — the same contract a design tool's
  * history gives you.
@@ -47,12 +48,12 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
-  // Hydrate from localStorage after mount so SSR markup stays stable. A canvas
+  // Hydrate from workspace state after mount so SSR markup stays stable. A canvas
   // that was never edited counts as saved, so the toolbar doesn't cry wolf.
   useEffect(() => {
     let restored: CanvasBlock[] | null = null;
     try {
-      const raw = window.localStorage.getItem(storageKey);
+      const raw = workspaceStore.getItem(storageKey);
       if (raw) {
         const parsed: unknown = JSON.parse(raw);
         if (isCanvasBlockArray(parsed)) restored = parsed;
@@ -330,7 +331,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
 
   const save = useCallback(() => {
     try {
-      window.localStorage.setItem(storageKey, currentSnapshot);
+      workspaceStore.setItem(storageKey, currentSnapshot);
       setSavedSnapshot(currentSnapshot);
       return true;
     } catch {

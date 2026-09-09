@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { en } from '@/lib/i18n/en';
 import { ko } from '@/lib/i18n/ko';
+import { STORE_CHANGED_EVENT, workspaceStore } from '@/lib/api/workspace-store';
 
 export type Locale = 'en' | 'ko';
 
@@ -19,17 +20,30 @@ const LocaleContext = createContext<{
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
 
+  /*
+   * Re-read whenever the store changes, not only on mount.
+   *
+   * This provider sits outside `WorkspaceProvider` — it wraps the shell that mounts it —
+   * so on the first pass the store has not been filled yet and the stored language reads
+   * as absent. Mounting alone would therefore leave a Korean user on English until they
+   * chose it again. The store announces its hydrate, and that is what this listens for.
+   */
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved === 'ko' || saved === 'en') setLocaleState(saved);
-    } catch {}
+    const read = () => {
+      try {
+        const saved = workspaceStore.getItem(STORAGE_KEY);
+        if (saved === 'ko' || saved === 'en') setLocaleState(saved);
+      } catch {}
+    };
+    read();
+    window.addEventListener(STORE_CHANGED_EVENT, read);
+    return () => window.removeEventListener(STORE_CHANGED_EVENT, read);
   }, []);
 
   const setLocale = (next: Locale) => {
     setLocaleState(next);
     try {
-      window.localStorage.setItem(STORAGE_KEY, next);
+      workspaceStore.setItem(STORAGE_KEY, next);
     } catch {}
   };
 

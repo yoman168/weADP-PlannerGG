@@ -17,6 +17,7 @@ import {
 import { type DevicePresetId } from '@/lib/we-adk-mock/sketcher';
 import { liveScreenRoute } from '@/lib/we-adk/live-screens';
 import { isHtmlDesignFile } from '@/lib/we-adk/design-html';
+import { WorkspaceProvider } from '@/lib/api/workspace-provider';
 import {
   findPrototypeByRoute,
   findPrototypeFile,
@@ -65,7 +66,7 @@ function Preview() {
   const [mode, setMode] = useState<PreviewMode>(
     searchParams.get('mode') === 'wireframe' ? 'wireframe' : 'live',
   );
-  // A created file's identity lives in localStorage, so resolve after mount.
+  // A created file's identity is workspace state, so resolve after mount.
   const [opened, setOpened] = useState<ResolvedScreen | null>(null);
 
   useEffect(() => {
@@ -173,14 +174,19 @@ function Preview() {
 
 export default function DesignPreviewPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="text-muted-foreground flex min-h-dvh items-center justify-center text-sm">
-          Loading the design…
-        </div>
-      }
-    >
-      <Preview />
-    </Suspense>
+    // This route has no shell of its own, so it mounts the provider itself. The design it
+    // renders is workspace state, and resolving a file id before that state has arrived
+    // would report a screen that exists as missing.
+    <WorkspaceProvider>
+      <Suspense
+        fallback={
+          <div className="text-muted-foreground flex min-h-dvh items-center justify-center text-sm">
+            Loading the design…
+          </div>
+        }
+      >
+        <Preview />
+      </Suspense>
+    </WorkspaceProvider>
   );
 }

@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Config types                                                         */
@@ -109,7 +110,7 @@ export function EditProvider({
     // the state, or the screen would come back with no sections at all.
     let stored: SiteConfig = {};
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = workspaceStore.getItem(storageKey);
       if (raw) stored = JSON.parse(raw) as SiteConfig;
     } catch {
       stored = {};
@@ -120,7 +121,7 @@ export function EditProvider({
       // patch. Stored wins over the registered defaults, so this cannot undo an
       // edit made from the other side.
       try {
-        localStorage.setItem(storageKey, JSON.stringify(merged));
+        workspaceStore.setItem(storageKey, JSON.stringify(merged));
       } catch {
         // ignore
       }
@@ -131,7 +132,7 @@ export function EditProvider({
   const persist = useCallback(
     (config: SiteConfig, notify = true) => {
       try {
-        localStorage.setItem(storageKey, JSON.stringify(config));
+        workspaceStore.setItem(storageKey, JSON.stringify(config));
       } catch {
         // ignore
       }
@@ -222,7 +223,7 @@ export function EditProvider({
     setSelectedId(null);
     setSiteConfig({});
     try {
-      localStorage.removeItem(storageKey);
+      workspaceStore.removeItem(storageKey);
     } catch {
       // ignore
     }

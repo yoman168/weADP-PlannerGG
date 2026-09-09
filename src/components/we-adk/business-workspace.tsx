@@ -681,7 +681,7 @@ export function BusinessWorkspace({ children }: { children: ReactNode }) {
   /** Position indicator: 'above' or 'below' the target folder. */
   const [folderDropPos, setFolderDropPos] = useState<'above' | 'below'>('below');
 
-  // Files the user created live in localStorage, so load them after mount.
+  // Files the user created are workspace state, so load them after mount.
   useEffect(() => {
     if (!project) return;
     let references = 0;
@@ -768,7 +768,7 @@ export function BusinessWorkspace({ children }: { children: ReactNode }) {
 
   /**
    * A / M markers, against the round each file was cut from. Computed in an
-   * effect because it reads the canvases out of localStorage: doing it during
+   * effect because it reads the canvases out of workspace state: doing it during
    * render would make the server and the browser disagree about every badge.
    */
   const [changes, setChanges] = useState<Record<string, FileDiff>>({});

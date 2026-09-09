@@ -58,6 +58,7 @@ import { loadCreatedProjects } from '@/lib/we-adk-mock/created-projects';
 import { ProjectTile } from '@/components/we-adk/project-chrome';
 import type { MeetingIA, MockupScreen } from '@/lib/we-adk-mock/mockup-tasks';
 import type { DraftPlacement } from '@/lib/we-adk/task-design';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type GenerateMode = 'mockup' | 'product';
 
@@ -68,7 +69,7 @@ export type GenerateMode = 'mockup' | 'product';
 /** The page saved for a screen, if one was ever generated or edited. */
 function loadDesignHtml(screenId: string): string | null {
   try {
-    return window.localStorage.getItem(`we-adk:design-html:${screenId}`);
+    return workspaceStore.getItem(`we-adk:design-html:${screenId}`);
   } catch {
     return null;
   }

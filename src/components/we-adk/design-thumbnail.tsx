@@ -13,7 +13,7 @@ const AUTHOR_WIDTH = 1024;
  * scaled down, the same way the board draws its frames. It is the fastest way
  * to see whether a proposed screen is the screen you meant.
  *
- * Blocks live in localStorage, so they arrive after mount; until then the card
+ * Blocks are workspace state, so they arrive after mount; until then the card
  * holds its space rather than jumping.
  */
 export function DesignThumbnail({

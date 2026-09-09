@@ -116,6 +116,7 @@ import { findProject, type DesignProject } from '@/lib/we-adk-mock/projects';
 import { giveScreenToMember } from '@/lib/we-adk/user-workspace';
 import { designDiff, type DesignDiff } from '@/lib/we-adk/design-diff';
 import { DiffSummary } from '@/components/we-adk/design-diff-view';
+import { workspaceStore } from '@/lib/api/workspace-store';
 /**
  * One task, in full — the detail both the Business and Developer tabs show.
  *
@@ -134,7 +135,7 @@ const TASK_CHAT_KEY = 'we-adk:task-chat';
 
 function loadTaskTurns(projectId: string, taskId: string): ChatTurn[] {
   try {
-    const raw = window.localStorage.getItem(`${TASK_CHAT_KEY}:${projectId}:${taskId}`);
+    const raw = workspaceStore.getItem(`${TASK_CHAT_KEY}:${projectId}:${taskId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ChatTurn[]) : [];
@@ -145,7 +146,7 @@ function loadTaskTurns(projectId: string, taskId: string): ChatTurn[] {
 
 function saveTaskTurns(projectId: string, taskId: string, turns: ChatTurn[]): void {
   try {
-    window.localStorage.setItem(
+    workspaceStore.setItem(
       `${TASK_CHAT_KEY}:${projectId}:${taskId}`,
       JSON.stringify(turns.slice(-40)),
     );
@@ -321,7 +322,7 @@ export function TaskDetail({
   /**
    * Whether a build exists for this task at all.
    *
-   * Read after mount — the seeds live in localStorage — and false by default, so
+   * Read after mount — the seeds are workspace state — and false by default, so
    * the first paint offers no control it might have to take away.
    */
   const [buildExists, setBuildExists] = useState(false);
@@ -445,7 +446,7 @@ export function TaskDetail({
   /**
    * How far a handed-over design has moved since it was handed over: the sample
    * on the task against the copy in that person's workspace. Read after mount —
-   * both canvases live in localStorage.
+   * both canvases are workspace state.
    */
   const [handedDiffs, setHandedDiffs] = useState<Record<string, DesignDiff>>({});
   useEffect(() => {

@@ -34,7 +34,7 @@ export function useMemberTargets(projectId: string, assignee: string, refreshKey
   const [version, setVersion] = useState<number | null>(null);
   const [blocker, setBlocker] = useState<HandoffBlocker>(null);
 
-  // The team and the rounds both live in localStorage, so this settles after
+  // The team and the rounds both are workspace state, so this settles after
   // mount rather than during render.
   useEffect(() => {
     const team = projectTeam(projectId);

@@ -6,9 +6,10 @@
  * in it, so the task panel can say what is waiting without pulling the whole
  * editor into its bundle.
  *
- * Scenes can outgrow localStorage (a pasted screenshot is a data URL in `files`),
+ * Scenes can outgrow one stored value (a pasted screenshot is a data URL in `files`),
  * so writing reports whether it worked instead of failing silently.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface BoardScene {
   /** Excalidraw elements, exactly as the editor produced them. */
@@ -33,7 +34,7 @@ function isScene(value: unknown): value is BoardScene {
 
 export function loadScene(sessionId: string): BoardScene | null {
   try {
-    const raw = window.localStorage.getItem(sceneKey(sessionId));
+    const raw = workspaceStore.getItem(sceneKey(sessionId));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!isScene(parsed)) return null;
@@ -47,10 +48,10 @@ export function loadScene(sessionId: string): BoardScene | null {
 export function saveScene(sessionId: string, scene: BoardScene): boolean {
   try {
     if (scene.elements.length === 0) {
-      window.localStorage.removeItem(sceneKey(sessionId));
+      workspaceStore.removeItem(sceneKey(sessionId));
       return true;
     }
-    window.localStorage.setItem(sceneKey(sessionId), JSON.stringify(scene));
+    workspaceStore.setItem(sceneKey(sessionId), JSON.stringify(scene));
     return true;
   } catch {
     return false;
@@ -59,7 +60,7 @@ export function saveScene(sessionId: string, scene: BoardScene): boolean {
 
 export function clearScene(sessionId: string): void {
   try {
-    window.localStorage.removeItem(sceneKey(sessionId));
+    workspaceStore.removeItem(sceneKey(sessionId));
   } catch {
     // Nothing to do — the scene simply stays as it was.
   }

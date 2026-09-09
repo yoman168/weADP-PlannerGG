@@ -12,6 +12,7 @@
 import { mergeReferenceText, type MeetingFile } from '@/lib/we-adk-mock/meeting-files';
 import { type DesignProject } from '@/lib/we-adk-mock/projects';
 import { type ProjectTask } from '@/lib/we-adk-mock/tasks';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Files attached to a task                                            */
@@ -155,7 +156,7 @@ function isTaskDesignArray(value: unknown): value is TaskDesign[] {
 
 export function loadTaskDesigns(projectId: string, taskId: string): TaskDesign[] {
   try {
-    const raw = window.localStorage.getItem(designsKey(projectId, taskId));
+    const raw = workspaceStore.getItem(designsKey(projectId, taskId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return isTaskDesignArray(parsed) ? parsed : [];
@@ -166,7 +167,7 @@ export function loadTaskDesigns(projectId: string, taskId: string): TaskDesign[]
 
 function saveTaskDesigns(projectId: string, taskId: string, designs: TaskDesign[]): void {
   try {
-    window.localStorage.setItem(designsKey(projectId, taskId), JSON.stringify(designs.slice(-40)));
+    workspaceStore.setItem(designsKey(projectId, taskId), JSON.stringify(designs.slice(-40)));
   } catch {
     // Storage unavailable — the link back from the task simply won't persist.
   }
@@ -252,7 +253,7 @@ export interface StandaloneDraft extends TaskDesign {
 
 export function loadStandaloneDrafts(projectId: string): StandaloneDraft[] {
   try {
-    const raw = window.localStorage.getItem(projectDraftsKey(projectId));
+    const raw = workspaceStore.getItem(projectDraftsKey(projectId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as StandaloneDraft[]) : [];
@@ -265,7 +266,7 @@ export function loadStandaloneDrafts(projectId: string): StandaloneDraft[] {
 export function addStandaloneDraft(projectId: string, draft: StandaloneDraft): StandaloneDraft[] {
   const next = [...loadStandaloneDrafts(projectId), draft];
   try {
-    window.localStorage.setItem(projectDraftsKey(projectId), JSON.stringify(next.slice(-60)));
+    workspaceStore.setItem(projectDraftsKey(projectId), JSON.stringify(next.slice(-60)));
   } catch {
     // Storage full — the draft still exists for this session.
   }
@@ -289,7 +290,7 @@ export function markStandaloneDraftFiled(
     draft.screenId === screenId ? { ...draft, version, movedAt } : draft,
   );
   try {
-    window.localStorage.setItem(projectDraftsKey(projectId), JSON.stringify(next));
+    workspaceStore.setItem(projectDraftsKey(projectId), JSON.stringify(next));
   } catch {
     // Storage full — the move is correct for this session either way.
   }
@@ -314,7 +315,7 @@ export function markTaskDesignFiled(
 export function removeStandaloneDraft(projectId: string, screenId: string): StandaloneDraft[] {
   const next = loadStandaloneDrafts(projectId).filter((draft) => draft.screenId !== screenId);
   try {
-    window.localStorage.setItem(projectDraftsKey(projectId), JSON.stringify(next));
+    workspaceStore.setItem(projectDraftsKey(projectId), JSON.stringify(next));
   } catch {
     // Nothing to do — the list is correct for this session either way.
   }

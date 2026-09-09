@@ -1,0 +1,5 @@
+# The API build context is `backend/`. Only the pom and `src` are copied, so this is about
+# not shipping a 300 MB target directory to the daemon on every build.
+target
+.mvn/wrapper/maven-wrapper.jar
+*.md

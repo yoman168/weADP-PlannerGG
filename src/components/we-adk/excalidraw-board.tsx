@@ -208,7 +208,7 @@ export function ExcalidrawBoard({
       elements: elements as readonly NonDeleted<ExcalidrawElement>[],
       files: api.getFiles(),
       appState: { ...api.getAppState(), exportBackground: true, viewBackgroundColor: '#ffffff' },
-      // Big enough to read a label on, small enough to keep in localStorage.
+      // Big enough to read a label on, small enough to keep in workspace state.
       maxWidthOrHeight: 1600,
       exportPadding: 16,
     });

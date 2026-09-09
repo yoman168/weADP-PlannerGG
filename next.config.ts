@@ -1,8 +1,28 @@
 import type { NextConfig } from 'next';
 
+/**
+ * Which kind of build this is.
+ *
+ * Two production targets, and they are not interchangeable. `export` writes static files
+ * for Cloudflare and cannot contain route handlers at all — which is why the AI proxies
+ * under `src/app/api` do not exist in that build. `standalone` writes a Node server that
+ * can, and is what the Docker image runs, so the whole application works there including
+ * the proxies.
+ *
+ * The default is unchanged from before Docker existed: `export` in production, nothing in
+ * development. Standalone is opt-in through `NEXT_OUTPUT`, so `pnpm build` and
+ * `pnpm deploy:cf` behave exactly as they always have.
+ */
+function output(): 'export' | 'standalone' | undefined {
+  const requested = process.env.NEXT_OUTPUT;
+  if (requested === 'standalone' || requested === 'export') return requested;
+  return process.env.NODE_ENV === 'production' ? 'export' : undefined;
+}
+
+const selected = output();
+
 const nextConfig: NextConfig = {
-  // Static export for Cloudflare builds; skipped in dev so next dev works normally.
-  ...(process.env.NODE_ENV === 'production' ? { output: 'export' as const } : {}),
+  ...(selected ? { output: selected } : {}),
   /**
    * Where the build lands. `next dev` does not vary this by port, so two dev
    * servers in this project overwrite each other's `.next` — the stylesheet

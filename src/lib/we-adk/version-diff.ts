@@ -14,7 +14,7 @@
  * matters is the shape — the kinds, names, order and props of its blocks, plus
  * the section layout an html screen is edited through.
  *
- * Browser-only: the canvases and layouts it compares live in localStorage.
+ * The canvases and layouts it compares are workspace state, held in the API.
  */
 import { prototypeConfigKeyForScreen } from '@/lib/we-adk/prototype';
 import { isPrototypeFile } from '@/lib/we-adk/prototype';
@@ -22,6 +22,7 @@ import { prototypeDesignBlocks } from '@/lib/we-adk/prototype-design';
 import { loadScreenBlocks, type CanvasBlock } from '@/lib/we-adk-mock/sketcher';
 import { type DesignFile, type DesignFolder } from '@/lib/we-adk-mock/projects';
 import { BASELINE_VERSION } from '@/lib/we-adk-mock/versions';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type FileChange = 'added' | 'modified' | 'unchanged';
 
@@ -83,7 +84,7 @@ function configSignature(file: DesignFile): string {
   const key = prototypeConfigKeyForScreen(file.id);
   if (!key) return '';
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = workspaceStore.getItem(key);
     // No stored layout and an empty one are the same screen.
     if (!raw) return '';
     const parsed: unknown = JSON.parse(raw);
@@ -149,7 +150,7 @@ export function loadSavedSnapshot(
   scope?: string,
 ): SavedSnapshot | null {
   try {
-    const raw = window.localStorage.getItem(savedStorageKey(projectId, version, scope));
+    const raw = workspaceStore.getItem(savedStorageKey(projectId, version, scope));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return null;
@@ -174,7 +175,7 @@ export function writeSavedSnapshot(
     files: Object.fromEntries(files.map((file) => [file.id, fileSignature(file)] as const)),
   };
   try {
-    window.localStorage.setItem(
+    workspaceStore.setItem(
       savedStorageKey(projectId, version, scope),
       JSON.stringify(snapshot),
     );
@@ -197,7 +198,7 @@ export function writeSavedFile(
     files: { ...(existing?.files ?? {}), [file.id]: fileSignature(file) },
   };
   try {
-    window.localStorage.setItem(
+    workspaceStore.setItem(
       savedStorageKey(projectId, version, scope),
       JSON.stringify(snapshot),
     );
@@ -209,7 +210,7 @@ export function writeSavedFile(
 /** Forgets a round's save, so the markers go back to comparing against the round before. */
 export function clearSavedSnapshot(projectId: string, version: number, scope?: string): void {
   try {
-    window.localStorage.removeItem(savedStorageKey(projectId, version, scope));
+    workspaceStore.removeItem(savedStorageKey(projectId, version, scope));
   } catch {
     // ignore
   }

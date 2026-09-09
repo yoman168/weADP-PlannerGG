@@ -6,6 +6,7 @@
  * as text, and two small things outlived the editor: the direction a diagram runs,
  * and how a line is reported when it cannot be read.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type DiagramDirection = 'down' | 'right';
 
@@ -23,7 +24,7 @@ function sourceKey(sessionId: string): string {
 
 export function loadDiagramSource(sessionId: string): string {
   try {
-    return window.localStorage.getItem(sourceKey(sessionId)) ?? '';
+    return workspaceStore.getItem(sourceKey(sessionId)) ?? '';
   } catch {
     return '';
   }
@@ -31,8 +32,8 @@ export function loadDiagramSource(sessionId: string): string {
 
 export function saveDiagramSource(sessionId: string, source: string): void {
   try {
-    if (source.trim().length === 0) window.localStorage.removeItem(sourceKey(sessionId));
-    else window.localStorage.setItem(sourceKey(sessionId), source);
+    if (source.trim().length === 0) workspaceStore.removeItem(sourceKey(sessionId));
+    else workspaceStore.setItem(sourceKey(sessionId), source);
   } catch {
     // Storage unavailable — the model still works for this sitting.
   }

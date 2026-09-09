@@ -53,6 +53,7 @@ import SettingsEditRolePage from '@/app/eacc/settings/edit-role/page';
 import SettingsInvitePage from '@/app/eacc/settings/invite/page';
 import TaxInvoicePage from '@/app/eacc/tax-invoice/page';
 import TaxInvoiceDetailPage from '@/app/eacc/tax-invoice/detail/page';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** The page component behind each live route. */
 const SCREEN_COMPONENTS: Record<string, ComponentType> = {
@@ -116,7 +117,7 @@ function activeHref(route: string): string | null {
   return matches.sort((a, b) => b.length - a.length)[0] ?? null;
 }
 
-/** Override for a single nav item — stored in localStorage. */
+/** Override for a single nav item — stored in workspace state. */
 export interface NavItemOverride {
   label?: string;
   visible?: boolean;
@@ -130,7 +131,7 @@ const SIDEBAR_STORAGE_KEY = 'we-adk:sidebar-config';
 
 export function loadSidebarOverrides(): SidebarOverrides {
   try {
-    const raw = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    const raw = workspaceStore.getItem(SIDEBAR_STORAGE_KEY);
     return raw ? (JSON.parse(raw) as SidebarOverrides) : {};
   } catch {
     return {};
@@ -138,7 +139,7 @@ export function loadSidebarOverrides(): SidebarOverrides {
 }
 
 export function saveSidebarOverrides(overrides: SidebarOverrides): void {
-  localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(overrides));
+  workspaceStore.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(overrides));
 }
 
 function PreviewSidebar({

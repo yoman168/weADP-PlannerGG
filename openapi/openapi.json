@@ -1,0 +1,2330 @@
+{
+  "components": {
+    "schemas": {
+      "AiStatus": {
+        "default": null,
+        "description": "Whether this deployment can call Claude at all.",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "defaultModel": {
+            "type": "string"
+          },
+          "models": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "AiUsageView": {
+        "default": null,
+        "description": "What this call spent.",
+        "properties": {
+          "costUsd": {
+            "type": "number"
+          },
+          "durationMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inputTokens": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "outputTokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AiVerifyResponse": {
+        "default": null,
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "BaseScreen": {
+        "default": null,
+        "description": "The screen that exists in production today, when this is a change request rather than a fresh design.",
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/BaseScreenBlock"
+            },
+            "maxItems": 30,
+            "minItems": 0,
+            "type": "array"
+          },
+          "path": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "route": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BaseScreenBlock": {
+        "default": null,
+        "description": "One block of the live screen being revised.",
+        "properties": {
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "CanvasBlockView": {
+        "default": null,
+        "description": "One block of the canvas being edited.",
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "props": {
+            "additionalProperties": {},
+            "default": "",
+            "description": "Catalogue-defined; passed through untouched.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "CanvasEditRequest": {
+        "default": null,
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/CanvasBlockView"
+            },
+            "maxItems": 200,
+            "minItems": 0,
+            "type": "array"
+          },
+          "catalog": {
+            "default": "",
+            "description": "The block catalogue, rendered by the client. This is what tells the model which kinds and props exist.",
+            "maxLength": 60000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "instruction": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "model": {
+            "default": null,
+            "enum": [
+              "opus",
+              "sonnet",
+              "haiku",
+              "opus",
+              "sonnet",
+              "haiku"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "default": "",
+            "description": "Attributes the spend to a project.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "blocks",
+          "catalog",
+          "instruction"
+        ],
+        "type": "object"
+      },
+      "CanvasEditResponse": {
+        "default": null,
+        "description": "The model's proposed operations, unvalidated against the catalogue — the client checks them before applying.",
+        "properties": {
+          "operations": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "reply": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/AiUsageView"
+          }
+        },
+        "type": "object"
+      },
+      "ChatAttachment": {
+        "default": null,
+        "properties": {
+          "dataBase64": {
+            "default": "",
+            "description": "Images only — base64 with no data: prefix.",
+            "maxLength": 2800000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "image",
+              "text",
+              "binary"
+            ],
+            "type": "string"
+          },
+          "mediaType": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "description": "Text files only — their content, read in the browser.",
+            "maxLength": 8000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ChatRequest": {
+        "default": null,
+        "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/ChatAttachment"
+            },
+            "maxItems": 4,
+            "minItems": 0,
+            "type": "array"
+          },
+          "context": {
+            "maxLength": 200000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effort": {
+            "default": null,
+            "description": "Thinking depth; ignored by models that do not take it.",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ],
+            "type": "string"
+          },
+          "folderLabel": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ChatTurn"
+            },
+            "maxItems": 30,
+            "minItems": 0,
+            "type": "array"
+          },
+          "message": {
+            "maxLength": 12000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "model": {
+            "default": null,
+            "enum": [
+              "opus",
+              "sonnet",
+              "haiku",
+              "opus",
+              "sonnet",
+              "haiku"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "thinking": {
+            "default": false,
+            "description": "Ask for a reasoning summary; ignored by models without it.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "ChatTurn": {
+        "default": null,
+        "properties": {
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 6000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "text"
+        ],
+        "type": "object"
+      },
+      "FrdItem": {
+        "default": null,
+        "properties": {
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FrdRequest": {
+        "default": null,
+        "properties": {
+          "model": {
+            "default": null,
+            "enum": [
+              "opus",
+              "sonnet",
+              "haiku",
+              "opus",
+              "sonnet",
+              "haiku"
+            ],
+            "type": "string"
+          },
+          "prdDescription": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "prdId": {
+            "maxLength": 60,
+            "minLength": 0,
+            "type": "string"
+          },
+          "prdTitle": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "requirements": {
+            "items": {
+              "maxLength": 600,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array"
+          },
+          "screens": {
+            "items": {
+              "maxLength": 300,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "prdId",
+          "prdTitle",
+          "requirements"
+        ],
+        "type": "object"
+      },
+      "FrdResponse": {
+        "default": null,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FrdItem"
+            },
+            "type": "array"
+          },
+          "reply": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/AiUsageView"
+          }
+        },
+        "type": "object"
+      },
+      "GenerateScreensRequest": {
+        "default": null,
+        "properties": {
+          "baseScreen": {
+            "$ref": "#/components/schemas/BaseScreen"
+          },
+          "catalog": {
+            "maxLength": 60000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "customer": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "maxScreens": {
+            "format": "int32",
+            "maximum": 8,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "model": {
+            "default": null,
+            "enum": [
+              "opus",
+              "sonnet",
+              "haiku",
+              "opus",
+              "sonnet",
+              "haiku"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "maxLength": 12000,
+            "minLength": 20,
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "referenceNames": {
+            "default": "",
+            "description": "Names of attachments with no extractable text, so the model knows they exist.",
+            "items": {
+              "maxLength": 200,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 40,
+            "minItems": 0,
+            "type": "array"
+          },
+          "references": {
+            "default": "",
+            "description": "Merged text of the meeting's reference files.",
+            "maxLength": 16000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sessionTitle": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "catalog",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "GenerateScreensResponse": {
+        "default": null,
+        "properties": {
+          "reply": {
+            "type": "string"
+          },
+          "screens": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedScreen"
+            },
+            "type": "array"
+          },
+          "skipped": {
+            "default": "",
+            "description": "Screens the model proposed that this API could not read at all.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/AiUsageView"
+          }
+        },
+        "type": "object"
+      },
+      "GeneratedBlock": {
+        "default": null,
+        "properties": {
+          "kind": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "props": {
+            "additionalProperties": {},
+            "default": "",
+            "description": "Catalogue-defined; passed through untouched.",
+            "type": "object"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "GeneratedScreen": {
+        "default": null,
+        "properties": {
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedBlock"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LoginRequest": {
+        "default": null,
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 200,
+            "minLength": 8,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object"
+      },
+      "LoginResponse": {
+        "default": null,
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "token": {
+            "default": "",
+            "description": "Send as `Authorization: Bearer <token>`.",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserView"
+          }
+        },
+        "type": "object"
+      },
+      "MeetingCreate": {
+        "default": null,
+        "properties": {
+          "attendees": {
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "meeting-note",
+              "wireframe"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "postedBy": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "meeting",
+              "feedback",
+              "suggestion"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "title"
+        ],
+        "type": "object"
+      },
+      "MeetingUpdate": {
+        "default": null,
+        "description": "Only the fields present are changed.",
+        "properties": {
+          "attendees": {
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "meeting-note",
+              "wireframe"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "postedBy": {
+            "type": "string"
+          },
+          "productId": {
+            "default": "",
+            "description": "Id of the product to build into; empty string clears it.",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "meeting",
+              "feedback",
+              "suggestion"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MeetingView": {
+        "default": null,
+        "properties": {
+          "attendees": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "meeting-note",
+              "wireframe"
+            ],
+            "type": "string"
+          },
+          "movedTo": {
+            "$ref": "#/components/schemas/ProjectRef",
+            "default": "",
+            "description": "The product they have actually been sent to. A fact."
+          },
+          "notes": {
+            "type": "string"
+          },
+          "postedBy": {
+            "type": "string"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProjectRef",
+            "default": "",
+            "description": "The product these screens are built to fit. A plan."
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "screens": {
+            "items": {
+              "$ref": "#/components/schemas/ScreenView"
+            },
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "meeting",
+              "feedback",
+              "suggestion"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Placement": {
+        "default": null,
+        "description": "Where a screen was agreed to sit, as the path it was agreed at. Kept as a path rather than a reference because the parent may not be in this product yet.",
+        "properties": {
+          "parentName": {
+            "type": "string"
+          },
+          "parentPath": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "platform": {
+            "enum": [
+              "PC",
+              "Mobile"
+            ],
+            "type": "string"
+          },
+          "screenType": {
+            "enum": [
+              "Screen",
+              "Popup",
+              "Drawer"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectCreate": {
+        "default": null,
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "customer": {
+            "type": "string"
+          },
+          "id": {
+            "default": "",
+            "description": "Supplied when the client already named it; generated otherwise.",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "ProjectRef": {
+        "default": null,
+        "description": "Just enough of a project to name it.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectUpdate": {
+        "default": null,
+        "description": "Only the fields present are changed.",
+        "properties": {
+          "accent": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "customer": {
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "solution": {
+            "type": "string"
+          },
+          "spend": {
+            "type": "number"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "statusLabel": {
+            "type": "string"
+          },
+          "statusTone": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProjectView": {
+        "default": null,
+        "description": "A project of either kind; archived means Customer.",
+        "properties": {
+          "accent": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "customer": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "solution": {
+            "type": "string"
+          },
+          "spend": {
+            "type": "number"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "statusLabel": {
+            "type": "string"
+          },
+          "statusTone": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RequestCreate": {
+        "default": null,
+        "properties": {
+          "fromLabel": {
+            "type": "string"
+          },
+          "id": {
+            "default": "",
+            "description": "The copy's own id. Generated when absent.",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "placement": {
+            "$ref": "#/components/schemas/Placement"
+          },
+          "route": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "RequestFile": {
+        "default": null,
+        "description": "Filing a waiting request into a round.",
+        "properties": {
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "RequestMove": {
+        "default": null,
+        "description": "Moving a set of screens into a product. A screen whose name already waits from the same source replaces that row rather than joining it.",
+        "properties": {
+          "screens": {
+            "items": {
+              "$ref": "#/components/schemas/RequestCreate"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "screens"
+        ],
+        "type": "object"
+      },
+      "RequestView": {
+        "default": null,
+        "description": "A screen waiting in a product for a round.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fromLabel": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "movedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "placement": {
+            "$ref": "#/components/schemas/Placement"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "version": {
+            "default": "",
+            "description": "The round it was filed into; null while it is still waiting.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "waiting": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ScreenHtml": {
+        "default": null,
+        "properties": {
+          "html": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "html"
+        ],
+        "type": "object"
+      },
+      "ScreenView": {
+        "default": null,
+        "description": "A screen without its page. The html is fetched per screen, because a meeting's pages together run to megabytes.",
+        "properties": {
+          "change": {
+            "default": "",
+            "description": "`new` when the product has never had it, `modified` when it changed since it was sent, null when they agree.",
+            "enum": [
+              "new",
+              "modified"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "movedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "PC",
+              "Mobile"
+            ],
+            "type": "string"
+          },
+          "position": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "screenType": {
+            "enum": [
+              "Screen",
+              "Popup",
+              "Drawer"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ScreenWrite": {
+        "default": null,
+        "description": "One generated screen. `parentId` may name another screen in the same request; parents need not be listed first.",
+        "properties": {
+          "html": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "PC",
+              "Mobile"
+            ],
+            "type": "string"
+          },
+          "screenType": {
+            "enum": [
+              "Screen",
+              "Popup",
+              "Drawer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "ScreensMoved": {
+        "default": null,
+        "description": "Records that the set has been sent to a product.",
+        "properties": {
+          "projectId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "ScreensReplace": {
+        "default": null,
+        "description": "The whole set after a generation. Screens matched by name keep their id, their placement and their moved mark; the rest are new.",
+        "properties": {
+          "screens": {
+            "items": {
+              "$ref": "#/components/schemas/ScreenWrite"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "screens"
+        ],
+        "type": "object"
+      },
+      "UserView": {
+        "default": null,
+        "description": "Who the caller is, as the workspace shows them.",
+        "properties": {
+          "department": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastLoginAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "usageGroup": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceStatePatch": {
+        "default": null,
+        "description": "A batch of writes, applied together. The browser batches its changes and sends them as one request rather than one per key.",
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceStateWrite"
+            },
+            "maxItems": 500,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "type": "object"
+      },
+      "WorkspaceStateResult": {
+        "default": null,
+        "properties": {
+          "deleted": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rejected": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "written": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceStateSnapshot": {
+        "default": null,
+        "description": "Everything the caller can see, as one map. Read once when the workspace loads, because the code that consumes it reads synchronously.",
+        "properties": {
+          "entries": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": "",
+            "description": "Key to the exact string that was stored.",
+            "type": "object"
+          },
+          "personalKeys": {
+            "default": "",
+            "description": "Keys that belong to this viewer rather than the team.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceStateWrite": {
+        "default": null,
+        "description": "One key to write, or to delete when `value` is null.",
+        "properties": {
+          "key": {
+            "maxLength": 400,
+            "minLength": 0,
+            "type": "string"
+          },
+          "value": {
+            "default": "",
+            "description": "The string to store. Null deletes the key.",
+            "maxLength": 8000000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Projects, meetings, generated screens, and the requests they become.",
+    "license": {
+      "name": "Proprietary"
+    },
+    "title": "WE-ADK API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/ai/canvas": {
+      "post": {
+        "description": "The operations come back as the model wrote them. They are validated against the block catalogue on the client, which owns it.",
+        "operationId": "canvas",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Anthropic-Api-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasEditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasEditResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Turn an instruction into canvas operations.",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/ai/chat": {
+      "post": {
+        "operationId": "chat",
+        "parameters": [
+          {
+            "description": "Spend your own quota instead of the server's.",
+            "in": "header",
+            "name": "X-Anthropic-Api-Key",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-ndjson": {
+                "schema": {
+                  "additionalProperties": {
+                    "default": ""
+                  },
+                  "default": "",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "A stream of envelopes: `stream_event` per token, then a closing `result`."
+          }
+        },
+        "summary": "One turn of the folder chat, streamed as newline-delimited JSON.",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/ai/frd": {
+      "post": {
+        "operationId": "frd",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Anthropic-Api-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrdRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrdResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Derive functional requirements from a product requirement document.",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/ai/generate": {
+      "post": {
+        "operationId": "generate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Anthropic-Api-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateScreensRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateScreensResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Propose the concept screens a set of meeting notes implies.",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/ai/status": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiStatus"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Whether this deployment can call Claude, and which models its aliases mean.",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/ai/verify": {
+      "post": {
+        "description": "Runs one tiny Haiku turn. Send X-Anthropic-Api-Key to check your own key rather than the server's.",
+        "operationId": "verify",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Anthropic-Api-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiVerifyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Prove a credential works.",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "description": "Available when this deployment signs its own tokens; 501 when it only verifies tokens from an external issuer.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [],
+        "summary": "Exchange an email and password for a bearer token.",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "The account behind the bearer token.",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/meetings/{id}": {
+      "delete": {
+        "operationId": "delete_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "get": {
+        "operationId": "get_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "patch": {
+        "operationId": "update_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Meetings"
+        ]
+      }
+    },
+    "/api/meetings/{id}/screens": {
+      "delete": {
+        "operationId": "reset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Reset: the screens go, the notes stay.",
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "put": {
+        "operationId": "replaceScreens",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreensReplace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Replace the set after a generation; unmentioned screens are kept as they are.",
+        "tags": [
+          "Meetings"
+        ]
+      }
+    },
+    "/api/meetings/{id}/screens/moved": {
+      "post": {
+        "operationId": "markMoved",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreensMoved"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Record that the whole set has been sent to a product.",
+        "tags": [
+          "Meetings"
+        ]
+      }
+    },
+    "/api/projects": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "List projects; omit `archived` for all of them.",
+        "tags": [
+          "Projects"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/api/projects/{id}": {
+      "delete": {
+        "operationId": "delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Projects"
+        ]
+      },
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Projects"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/api/projects/{projectId}/meetings": {
+      "get": {
+        "operationId": "list_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MeetingView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "post": {
+        "operationId": "create_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingView"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "Meetings"
+        ]
+      }
+    },
+    "/api/projects/{projectId}/requests": {
+      "get": {
+        "operationId": "list_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "waitingOnly",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RequestView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Requests"
+        ]
+      },
+      "post": {
+        "operationId": "move",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "projectId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestMove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RequestView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "summary": "Move screens into this product's Request tab.",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/requests/{id}": {
+      "delete": {
+        "operationId": "delete_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/requests/{id}/file": {
+      "post": {
+        "operationId": "file",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestFile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "File a waiting request into a round.",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/screens/{id}/html": {
+      "get": {
+        "operationId": "html",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenHtml"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "The page itself, fetched per screen rather than with the meeting.",
+        "tags": [
+          "Meetings"
+        ]
+      },
+      "put": {
+        "operationId": "saveHtml",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenHtml"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Save the page. Writing it is what marks the screen modified.",
+        "tags": [
+          "Meetings"
+        ]
+      }
+    },
+    "/api/state": {
+      "get": {
+        "description": "One request rather than one per key: the code that consumes this reads synchronously from inside render paths, so it hydrates once at load.",
+        "operationId": "snapshot",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceStateSnapshot"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Everything the caller can see, in one read.",
+        "tags": [
+          "Workspace state"
+        ]
+      },
+      "put": {
+        "operationId": "apply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceStatePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceStateResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Apply a batch of writes and deletions.",
+        "tags": [
+          "Workspace state"
+        ]
+      }
+    },
+    "/api/state/import": {
+      "post": {
+        "description": "The one-time handover from a browser that still holds state. Fills gaps and never overwrites, so whichever browser connects first cannot flatten work done from another.",
+        "operationId": "importMissing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceStatePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceStateResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Seed only the keys that do not exist yet.",
+        "tags": [
+          "Workspace state"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Conversations, and the screens they produced.",
+      "name": "Meetings"
+    },
+    {
+      "description": "Screens waiting in a product for a round.",
+      "name": "Requests"
+    },
+    {
+      "description": "Sign in, and who the caller is.",
+      "name": "Auth"
+    },
+    {
+      "description": "Screen generation, canvas edits and the folder chat.",
+      "name": "AI"
+    },
+    {
+      "description": "Products, and the Customer projects that feed them.",
+      "name": "Projects"
+    },
+    {
+      "description": "The state the workspace used to keep in the browser.",
+      "name": "Workspace state"
+    }
+  ]
+}

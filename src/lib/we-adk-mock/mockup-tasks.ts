@@ -12,6 +12,7 @@
 
 import { pageTitleFromHtml } from '@/lib/we-adk/mockup-pages';
 import type { IAPlatform, IAScreenType } from './ia';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type MeetingKind = 'meeting-note' | 'wireframe';
 
@@ -282,7 +283,7 @@ function seededKey(projectId: string): string {
 
 function loadSeeded(projectId: string): string[] {
   try {
-    const raw = window.localStorage.getItem(seededKey(projectId));
+    const raw = workspaceStore.getItem(seededKey(projectId));
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
   } catch {
@@ -292,7 +293,7 @@ function loadSeeded(projectId: string): string[] {
 
 function saveSeeded(projectId: string, ids: string[]): void {
   try {
-    window.localStorage.setItem(seededKey(projectId), JSON.stringify(ids));
+    workspaceStore.setItem(seededKey(projectId), JSON.stringify(ids));
   } catch {
     // Storage unavailable — the seed will be offered again next time.
   }
@@ -314,7 +315,7 @@ function saveSeeded(projectId: string, ids: string[]): void {
 export function loadMockups(projectId: string): MockupMeeting[] {
   try {
     const seed = SEED_MEETINGS[projectId] ?? SEED_MEETINGS['proj-eacc-cloud'] ?? [];
-    const raw = window.localStorage.getItem(storageKey(projectId));
+    const raw = workspaceStore.getItem(storageKey(projectId));
 
     if (!raw) {
       saveSeeded(projectId, seed.map((meeting) => meeting.id));
@@ -337,5 +338,5 @@ export function loadMockups(projectId: string): MockupMeeting[] {
 }
 
 export function saveMockups(projectId: string, meetings: MockupMeeting[]): void {
-  try { window.localStorage.setItem(storageKey(projectId), JSON.stringify(meetings)); } catch {}
+  try { workspaceStore.setItem(storageKey(projectId), JSON.stringify(meetings)); } catch {}
 }

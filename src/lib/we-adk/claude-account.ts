@@ -1,11 +1,14 @@
 'use client';
 
 /**
- * Each user connects their own Claude Code account: the token from
- * `claude setup-token` lives only in this browser's localStorage and is sent
- * as a header with every AI request. The server never persists it.
+ * A per-browser Anthropic credential, overriding the API's own for this user.
+ *
+ * Stays in `localStorage` deliberately — it is one of the three keys that never leave the
+ * browser, alongside the session token. The API rejects it if sent, and a check constraint
+ * on `workspace_state` rejects it again.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { authHeaders } from '@/lib/api/session';
 
 const TOKEN_STORAGE_KEY = 'we-adk:claude-token';
 export const CLAUDE_TOKEN_HEADER = 'x-claude-token';
@@ -37,10 +40,22 @@ export function clearClaudeToken(): void {
   }
 }
 
-/** Header object to spread into fetch calls against the AI bridge routes. */
+/**
+ * Headers to spread into fetch calls against the AI bridge routes.
+ *
+ * Two credentials, doing different jobs, which is why they travel together. The bearer
+ * token says who is asking and is what the API checks before doing anything at all; the
+ * Claude token is optional and says whose Claude quota to spend. The bridge is the one
+ * place both are needed, so this is the one place that assembles them — twelve call sites
+ * spread this object, and adding the session header to each of them by hand would be
+ * twelve chances to miss one.
+ */
 export function claudeHeaders(): Record<string, string> {
   const token = getClaudeToken();
-  return token ? { [CLAUDE_TOKEN_HEADER]: token } : {};
+  return {
+    ...authHeaders(),
+    ...(token ? { [CLAUDE_TOKEN_HEADER]: token } : {}),
+  };
 }
 
 export function useClaudeAccount(): {

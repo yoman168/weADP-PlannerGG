@@ -1,9 +1,13 @@
 /**
- * Confirms a pasted `claude setup-token` actually works before the browser
- * saves it: runs one tiny haiku turn as that account and reports the outcome.
+ * Confirms a pasted credential works before the browser saves it.
+ *
+ * The API runs one tiny Haiku turn as that credential and reports the outcome, so a key
+ * that will not work is rejected at the point it is entered rather than the first time
+ * someone tries to generate a screen.
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { isLoopbackRequest, readClaudeToken, runClaude } from '@/lib/we-adk/claude-cli';
+import { forward } from '@/lib/api/backend';
+import { isLoopbackRequest } from '@/lib/api/loopback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,22 +17,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Remote access is disabled.' }, { status: 403 });
   }
 
-  const token = readClaudeToken(request);
-  if (!token) {
-    return NextResponse.json(
-      { error: 'That does not look like a Claude Code token (expected sk-ant-…).' },
-      { status: 401 },
-    );
-  }
-
-  const outcome = await runClaude({
-    prompt: 'Reply with exactly OK',
-    token,
-    model: 'haiku',
-    timeoutMs: 60_000,
-  });
+  // The key itself travels in the header `backendHeaders` forwards; there is no body.
+  const outcome = await forward<{ ok?: boolean; model?: string }>(request, '/api/ai/verify', {});
   if (!outcome.ok) {
     return NextResponse.json({ error: outcome.error }, { status: outcome.status });
   }
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, model: outcome.data.model });
 }

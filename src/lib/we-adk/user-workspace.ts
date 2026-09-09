@@ -6,7 +6,7 @@
  * dropped straight into a round, so both tabs write to the same place and agree
  * on what a workspace is.
  *
- * Browser-only — every member and every forked screen lives in localStorage.
+ * Every member and every forked screen is workspace state, held in the API.
  */
 import {
   addBlankDesign,
@@ -26,6 +26,7 @@ import {
 } from '@/lib/we-adk-mock/versions';
 import { forkScreenForMember } from '@/lib/we-adk/user-merge';
 import { memberScopedId, readPrototypeId } from '@/lib/we-adk/prototype';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type MemberRole = 'Project Lead' | 'Developer' | 'Designer' | 'QA' | 'PM' | 'Other';
 
@@ -130,14 +131,14 @@ export const PROJECT_TEAMS: Record<string, TeamMember[]> = {
 };
 
 /* ------------------------------------------------------------------ */
-/* localStorage — team members                                        */
+/* Workspace state — team members                                        */
 /* ------------------------------------------------------------------ */
 
 const STORAGE_KEY = 'we-adk:team-members';
 
 export function loadUserMembers(projectId: string): TeamMember[] {
   try {
-    const raw = window.localStorage.getItem(`${STORAGE_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${STORAGE_KEY}:${projectId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as TeamMember[]) : [];
@@ -148,7 +149,7 @@ export function loadUserMembers(projectId: string): TeamMember[] {
 
 export function saveUserMembers(projectId: string, members: TeamMember[]): void {
   try {
-    window.localStorage.setItem(`${STORAGE_KEY}:${projectId}`, JSON.stringify(members));
+    workspaceStore.setItem(`${STORAGE_KEY}:${projectId}`, JSON.stringify(members));
   } catch {}
 }
 
@@ -180,7 +181,7 @@ export function loadUserScreens(
   version: number,
 ): SketchScreen[] | null {
   try {
-    const raw = window.localStorage.getItem(userScreensStorageKey(projectId, userId, version));
+    const raw = workspaceStore.getItem(userScreensStorageKey(projectId, userId, version));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as SketchScreen[]) : null;
@@ -196,7 +197,7 @@ export function saveUserScreens(
   screens: SketchScreen[],
 ): void {
   try {
-    window.localStorage.setItem(
+    workspaceStore.setItem(
       userScreensStorageKey(projectId, userId, version),
       JSON.stringify(screens),
     );
@@ -253,10 +254,10 @@ export function initUserScreens(
     const memberHtmlKey = `we-adk:design-html:${screen.id}`;
     const mainHtmlKey = `we-adk:design-html:${mainScreen.id}`;
     try {
-      const memberHtml = window.localStorage.getItem(memberHtmlKey);
+      const memberHtml = workspaceStore.getItem(memberHtmlKey);
       if (!memberHtml) {
-        const mainHtml = window.localStorage.getItem(mainHtmlKey);
-        if (mainHtml) window.localStorage.setItem(memberHtmlKey, mainHtml);
+        const mainHtml = workspaceStore.getItem(mainHtmlKey);
+        if (mainHtml) workspaceStore.setItem(memberHtmlKey, mainHtml);
       }
     } catch { /* storage full */ }
   }
@@ -318,7 +319,7 @@ export function loadUserSubfolders(
   version: number,
 ): UserSubfolder[] {
   try {
-    const raw = window.localStorage.getItem(userSubfolderListKey(projectId, userId, version));
+    const raw = workspaceStore.getItem(userSubfolderListKey(projectId, userId, version));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -341,7 +342,7 @@ function saveUserSubfolders(
   folders: UserSubfolder[],
 ): void {
   try {
-    window.localStorage.setItem(
+    workspaceStore.setItem(
       userSubfolderListKey(projectId, userId, version),
       JSON.stringify(folders),
     );
@@ -399,7 +400,7 @@ export function removeUserSubfolder(
   );
   saveUserSubfolders(projectId, userId, version, next);
   try {
-    window.localStorage.removeItem(userScreensStorageKey(projectId, userId, version, subfolderId));
+    workspaceStore.removeItem(userScreensStorageKey(projectId, userId, version, subfolderId));
   } catch {
     // Nothing to clean up.
   }

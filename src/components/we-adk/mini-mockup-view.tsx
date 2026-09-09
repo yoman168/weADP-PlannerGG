@@ -1,8 +1,41 @@
 'use client';
 
-import { ArrowLeft, CalendarDays, CircleStop, Clock, ChevronDown, ChevronRight, Code2, ExternalLink, FileCode2, Folder, FolderOpen, Layers, Loader2, MessageSquare, MousePointerClick, PackageOpen, Pencil, Plus, Link2, RotateCcw, Save, Sparkles, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  CircleStop,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  Code2,
+  ExternalLink,
+  FileCode2,
+  Folder,
+  FolderOpen,
+  Layers,
+  Loader2,
+  MessageSquare,
+  MousePointerClick,
+  PackageOpen,
+  Pencil,
+  Plus,
+  Link2,
+  RotateCcw,
+  Save,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, cn } from '@/components/ui';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  cn,
+} from '@/components/ui';
 import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import { ChatPane, readChatEvent, type ChatTurn } from '@/components/we-adk/claude-chat';
 import { findProject } from '@/lib/we-adk-mock/projects';
@@ -53,13 +86,18 @@ import {
   type GenerateMode,
 } from '@/components/we-adk/product-mockup';
 import { addStandaloneDraft } from '@/lib/we-adk/task-design';
-
-
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 function formatDate(dateStr: string): string {
   try {
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch { return dateStr; }
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
 }
 
 function chatKey(projectId: string, meetingId: string) {
@@ -68,13 +106,17 @@ function chatKey(projectId: string, meetingId: string) {
 
 function loadChatTurns(projectId: string, meetingId: string): ChatTurn[] {
   try {
-    const raw = window.localStorage.getItem(chatKey(projectId, meetingId));
+    const raw = workspaceStore.getItem(chatKey(projectId, meetingId));
     return raw ? (JSON.parse(raw) as ChatTurn[]) : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function saveChatTurns(projectId: string, meetingId: string, turns: ChatTurn[]): void {
-  try { window.localStorage.setItem(chatKey(projectId, meetingId), JSON.stringify(turns.slice(-40))); } catch {}
+  try {
+    workspaceStore.setItem(chatKey(projectId, meetingId), JSON.stringify(turns.slice(-40)));
+  } catch {}
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,6 +195,26 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
   const [meetings, setMeetings] = useState<MockupMeeting[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  /**
+   * The prompt an Improve click hands to the chat.
+   *
+   * Deliberately routed through the chat rather than sent as its own one-shot call. The
+   * notes are what every screen in this meeting is generated from, so silently rewriting
+   * them is the last thing this button should do — the chat's meeting skill answers with a
+   * ```notes block, which renders an "Apply to Notes" button, and applying it stays a
+   * decision. It also costs no new endpoint: `onApplyNotes` below is already wired.
+   */
+  const [aiPrompt, setAiPrompt] = useState<string | null>(null);
+
+  /**
+   * Hidden until asked for, like every other chat in the workspace.
+   *
+   * Open by default it took a quarter of the width from the two things being compared —
+   * the notes and the screen — before anyone had asked it anything. The preview page, the
+   * task tab and Main all start theirs closed; this one was the exception and the
+   * inconsistency was the bug, not the width.
+   */
+  const [chatCollapsed, setChatCollapsed] = useState(true);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newAttendees, setNewAttendees] = useState('');
@@ -457,7 +519,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
 
     // The preview reads the stored page, not the meeting record.
     try {
-      window.localStorage.setItem(`we-adk:design-html:${pageId}`, updatedHtml);
+      workspaceStore.setItem(`we-adk:design-html:${pageId}`, updatedHtml);
     } catch {
       /* storage full */
     }
@@ -472,9 +534,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
     const next: MockupScreen[] =
       current.length === 0
         ? [{ id: meeting.id, name: meeting.title, html, ia: meetingIA(meeting), updatedAt: stamp }]
-        : current.map((page) =>
-            page.id === pageId ? { ...page, html, updatedAt: stamp } : page,
-          );
+        : current.map((page) => (page.id === pageId ? { ...page, html, updatedAt: stamp } : page));
     const patched = withScreens(meeting, next);
     updateMeeting(meeting.id, { screens: patched.screens, htmlPreview: patched.htmlPreview });
   };
@@ -595,7 +655,9 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
         product && productIA.length > 0
           ? `\n\nThis is part of the product "${product.name}", which already has these screens:\n${productIA
               .map((screen) => `- ${screen.name}`)
-              .join('\n')}\nBuild what the notes add to it. Do not rebuild a screen it already has, and where a new screen opens from one of them, name that screen in the "from:" field.`
+              .join(
+                '\n',
+              )}\nBuild what the notes add to it. Do not rebuild a screen it already has, and where a new screen opens from one of them, name that screen in the "from:" field.`
           : '';
       const context = isWireframe
         ? `Wireframe: ${meeting.title}\nDate: ${meeting.date}\n\nDescription:\n${meeting.notes}${hasDrawings ? `\n\n[${boardCards.length} whiteboard drawing(s) attached as images — use them as the layout reference]` : ''}`
@@ -619,7 +681,9 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                   parent ? ` · from: ${parent.name}` : ''
                 }`;
               })
-              .join('\n')}\nThis is a revision, not a fresh start. Return ONLY the screens that should change and any that are missing, each as a full PAGE block. Do not resend a screen that does not need to change — one left out is kept exactly as it is. Reuse these names exactly for the screens you do return.`;
+              .join(
+                '\n',
+              )}\nThis is a revision, not a fresh start. Return ONLY the screens that should change and any that are missing, each as a full PAGE block. Do not resend a screen that does not need to change — one left out is kept exactly as it is. Reuse these names exactly for the screens you do return.`;
       const fullContext = `${context}${productContext}${existingContext}`;
 
       /*
@@ -754,7 +818,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
         for (const page of parsed) {
           const id = idByName.get(key(page.name))!;
           const kept = byName.get(key(page.name));
-          const parentId = page.parentName ? idByName.get(key(page.parentName)) ?? null : null;
+          const parentId = page.parentName ? (idByName.get(key(page.parentName)) ?? null) : null;
           built.set(id, {
             id,
             name: page.name,
@@ -762,23 +826,22 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
             updatedAt: stamp,
             movedAt: kept?.movedAt,
             // A placement already agreed is not the reply's to change.
-            ia:
-              kept?.ia ?? {
-                // A screen cannot open from itself, whatever the reply said.
-                parentId: parentId === id ? null : parentId,
-                screenType: page.screenType,
-                platform: page.platform,
-              },
+            ia: kept?.ia ?? {
+              // A screen cannot open from itself, whatever the reply said.
+              parentId: parentId === id ? null : parentId,
+              screenType: page.screenType,
+              platform: page.platform,
+            },
           });
         }
 
         // The order the meeting already had, then whatever is new.
         const pages: MockupScreen[] = [
           ...before.map((page) => built.get(page.id) ?? page),
-          ...Array.from(built.values()).filter((page) => !used.has(page.id) || !byName.has(key(page.name))),
-        ].filter(
-          (page, index, all) => all.findIndex((entry) => entry.id === page.id) === index,
-        );
+          ...Array.from(built.values()).filter(
+            (page) => !used.has(page.id) || !byName.has(key(page.name)),
+          ),
+        ].filter((page, index, all) => all.findIndex((entry) => entry.id === page.id) === index);
 
         const patched = withScreens(meeting, pages);
         updateMeeting(meeting.id, { screens: patched.screens, htmlPreview: patched.htmlPreview });
@@ -810,7 +873,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
             controller.signal,
           );
           if (blocks.length > 0) {
-            window.localStorage.setItem(canvasKey(pages[0]!.id), JSON.stringify(blocks));
+            workspaceStore.setItem(canvasKey(pages[0]!.id), JSON.stringify(blocks));
             window.dispatchEvent(new Event('we-adk:canvas-saved'));
           }
         } catch {
@@ -870,14 +933,27 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                     )}
                   >
                     <span className="flex items-center gap-1">
-                      <span className={cn('min-w-0 flex-1 truncate text-[13px]', active ? 'font-semibold' : 'font-medium')}>
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate text-[13px]',
+                          active ? 'font-semibold' : 'font-medium',
+                        )}
+                      >
                         {meeting.title}
                       </span>
                       <span
                         role="button"
                         tabIndex={0}
-                        onClick={(e) => { e.stopPropagation(); deleteMeeting(meeting.id); }}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); deleteMeeting(meeting.id); } }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMeeting(meeting.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            deleteMeeting(meeting.id);
+                          }
+                        }}
                         className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
                         title="Delete meeting"
                       >
@@ -913,7 +989,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
             {/* Content */}
             <div className="bg-background min-w-0 flex-1 overflow-y-auto">
               <div className="mx-auto w-full max-w-5xl px-6 pb-40">
-
                 {/* Hero */}
                 <div className="pt-6 flex items-start justify-between gap-4">
                   <div>
@@ -932,7 +1007,10 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                           SOURCE_STYLE[selected.source ?? 'meeting'],
                         )}
                       >
-                        {TASK_SOURCES.find((entry) => entry.id === (selected.source ?? 'meeting'))?.label}
+                        {
+                          TASK_SOURCES.find((entry) => entry.id === (selected.source ?? 'meeting'))
+                            ?.label
+                        }
                       </span>
                     </div>
                     <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-1.5 text-xs">
@@ -941,13 +1019,17 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                           <span className="truncate" title={`Posted by ${meetingAuthor(selected)}`}>
                             {meetingAuthor(selected)}
                           </span>
-                          <span aria-hidden className="opacity-40">·</span>
+                          <span aria-hidden className="opacity-40">
+                            ·
+                          </span>
                         </>
                       )}
                       <span>{formatDate(selected.date)}</span>
                       {pages.length > 0 && (
                         <>
-                          <span aria-hidden className="opacity-40">·</span>
+                          <span aria-hidden className="opacity-40">
+                            ·
+                          </span>
                           <span>
                             {pages.length} screen{pages.length === 1 ? '' : 's'}
                           </span>
@@ -958,7 +1040,9 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                           is the frame for everything else on this page. */}
                       {product && (
                         <>
-                          <span aria-hidden className="opacity-40">·</span>
+                          <span aria-hidden className="opacity-40">
+                            ·
+                          </span>
                           <span
                             className="flex min-w-0 items-center gap-1"
                             title={
@@ -1001,7 +1085,11 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                         setModeFor(selected);
                       }}
                     >
-                      {generatingId === selected.id ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+                      {generatingId === selected.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="size-3" />
+                      )}
                       {generatingId === selected.id ? 'Generating...' : 'Generate'}
                     </Button>
                     {/* Only once there is something to throw away, and never
@@ -1044,7 +1132,12 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                     </h3>
                     {editingNotes ? (
                       <div className="flex items-center gap-1.5">
-                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditingNotes(false)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => setEditingNotes(false)}
+                        >
                           Cancel
                         </Button>
                         <Button
@@ -1059,18 +1152,58 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                         </Button>
                       </div>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-muted-foreground h-7 gap-1.5 px-2 text-xs"
-                        onClick={() => {
-                          setEditNotesText(selected.notes);
-                          setEditingNotes(true);
-                        }}
-                      >
-                        <Pencil className="size-3" />
-                        Edit
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {/*
+                          Improve, next to Edit, because they are the two ways to change the
+                          same text — one by hand and one by asking. Disabled on empty notes:
+                          there is nothing to improve, and asking anyway spends a call to be
+                          told so.
+                        */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-muted-foreground h-7 gap-1.5 px-2 text-xs"
+                          disabled={!selected.notes.trim()}
+                          title={
+                            selected.notes.trim()
+                              ? 'Ask Claude to tidy and fill gaps in these notes'
+                              : 'Write some notes first'
+                          }
+                          onClick={() => {
+                            setChatCollapsed(false);
+                            setAiPrompt(
+                              [
+                                'Improve these meeting notes.',
+                                '',
+                                'Keep every decision and detail that is already there — this is the',
+                                'record of what the customer said, so nothing may be invented or',
+                                'dropped. Tidy the structure, make the wording consistent, and group',
+                                'what belongs together. Where something is clearly missing or',
+                                'ambiguous, say so as an open question rather than answering it',
+                                'yourself.',
+                                '',
+                                'Explain what you changed, then give the full updated notes in a',
+                                'notes block so I can apply them.',
+                              ].join('\n'),
+                            );
+                          }}
+                        >
+                          <Sparkles className="size-3.5" />
+                          Improve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-muted-foreground h-7 gap-1.5 px-2 text-xs"
+                          onClick={() => {
+                            setEditNotesText(selected.notes);
+                            setEditingNotes(true);
+                          }}
+                        >
+                          <Pencil className="size-3" />
+                          Edit
+                        </Button>
+                      </div>
                     )}
                   </div>
                   {editingNotes ? (
@@ -1082,13 +1215,15 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                     />
                   ) : (
                     <div className="mt-3 text-sm leading-[1.8] whitespace-pre-wrap">
-                      {selected.notes || <span className="text-muted-foreground italic">No notes captured.</span>}
+                      {selected.notes || (
+                        <span className="text-muted-foreground italic">No notes captured.</span>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* Whiteboard */}
-                {(
+                {
                   <WhiteboardPanel
                     sessionId={selected.id}
                     project={findProject(projectId)!}
@@ -1096,70 +1231,16 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                     whiteboardOnly
                     className="mt-6"
                   />
-                )}
-
-
+                }
               </div>
-            </div>
-
-            {/* AI Chat — floating at bottom */}
-            <div className="pointer-events-none absolute inset-0 flex items-end justify-center overflow-hidden px-6 pb-5">
-            <div className="pointer-events-auto flex max-h-[60%] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/95 backdrop-blur-sm [box-shadow:0_-1px_3px_rgba(0,0,0,0.06),0_-4px_12px_rgba(0,0,0,0.04)]">
-              <ChatPane
-                project={findProject(projectId)!}
-                /*
-                 * The notes, and the screen on view.
-                 *
-                 * The chat has no filesystem and no tools: what it can see is
-                 * this string. Without the page in it, "fix the close button"
-                 * had nothing to fix, so the model asked for a file path — for
-                 * a page that has never been a file.
-                 */
-                contextText={[
-                  `Meeting: ${selected.title}`,
-                  `Date: ${selected.date}`,
-                  `Attendees: ${selected.attendees}`,
-                  '',
-                  'Notes:',
-                  selected.notes,
-                  ...(activePage
-                    ? [
-                        '',
-                        `CURRENT SCREEN: ${activePage.name}` +
-                          (pages.length > 1
-                            ? ` (${pages.findIndex((page) => page.id === activePage.id) + 1} of ${pages.length})`
-                            : ''),
-                        'This is the whole of it. Return a complete ```html block to replace it.',
-                        '```html',
-                        activePage.html,
-                        '```',
-                      ]
-                    : []),
-                ].join('\n')}
-                folderLabel={`mockup/${selected.title}`}
-                greeting=""
-                greetingHint=""
-                initialTurns={chatTurns}
-                onPersist={(turns) => { if (selected) saveChatTurns(projectId, selected.id, turns); }}
-                onResponse={(responseText) => {
-                  const htmlMatch = responseText.match(/```html\s*\n([\s\S]*?)```/);
-                  const chatHtml = htmlMatch?.[1]?.trim()
-                    ?? (/^\s*<!DOCTYPE\s+html/i.test(responseText) || /^\s*<html[\s>]/i.test(responseText) ? responseText.trim() : null);
-                  if (chatHtml) {
-                    const pageId = activePage?.id ?? selected.id;
-                    updatePageHtml(selected, pageId, chatHtml);
-                    saveHtmlAndBlocks(pageId, chatHtml);
-                  }
-                }}
-                onApplyNotes={(notes) => updateMeeting(selected.id, { notes })}
-                composerClassName="mx-auto w-full max-w-3xl p-2.5"
-              />
-            </div>
             </div>
           </div>
 
           {/* Right: HTML preview */}
-          <div className="relative flex shrink-0 flex-col overflow-hidden border-l bg-[#fafafa] dark:bg-[#0d1017]" style={{ width: previewWidth || '50%' }}>
+          <div
+            className="relative flex shrink-0 flex-col overflow-hidden border-l bg-[#fafafa] dark:bg-[#0d1017]"
+            style={{ width: previewWidth || '50%' }}
+          >
             {/* Drag handle */}
             <div
               role="separator"
@@ -1174,7 +1255,10 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
               onPointerMove={(e) => {
                 if (!previewDrag.current) return;
                 const total = containerRef.current ? containerRef.current.offsetWidth : 1200;
-                const next = Math.min(total * 0.8, Math.max(200, previewDrag.current.w - (e.clientX - previewDrag.current.x)));
+                const next = Math.min(
+                  total * 0.8,
+                  Math.max(200, previewDrag.current.w - (e.clientX - previewDrag.current.x)),
+                );
                 setPreviewWidth(next);
               }}
               onPointerUp={(e) => {
@@ -1203,7 +1287,9 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                   type="button"
                   onClick={() => setPreviewMode('page')}
                   disabled={!activePage}
-                  title={activePage ? 'Edit the generated page directly' : 'Generate the screens first'}
+                  title={
+                    activePage ? 'Edit the generated page directly' : 'Generate the screens first'
+                  }
                   className={cn(
                     'flex items-center gap-1.5 border-l px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-40',
                     previewMode === 'page'
@@ -1313,129 +1399,138 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                     <span className="shrink-0 font-mono text-[10px]">{treeScreens.length}</span>
                   </div>
                   <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
-                  {(() => {
-                    const renderNode = (node: FlowNode): ReactNode => {
-                      const own = ownIds.has(node.screen.id);
-                      const hasChildren = node.children.length > 0;
-                      const folded = collapsedScreens.has(node.screen.id);
-                      const active = own
-                        ? activePage?.id === node.screen.id && externalId === null
-                        : externalId === node.screen.id;
-                      return (
-                        <div key={node.screen.id}>
-                          <div
-                            className={cn(
-                              'flex w-full items-center gap-1 border-l-2 py-1 pr-1.5 pl-1 text-xs',
-                              active
-                                ? 'border-primary bg-muted text-foreground'
-                                : 'border-transparent text-muted-foreground hover:bg-muted/50',
-                            )}
-                          >
-                            {/* A screen that opens others is a section as well
-                                as a screen, so it folds like one — and a leaf
-                                keeps the slot so no filename shifts. */}
-                            {hasChildren ? (
-                              <button
-                                type="button"
-                                onClick={() => toggleScreen(node.screen.id)}
-                                aria-label={`${folded ? 'Expand' : 'Collapse'} ${node.screen.name}`}
-                                aria-expanded={!folded}
-                                className="hover:text-foreground shrink-0"
-                              >
-                                {folded ? (
-                                  <ChevronRight className="size-3.5" />
-                                ) : (
-                                  <ChevronDown className="size-3.5" />
-                                )}
-                              </button>
-                            ) : (
-                              <span aria-hidden className="w-3.5 shrink-0" />
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (own) {
-                                  setActivePageId(node.screen.id);
-                                  setExternalId(null);
-                                } else {
-                                  setExternalId(node.screen.id);
-                                }
-                              }}
-                              title={node.screen.name}
+                    {(() => {
+                      const renderNode = (node: FlowNode): ReactNode => {
+                        const own = ownIds.has(node.screen.id);
+                        const hasChildren = node.children.length > 0;
+                        const folded = collapsedScreens.has(node.screen.id);
+                        const active = own
+                          ? activePage?.id === node.screen.id && externalId === null
+                          : externalId === node.screen.id;
+                        return (
+                          <div key={node.screen.id}>
+                            <div
                               className={cn(
-                                'flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left',
-                                active && 'font-medium',
+                                'flex w-full items-center gap-1 border-l-2 py-1 pr-1.5 pl-1 text-xs',
+                                active
+                                  ? 'border-primary bg-muted text-foreground'
+                                  : 'border-transparent text-muted-foreground hover:bg-muted/50',
                               )}
                             >
-                              {/* A screen that opens others is a section too,
+                              {/* A screen that opens others is a section as well
+                                as a screen, so it folds like one — and a leaf
+                                keeps the slot so no filename shifts. */}
+                              {hasChildren ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleScreen(node.screen.id)}
+                                  aria-label={`${folded ? 'Expand' : 'Collapse'} ${node.screen.name}`}
+                                  aria-expanded={!folded}
+                                  className="hover:text-foreground shrink-0"
+                                >
+                                  {folded ? (
+                                    <ChevronRight className="size-3.5" />
+                                  ) : (
+                                    <ChevronDown className="size-3.5" />
+                                  )}
+                                </button>
+                              ) : (
+                                <span aria-hidden className="w-3.5 shrink-0" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (own) {
+                                    setActivePageId(node.screen.id);
+                                    setExternalId(null);
+                                  } else {
+                                    setExternalId(node.screen.id);
+                                  }
+                                }}
+                                title={node.screen.name}
+                                className={cn(
+                                  'flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left',
+                                  active && 'font-medium',
+                                )}
+                              >
+                                {/* A screen that opens others is a section too,
                                   and Main draws a section as a folder — so it
                                   does here, and a leaf keeps the </> that says
                                   it is a page. */}
-                              {hasChildren ? (
-                                folded ? (
-                                  <Folder className={cn('size-3.5 shrink-0', !own && 'opacity-50')} />
+                                {hasChildren ? (
+                                  folded ? (
+                                    <Folder
+                                      className={cn('size-3.5 shrink-0', !own && 'opacity-50')}
+                                    />
+                                  ) : (
+                                    <FolderOpen
+                                      className={cn('size-3.5 shrink-0', !own && 'opacity-50')}
+                                    />
+                                  )
                                 ) : (
-                                  <FolderOpen className={cn('size-3.5 shrink-0', !own && 'opacity-50')} />
-                                )
-                              ) : (
-                                <Code2 className={cn('size-3.5 shrink-0', !own && 'opacity-50')} />
-                              )}
-                              <span className={cn('min-w-0 flex-1 truncate', !own && 'opacity-60')}>
-                                {node.screen.name}
-                              </span>
-                              {/* Already in the product — context, not work. */}
-                              {!own && (
+                                  <Code2
+                                    className={cn('size-3.5 shrink-0', !own && 'opacity-50')}
+                                  />
+                                )}
                                 <span
-                                  title={`Already in ${product?.name ?? 'the product'}`}
-                                  className="text-muted-foreground shrink-0 font-mono text-[9px]"
+                                  className={cn('min-w-0 flex-1 truncate', !own && 'opacity-60')}
                                 >
-                                  ·
+                                  {node.screen.name}
                                 </span>
-                              )}
-                              {/* N for new, M for modified: never sent to the
+                                {/* Already in the product — context, not work. */}
+                                {!own && (
+                                  <span
+                                    title={`Already in ${product?.name ?? 'the product'}`}
+                                    className="text-muted-foreground shrink-0 font-mono text-[9px]"
+                                  >
+                                    ·
+                                  </span>
+                                )}
+                                {/* N for new, M for modified: never sent to the
                                   product, or changed since it was. Nothing at
                                   all once the two agree. */}
-                              {own && (() => {
-                                const change = screenChange(node.screen);
-                                if (!change) return null;
-                                const isNew = change === 'added';
-                                const label = isNew
-                                  ? 'New — not in the product yet'
-                                  : 'Modified since it was sent';
-                                return (
+                                {own &&
+                                  (() => {
+                                    const change = screenChange(node.screen);
+                                    if (!change) return null;
+                                    const isNew = change === 'added';
+                                    const label = isNew
+                                      ? 'New — not in the product yet'
+                                      : 'Modified since it was sent';
+                                    return (
+                                      <span
+                                        title={label}
+                                        aria-label={label}
+                                        className={cn(
+                                          'shrink-0 font-mono text-[10px] font-semibold',
+                                          isNew
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-amber-600 dark:text-amber-400',
+                                        )}
+                                      >
+                                        {isNew ? 'N' : 'M'}
+                                      </span>
+                                    );
+                                  })()}
+                                {/* The letter marker Main uses for a popup. */}
+                                {node.screen.ia.screenType !== 'Screen' && (
                                   <span
-                                    title={label}
-                                    aria-label={label}
-                                    className={cn(
-                                      'shrink-0 font-mono text-[10px] font-semibold',
-                                      isNew
-                                        ? 'text-emerald-600 dark:text-emerald-400'
-                                        : 'text-amber-600 dark:text-amber-400',
-                                    )}
+                                    title={node.screen.ia.screenType}
+                                    className="w-3 shrink-0 text-center font-mono text-[10px] font-semibold text-violet-600 dark:text-violet-400"
                                   >
-                                    {isNew ? 'N' : 'M'}
+                                    {node.screen.ia.screenType.slice(0, 1)}
                                   </span>
-                                );
-                              })()}
-                              {/* The letter marker Main uses for a popup. */}
-                              {node.screen.ia.screenType !== 'Screen' && (
-                                <span
-                                  title={node.screen.ia.screenType}
-                                  className="w-3 shrink-0 text-center font-mono text-[10px] font-semibold text-violet-600 dark:text-violet-400"
-                                >
-                                  {node.screen.ia.screenType.slice(0, 1)}
-                                </span>
-                              )}
-                            </button>
+                                )}
+                              </button>
+                            </div>
+                            {hasChildren && !folded && (
+                              <div className="ml-4 border-l">{node.children.map(renderNode)}</div>
+                            )}
                           </div>
-                          {hasChildren && !folded && (
-                            <div className="ml-4 border-l">{node.children.map(renderNode)}</div>
-                          )}
-                        </div>
-                      );
-                    };
-                    return buildFlow(treeScreens).map(renderNode);
-                  })()}
+                        );
+                      };
+                      return buildFlow(treeScreens).map(renderNode);
+                    })()}
                   </div>
                 </div>
               )}
@@ -1456,10 +1551,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                        * recovers.
                        */
                       try {
-                        window.localStorage.setItem(
-                          `we-adk:design-html:${activePage.id}`,
-                          updatedHtml,
-                        );
+                        workspaceStore.setItem(`we-adk:design-html:${activePage.id}`, updatedHtml);
                       } catch {
                         /* storage full */
                       }
@@ -1480,72 +1572,177 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
               </div>
             </div>
           </div>
+
+          {/*
+            The AI chat, beside the preview it talks about.
+
+            It used to float over the notes column, centred at the bottom. That put it in
+            front of the thing it was for — the screen on the right — and left it covering
+            the notes, which are the other half of the conversation. As a column it covers
+            nothing, and asking for a change to the screen now happens next to the screen.
+
+            Collapsible, and the same 26rem aside the preview page, the whiteboard and the
+            entity canvas all use, so the chat is in the same place wherever it appears.
+          */}
+          {chatCollapsed ? (
+            <button
+              type="button"
+              onClick={() => setChatCollapsed(false)}
+              title="Open AI chat"
+              aria-label="Open AI chat"
+              className="bg-background hover:bg-muted fixed right-6 bottom-6 z-40 flex items-center gap-2 rounded-full border px-3.5 py-2 shadow-lg transition-colors"
+            >
+              <MessageSquare className="text-muted-foreground size-4" />
+              <span className="text-xs font-medium">AI Chat</span>
+            </button>
+          ) : (
+            <aside className="bg-background flex w-[26rem] shrink-0 flex-col overflow-hidden border-l">
+              <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
+                <span className="text-muted-foreground text-xs font-medium">AI Chat</span>
+                <button
+                  type="button"
+                  onClick={() => setChatCollapsed(true)}
+                  title="Close chat"
+                  aria-label="Close chat"
+                  className="text-muted-foreground hover:text-foreground rounded p-0.5"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <ChatPane
+                project={findProject(projectId)!}
+                /*
+                 * The notes, and the screen on view.
+                 *
+                 * The chat has no filesystem and no tools: what it can see is
+                 * this string. Without the page in it, "fix the close button"
+                 * had nothing to fix, so the model asked for a file path — for
+                 * a page that has never been a file.
+                 */
+                contextText={[
+                  `Meeting: ${selected.title}`,
+                  `Date: ${selected.date}`,
+                  `Attendees: ${selected.attendees}`,
+                  '',
+                  'Notes:',
+                  selected.notes,
+                  ...(activePage
+                    ? [
+                        '',
+                        `CURRENT SCREEN: ${activePage.name}` +
+                          (pages.length > 1
+                            ? ` (${pages.findIndex((page) => page.id === activePage.id) + 1} of ${pages.length})`
+                            : ''),
+                        'This is the whole of it. Return a complete ```html block to replace it.',
+                        '```html',
+                        activePage.html,
+                        '```',
+                      ]
+                    : []),
+                ].join('\n')}
+                folderLabel={`mockup/${selected.title}`}
+                greeting=""
+                greetingHint=""
+                initialTurns={chatTurns}
+                onPersist={(turns) => {
+                  if (selected) saveChatTurns(projectId, selected.id, turns);
+                }}
+                onResponse={(responseText) => {
+                  const htmlMatch = responseText.match(/```html\s*\n([\s\S]*?)```/);
+                  const chatHtml =
+                    htmlMatch?.[1]?.trim() ??
+                    (/^\s*<!DOCTYPE\s+html/i.test(responseText) ||
+                    /^\s*<html[\s>]/i.test(responseText)
+                      ? responseText.trim()
+                      : null);
+                  if (chatHtml) {
+                    const pageId = activePage?.id ?? selected.id;
+                    updatePageHtml(selected, pageId, chatHtml);
+                    saveHtmlAndBlocks(pageId, chatHtml);
+                  }
+                }}
+                pendingPrompt={aiPrompt}
+                onPromptHandled={() => setAiPrompt(null)}
+                onApplyNotes={(notes) => updateMeeting(selected.id, { notes })}
+              />
+            </aside>
+          )}
         </>
       ) : (
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 text-center">
           <MessageSquare className="text-muted-foreground/20 size-12" />
           <p className="text-sm font-medium">Select a meeting</p>
-          <p className="text-muted-foreground text-xs">Pick one from the list or create a new one.</p>
+          <p className="text-muted-foreground text-xs">
+            Pick one from the list or create a new one.
+          </p>
         </div>
       )}
 
       {/* The control just clicked on the screen, and what it should open. */}
-      {selected && activePage && picked !== null && (() => {
-        const control = listPageControls(activePage.html).find((entry) => entry.index === picked);
-        const save = (name: string) => {
-          const updated = setPageControlTargets(activePage.html, { [picked]: name });
-          const adopted = wireLink(selected, activePage.id, updated, name ? [name] : []);
-          if (adopted > 0) setMoved(`${name} now opens from ${activePage.name}`);
-          setPicked(null);
-        };
-        return (
-          <Dialog open onOpenChange={(next) => { if (!next) setPicked(null); }}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base">
-                  <Link2 className="size-4" />
-                  What does this open?
-                </DialogTitle>
-              </DialogHeader>
-              <p className="text-muted-foreground truncate text-xs" title={control?.label}>
-                {control?.label ?? 'That control'}
-                {control?.tag ? ` · ${control.tag}` : ''}
-              </p>
-              <div className="flex flex-col gap-1">
-                {pages
-                  .filter((page) => page.id !== activePage.id)
-                  .map((page) => (
-                    <button
-                      key={page.id}
-                      type="button"
-                      onClick={() => save(page.name)}
-                      className={cn(
-                        'hover:border-primary hover:bg-primary/5 flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
-                        control?.opens === page.name && 'border-primary bg-primary/5 font-medium',
-                      )}
-                    >
-                      <span className="min-w-0 flex-1 truncate">{page.name}</span>
-                      {page.ia.screenType !== 'Screen' && (
-                        <span className="text-muted-foreground shrink-0 text-[10px]">
-                          {page.ia.screenType}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Button variant="ghost" size="sm" onClick={() => save('')}>
-                  Opens nothing
-                </Button>
-                <span className="flex-1" />
-                <Button variant="ghost" size="sm" onClick={() => setPicked(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        );
-      })()}
+      {selected &&
+        activePage &&
+        picked !== null &&
+        (() => {
+          const control = listPageControls(activePage.html).find((entry) => entry.index === picked);
+          const save = (name: string) => {
+            const updated = setPageControlTargets(activePage.html, { [picked]: name });
+            const adopted = wireLink(selected, activePage.id, updated, name ? [name] : []);
+            if (adopted > 0) setMoved(`${name} now opens from ${activePage.name}`);
+            setPicked(null);
+          };
+          return (
+            <Dialog
+              open
+              onOpenChange={(next) => {
+                if (!next) setPicked(null);
+              }}
+            >
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-base">
+                    <Link2 className="size-4" />
+                    What does this open?
+                  </DialogTitle>
+                </DialogHeader>
+                <p className="text-muted-foreground truncate text-xs" title={control?.label}>
+                  {control?.label ?? 'That control'}
+                  {control?.tag ? ` · ${control.tag}` : ''}
+                </p>
+                <div className="flex flex-col gap-1">
+                  {pages
+                    .filter((page) => page.id !== activePage.id)
+                    .map((page) => (
+                      <button
+                        key={page.id}
+                        type="button"
+                        onClick={() => save(page.name)}
+                        className={cn(
+                          'hover:border-primary hover:bg-primary/5 flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                          control?.opens === page.name && 'border-primary bg-primary/5 font-medium',
+                        )}
+                      >
+                        <span className="min-w-0 flex-1 truncate">{page.name}</span>
+                        {page.ia.screenType !== 'Screen' && (
+                          <span className="text-muted-foreground shrink-0 text-[10px]">
+                            {page.ia.screenType}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button variant="ghost" size="sm" onClick={() => save('')}>
+                    Opens nothing
+                  </Button>
+                  <span className="flex-1" />
+                  <Button variant="ghost" size="sm" onClick={() => setPicked(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
 
       {/* What to build. The product answer opens the build dialog, which then
           holds every step of it. */}
@@ -1644,7 +1841,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                   const blocks = loadScreenBlocks(page.id, '');
                   if (blocks.length > 0) {
                     try {
-                      window.localStorage.setItem(canvasKey(screenId), JSON.stringify(blocks));
+                      workspaceStore.setItem(canvasKey(screenId), JSON.stringify(blocks));
                     } catch {
                       /* storage full — the copy keeps the parsed blocks */
                     }
@@ -1706,7 +1903,12 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
 
       {/* Reset: the screens go, the notes stay. Asked rather than done,
           because a generation is minutes of waiting and there is no undo. */}
-      <Dialog open={resetOpen} onOpenChange={(next) => { if (!next) setResetOpen(false); }}>
+      <Dialog
+        open={resetOpen}
+        onOpenChange={(next) => {
+          if (!next) setResetOpen(false);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base">Reset screens</DialogTitle>
@@ -1729,7 +1931,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                 // The pages themselves, then the record that they existed.
                 for (const page of meetingScreens(selected)) {
                   try {
-                    window.localStorage.removeItem(`we-adk:design-html:${page.id}`);
+                    workspaceStore.removeItem(`we-adk:design-html:${page.id}`);
                   } catch {
                     /* nothing to remove */
                   }
@@ -1757,7 +1959,12 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
 
       {/* Delete confirmation. Names the task, because "this meeting" told you
           nothing about which one was about to go. */}
-      <Dialog open={pendingDelete !== null} onOpenChange={(open) => { if (!open) setPendingDelete(null); }}>
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base">Delete meeting</DialogTitle>
@@ -1786,24 +1993,32 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
           <div className="bg-muted/40 px-6 py-5">
             <DialogHeader>
               <DialogTitle className="text-lg">New Meeting</DialogTitle>
-              <p className="text-muted-foreground text-xs mt-1">Capture a meeting to generate mockups from its notes.</p>
+              <p className="text-muted-foreground text-xs mt-1">
+                Capture a meeting to generate mockups from its notes.
+              </p>
             </DialogHeader>
           </div>
           <div className="flex flex-col gap-5 px-6 py-5">
             <div className="grid grid-cols-[1fr_auto] gap-3">
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Title</label>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Title
+                </label>
                 <Input
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Kickoff call, Sprint review"
                   className="h-9 text-sm"
                   autoFocus
-                  onKeyDown={(e) => { if (e.key === 'Enter') confirmCreate(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') confirmCreate();
+                  }}
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Date</label>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Date
+                </label>
                 <Input
                   type="date"
                   value={newDate}
@@ -1855,16 +2070,16 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
               </div>
             </div>
             <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Meeting Notes
-                </label>
-                <textarea
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Paste or type discussion points, decisions, and action items..."
-                  rows={7}
-                  className="border-input bg-background w-full rounded-lg border px-3 py-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/60"
-                />
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Meeting Notes
+              </label>
+              <textarea
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+                placeholder="Paste or type discussion points, decisions, and action items..."
+                rows={7}
+                className="border-input bg-background w-full rounded-lg border px-3 py-2.5 text-sm leading-relaxed outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/60"
+              />
             </div>
           </div>
           <div className="flex justify-end gap-2 border-t bg-muted/20 px-6 py-4">

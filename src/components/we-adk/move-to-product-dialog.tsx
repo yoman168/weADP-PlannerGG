@@ -70,6 +70,7 @@ import {
   type IARow,
   type IAScreenType,
 } from '@/lib/we-adk-mock/ia';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** "Untitled project", then "Untitled project 2", and so on. */
 function untitledName(taken: string[]): string {
@@ -370,7 +371,7 @@ export function MoveToProductDialog({
       const sourceBlocks = loadScreenBlocks(screen.id, '');
       if (sourceBlocks.length > 0) {
         try {
-          window.localStorage.setItem(screenStorageKey(screenId), JSON.stringify(sourceBlocks));
+          workspaceStore.setItem(screenStorageKey(screenId), JSON.stringify(sourceBlocks));
         } catch { /* storage full — the copy keeps the parsed blocks */ }
       }
       /*

@@ -4,6 +4,7 @@ import { type ReactNode } from 'react';
 import { PropertiesPanel } from '@/components/eacc/editable-section';
 import { EditProvider, useEdit } from '@/components/eacc/edit-context';
 import { EaccHeader, EaccSidebar } from '@/components/eacc/shell';
+import { WorkspaceProvider } from '@/lib/api/workspace-provider';
 
 function EaccShell({ children }: { children: ReactNode }) {
   const { editMode, setSelectedId } = useEdit();
@@ -27,8 +28,10 @@ function EaccShell({ children }: { children: ReactNode }) {
 
 export default function EaccLayout({ children }: { children: ReactNode }) {
   return (
-    <EditProvider>
-      <EaccShell>{children}</EaccShell>
-    </EditProvider>
+    <WorkspaceProvider>
+      <EditProvider>
+        <EaccShell>{children}</EaccShell>
+      </EditProvider>
+    </WorkspaceProvider>
   );
 }

@@ -1,10 +1,11 @@
 node_modules
 .next
+# One per NEXT_DIST_DIR, which next.config.ts documents for a second dev server.
+.next-*
 .open-next
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store
-.next-run
 
 # Dev server output, when it is started detached
 .dev-server.log
@@ -16,3 +17,13 @@ next-env.d.ts
 # Build output and local service state
 out
 .wrangler
+
+# Maven's output. 189 class files and jars, rebuilt by every `mvn` run and by the api
+# container on every start.
+backend/target
+*.class
+
+# Real credentials for the prod stack. `deploy/prod.env.example` is the template; the dev
+# stack's file is committed because everything in it is a throwaway.
+deploy/*.env
+!deploy/dev.env

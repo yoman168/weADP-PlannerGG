@@ -13,6 +13,7 @@
  * screens, prototype html — so there is no single record to add a field to, and
  * a side table is the only place the answer can live for all of them equally.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type SurfaceKind = 'screen' | 'popup';
 
@@ -36,7 +37,7 @@ const KEY = 'we-adk:design-surface';
 
 export function loadSurfaces(projectId: string): SurfaceMap {
   try {
-    const raw = window.localStorage.getItem(`${KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${KEY}:${projectId}`);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
@@ -63,7 +64,7 @@ export function setSurface(projectId: string, fileId: string, kind: SurfaceKind)
   if (kind === DEFAULT_SURFACE) delete surfaces[fileId];
   else surfaces[fileId] = kind;
   try {
-    window.localStorage.setItem(`${KEY}:${projectId}`, JSON.stringify(surfaces));
+    workspaceStore.setItem(`${KEY}:${projectId}`, JSON.stringify(surfaces));
   } catch {
     // Storage unavailable — the mark won't survive a reload.
   }

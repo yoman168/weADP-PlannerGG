@@ -26,6 +26,7 @@ import { useLocale } from '@/lib/locale';
 import { isReadableFileName } from '@/lib/we-adk-mock/meeting-files';
 import { type DesignFolder, type DesignProject } from '@/lib/we-adk-mock/projects';
 import { buildFolderChatContext } from '@/lib/we-adk/folder-chat';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /**
  * A Claude Code session pinned to one folder — styled like the rest of WE-ADK
@@ -76,7 +77,7 @@ function storageKey(projectId: string, folderId: string): string {
 
 function loadTurns(projectId: string, folderId: string): Turn[] {
   try {
-    const raw = window.localStorage.getItem(storageKey(projectId, folderId));
+    const raw = workspaceStore.getItem(storageKey(projectId, folderId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as Turn[]) : [];
@@ -87,7 +88,7 @@ function loadTurns(projectId: string, folderId: string): Turn[] {
 
 function saveTurns(projectId: string, folderId: string, turns: Turn[]): void {
   try {
-    window.localStorage.setItem(storageKey(projectId, folderId), JSON.stringify(turns.slice(-40)));
+    workspaceStore.setItem(storageKey(projectId, folderId), JSON.stringify(turns.slice(-40)));
   } catch {
     // Storage unavailable — the session just won't survive a reload.
   }
@@ -219,7 +220,7 @@ export function ClaudeTerminal({
     setStreamText('');
     setPending(false);
     try {
-      const saved = window.localStorage.getItem(MODEL_KEY);
+      const saved = workspaceStore.getItem(MODEL_KEY);
       if (saved && MODELS.some((entry) => entry.id === saved)) setModel(saved as ModelId);
     } catch {
       // keep default
@@ -255,7 +256,7 @@ export function ClaudeTerminal({
   const pickModel = (value: string) => {
     setModel(value as ModelId);
     try {
-      window.localStorage.setItem(MODEL_KEY, value);
+      workspaceStore.setItem(MODEL_KEY, value);
     } catch {
       // fine
     }

@@ -34,16 +34,17 @@ import {
   type CanvasBlock,
   type DevicePresetId,
 } from '@/lib/we-adk-mock/sketcher';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** Look up design HTML, falling back to the base (non-member) screen ID. */
 function loadDesignHtml(screenId: string): string | null {
   try {
-    const html = window.localStorage.getItem(`we-adk:design-html:${screenId}`);
+    const html = workspaceStore.getItem(`we-adk:design-html:${screenId}`);
     if (html) return html;
     // Member-scoped screen — try the base ID from Main.
     const { member, baseId } = readPrototypeId(screenId);
     if (member && baseId !== screenId) {
-      return window.localStorage.getItem(`we-adk:design-html:${baseId}`);
+      return workspaceStore.getItem(`we-adk:design-html:${baseId}`);
     }
     return null;
   } catch { return null; }
@@ -209,7 +210,7 @@ export function PreviewModeSwitcher({
 /* ------------------------------------------------------------------ */
 
 function WireframeFrame({ screenId, seedPattern, allowSeed = true }: { screenId: string; seedPattern: string; allowSeed?: boolean }) {
-  // The canvas lives in localStorage, so it can only be read after mount.
+  // The canvas is workspace state, so it can only be read after mount.
   const [blocks, setBlocks] = useState<CanvasBlock[] | null>(null);
   const [revision, setRevision] = useState(0);
 

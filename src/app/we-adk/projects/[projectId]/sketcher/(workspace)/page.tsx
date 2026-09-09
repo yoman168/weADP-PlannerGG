@@ -24,6 +24,7 @@ import {
 } from '@/lib/we-adk-mock/projects';
 import { CHIP_CLASSES, type VersionStatus } from '@/lib/we-adk-mock/types';
 import { type FileDiff } from '@/lib/we-adk/version-diff';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Chat persistence                                                    */
@@ -33,7 +34,7 @@ const FOLDER_CHAT_KEY = 'we-adk:folder-chat';
 
 function loadFolderTurns(projectId: string, folderId: string): ChatTurn[] {
   try {
-    const raw = window.localStorage.getItem(`${FOLDER_CHAT_KEY}:${projectId}:${folderId}`);
+    const raw = workspaceStore.getItem(`${FOLDER_CHAT_KEY}:${projectId}:${folderId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ChatTurn[]) : [];
@@ -44,7 +45,7 @@ function loadFolderTurns(projectId: string, folderId: string): ChatTurn[] {
 
 function saveFolderTurns(projectId: string, folderId: string, turns: ChatTurn[]): void {
   try {
-    window.localStorage.setItem(
+    workspaceStore.setItem(
       `${FOLDER_CHAT_KEY}:${projectId}:${folderId}`,
       JSON.stringify(turns.slice(-40)),
     );
@@ -182,7 +183,7 @@ function FolderView({
   const children = folder.children ?? [];
   const total = folder.files.length + children.reduce((sum, child) => sum + child.files.length, 0);
 
-  // Saved turns come out of localStorage, so read them after mount and keep one
+  // Saved turns come out of workspace state, so read them after mount and keep one
   // conversation per folder.
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
@@ -329,7 +330,7 @@ export default function ProjectFilesPage() {
     return <MiniMockupView projectId={project.id} projectName={project.name} />;
   }
   // The URL is the authority on whether a folder was chosen: rounds after the
-  // first live in localStorage, so `?folder=version-2` resolves a beat after
+  // first are workspace state, so `?folder=version-2` resolves a beat after
   // mount — redirecting on the empty first render would bounce a reload of this
   // page straight to some other file's preview.
   const chosen = useSearchParams().get('folder');
@@ -339,7 +340,7 @@ export default function ProjectFilesPage() {
   /**
    * Long enough for the tree to arrive.
    *
-   * Rounds after the first are built from localStorage in an effect, so the first
+   * Rounds after the first are built from workspace state in an effect, so the first
    * pass here sees only the baseline. Deciding then meant a remembered `version-2`
    * looked as though it had been deleted: the memory was cleared and the page
    * redirected to version 1 — the very bug this is meant to fix.

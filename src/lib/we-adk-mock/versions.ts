@@ -11,7 +11,7 @@
  * design, `version 2` is created for it, and each round after that gets its own
  * version folder.
  *
- * Files created inside a version live in localStorage under that version's key,
+ * Files created inside a version are workspace state under that version's key,
  * exactly the way meeting folders store theirs.
  */
 import {
@@ -41,6 +41,7 @@ import {
   type SketchScreen,
 } from './sketches';
 import { type VersionStatus } from './types';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** The baseline every project starts with, drawn from the meetings. */
 export const BASELINE_VERSION = 1;
@@ -55,7 +56,7 @@ export function versionFolderId(version: number): string {
   return `version-${version}`;
 }
 
-/** localStorage key holding the design files created inside a version. */
+/** Workspace-state key holding the design files created inside a version. */
 export function versionFolderKey(projectId: string, version: number): string {
   return `version:${projectId}:${version}`;
 }
@@ -72,7 +73,7 @@ export function versionFolderKey(projectId: string, version: number): string {
  */
 export function loadVersionCount(projectId: string): number {
   try {
-    const raw = window.localStorage.getItem(`${COUNT_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${COUNT_KEY}:${projectId}`);
     if (raw === null) return BASELINE_VERSION;
     const parsed = Number(raw);
     return Number.isInteger(parsed) && parsed >= 0 ? parsed : BASELINE_VERSION;
@@ -83,7 +84,7 @@ export function loadVersionCount(projectId: string): number {
 
 export function saveVersionCount(projectId: string, count: number): void {
   try {
-    window.localStorage.setItem(`${COUNT_KEY}:${projectId}`, String(count));
+    workspaceStore.setItem(`${COUNT_KEY}:${projectId}`, String(count));
   } catch {
     // Storage unavailable — the extra version simply won't survive a reload.
   }
@@ -111,7 +112,7 @@ export type VersionNames = Record<number, string>;
 
 export function loadVersionNames(projectId: string): VersionNames {
   try {
-    const raw = window.localStorage.getItem(`${NAME_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${NAME_KEY}:${projectId}`);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
@@ -137,7 +138,7 @@ export function setVersionName(projectId: string, version: number, name: string)
   if (trimmed === '') delete names[version];
   else names[version] = trimmed.slice(0, MAX_VERSION_NAME);
   try {
-    window.localStorage.setItem(`${NAME_KEY}:${projectId}`, JSON.stringify(names));
+    workspaceStore.setItem(`${NAME_KEY}:${projectId}`, JSON.stringify(names));
   } catch {
     // Storage unavailable — the name won't survive a reload.
   }
@@ -183,7 +184,7 @@ function subfolderListKey(projectId: string, version: number): string {
   return `${SUBFOLDER_KEY}:${projectId}:${version}`;
 }
 
-/** localStorage key holding the files created inside one subfolder. */
+/** Workspace-state key holding the files created inside one subfolder. */
 export function subfolderStorageKey(
   projectId: string,
   version: number,
@@ -212,7 +213,7 @@ function isSubfolderArray(value: unknown): value is VersionSubfolder[] {
 
 export function loadSubfolders(projectId: string, version: number): VersionSubfolder[] {
   try {
-    const raw = window.localStorage.getItem(subfolderListKey(projectId, version));
+    const raw = workspaceStore.getItem(subfolderListKey(projectId, version));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return isSubfolderArray(parsed) ? parsed : [];
@@ -227,7 +228,7 @@ function saveSubfolders(
   folders: VersionSubfolder[],
 ): VersionSubfolder[] {
   try {
-    window.localStorage.setItem(subfolderListKey(projectId, version), JSON.stringify(folders));
+    workspaceStore.setItem(subfolderListKey(projectId, version), JSON.stringify(folders));
   } catch {
     // Storage unavailable — the folder won't survive a reload.
   }
@@ -290,7 +291,7 @@ export function removeSubfolder(
   const key = subfolderStorageKey(projectId, version, subfolderId);
   for (const screen of loadGeneratedScreens(key)) removeGeneratedScreen(key, screen.id);
   try {
-    window.localStorage.removeItem(`we-adk:sketcher:generated:${key}`);
+    workspaceStore.removeItem(`we-adk:sketcher:generated:${key}`);
   } catch {
     // ignore — the list is empty either way
   }
@@ -331,7 +332,7 @@ function isVersionStatus(value: unknown): value is VersionStatus {
 
 export function loadVersionStatuses(projectId: string): VersionStatuses {
   try {
-    const raw = window.localStorage.getItem(`${STATUS_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${STATUS_KEY}:${projectId}`);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return {};
@@ -354,7 +355,7 @@ export function setVersionStatus(
 ): VersionStatuses {
   const next = { ...loadVersionStatuses(projectId), [version]: status };
   try {
-    window.localStorage.setItem(`${STATUS_KEY}:${projectId}`, JSON.stringify(next));
+    workspaceStore.setItem(`${STATUS_KEY}:${projectId}`, JSON.stringify(next));
   } catch {
     // Storage unavailable — the mark simply won't survive a reload.
   }
@@ -760,7 +761,7 @@ const REMOVED_KEY = 'we-adk:business:versions-removed';
 
 export function loadRemovedVersions(projectId: string): number[] {
   try {
-    const raw = window.localStorage.getItem(`${REMOVED_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${REMOVED_KEY}:${projectId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((entry) => Number.isInteger(entry)) : [];
@@ -771,7 +772,7 @@ export function loadRemovedVersions(projectId: string): number[] {
 
 function saveRemovedVersions(projectId: string, versions: number[]): void {
   try {
-    window.localStorage.setItem(`${REMOVED_KEY}:${projectId}`, JSON.stringify(versions));
+    workspaceStore.setItem(`${REMOVED_KEY}:${projectId}`, JSON.stringify(versions));
   } catch {
     // Storage unavailable — the folder comes back on reload.
   }
@@ -814,14 +815,14 @@ export function removeVersion(
     removeSubfolder(projectId, version, sub.id);
   }
   try {
-    window.localStorage.removeItem(subfolderListKey(projectId, version));
+    workspaceStore.removeItem(subfolderListKey(projectId, version));
   } catch {
     // ignore
   }
   const key = versionFolderKey(projectId, version);
   for (const screen of loadGeneratedScreens(key)) removeGeneratedScreen(key, screen.id);
   try {
-    window.localStorage.removeItem(`we-adk:sketcher:generated:${key}`);
+    workspaceStore.removeItem(`we-adk:sketcher:generated:${key}`);
   } catch {
     // ignore — the list is empty either way
   }
@@ -851,9 +852,9 @@ function copyPrototypeConfig(fromScreenId: string, toScreenId: string): void {
   const to = prototypeConfigKeyForScreen(toScreenId);
   if (!from || !to) return;
   try {
-    const raw = window.localStorage.getItem(from);
-    if (raw) window.localStorage.setItem(to, raw);
-    else window.localStorage.removeItem(to);
+    const raw = workspaceStore.getItem(from);
+    if (raw) workspaceStore.setItem(to, raw);
+    else workspaceStore.removeItem(to);
   } catch {
     // Storage unavailable — the copy opens on the screen's default layout.
   }
@@ -929,7 +930,7 @@ export function ensureVersion(projectId: string, version: number): number {
 
 /**
  * Finds a design file created inside a version, anywhere in the project list.
- * Browser-only — reads localStorage.
+ * Reads workspace state.
  */
 export function findVersionScreen(
   screenId: string,
@@ -991,7 +992,7 @@ function prototypeDesignFile(file: PrototypeFile, folderId: string, label: strin
  * `created` holds the files the user made, keyed the same way the rest of the
  * mock keys them: by meeting id for anything drawn against a meeting, and by
  * version key for anything added inside a version. The caller reads those from
- * localStorage after mount, so this stays renderable on the server.
+ * workspace state after mount, so this stays renderable on the server.
  */
 export function projectVersionFolders(
   project: DesignProject,

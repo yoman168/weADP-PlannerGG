@@ -82,7 +82,7 @@ function same(a: unknown, b: unknown): boolean {
  *
  * Both sides are read through a defaulted object rather than off the block.
  * `CanvasBlock` says `props` is always there, but blocks are parsed out of
- * localStorage and `isCanvasBlockArray` only checks `id` and `kind` — so a block
+ * workspace state and `isCanvasBlockArray` only checks `id` and `kind` — so a block
  * saved by an older build can arrive without props, and indexing it directly
  * throws while the diff is being built.
  */

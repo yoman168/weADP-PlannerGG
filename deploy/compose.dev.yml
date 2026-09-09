@@ -1,0 +1,44 @@
+# What makes the dev stack a dev stack.
+#
+# Layered over compose.yml, and only where development genuinely differs: the source
+# is mounted, the servers are the ones that reload, and the build stops at the `dev` target
+# so nothing is compiled into the image.
+#
+#   pnpm stack:dev
+#
+# Everything else — the services, the wiring, the health checks — comes from the base file.
+
+services:
+  api:
+    build:
+      target: dev
+    volumes:
+      - ../backend:/app
+      # Named, so the dependency cache survives a rebuild. Without it every start
+      # re-downloads Spring.
+      - maven:/root/.m2
+    working_dir: /app
+
+  web:
+    build:
+      target: dev
+    volumes:
+      - ..:/app
+      # Two anonymous volumes masking the mounted host directories.
+      #
+      # `node_modules` is the important one: the host's copy was built for macOS and its
+      # native modules do not run on Alpine — the container has its own, installed during
+      # the image build, and this is what stops the mount from hiding it.
+      - /app/node_modules
+      - /app/.next
+    environment:
+      # Read at runtime by `next dev`, so no rebuild is needed to point it somewhere else.
+      NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      NEXT_PUBLIC_OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-we-adk-workspace}
+      # A bind mount from macOS does not deliver inotify events into the container, so the
+      # watcher polls instead. Without this, saving a file changes nothing on screen.
+      WATCHPACK_POLLING: 'true'
+    command: ['pnpm', 'dev', '--hostname', '0.0.0.0']
+
+volumes:
+  maven:

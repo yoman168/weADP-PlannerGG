@@ -94,6 +94,7 @@ import { loadScreenBlocks } from '@/lib/we-adk-mock/sketcher';
 import { describeBlocks } from '@/lib/we-adk/design-spec';
 import { projectEnvironment, ROLE_LABELS } from '@/lib/we-adk-mock/environment';
 import { loadTestCases } from '@/lib/we-adk-mock/qa';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Reading the round                                                   */
@@ -250,7 +251,7 @@ function OverviewContent() {
   const [whatsNewNotes, setWhatsNewNotes] = useState('');
 
   /**
-   * Everything this view reads lives in localStorage, so it is read after mount
+   * Everything this view reads is workspace state, so it is read after mount
    * — and re-read when the round changes, because the rail navigates by query
    * rather than telling this page anything.
    */
@@ -321,7 +322,7 @@ function OverviewContent() {
   useEffect(() => {
     if (!project || version === null) return;
     try {
-      const raw = window.localStorage.getItem(`we-adk:whats-new:${project.id}:v${version}`);
+      const raw = workspaceStore.getItem(`we-adk:whats-new:${project.id}:v${version}`);
       setWhatsNewNotes(raw ?? '');
     } catch { setWhatsNewNotes(''); }
     setWhatsNewEditing(false);
@@ -727,7 +728,7 @@ function OverviewContent() {
                   className="h-7 text-xs"
                   onClick={() => {
                     try {
-                      window.localStorage.setItem(`we-adk:whats-new:${project.id}:v${version}`, whatsNewNotes);
+                      workspaceStore.setItem(`we-adk:whats-new:${project.id}:v${version}`, whatsNewNotes);
                     } catch { /* ignore */ }
                     setWhatsNewEditing(false);
                   }}
@@ -740,7 +741,7 @@ function OverviewContent() {
                   className="h-7 text-xs"
                   onClick={() => {
                     try {
-                      const raw = window.localStorage.getItem(`we-adk:whats-new:${project.id}:v${version}`);
+                      const raw = workspaceStore.getItem(`we-adk:whats-new:${project.id}:v${version}`);
                       setWhatsNewNotes(raw ?? '');
                     } catch { setWhatsNewNotes(''); }
                     setWhatsNewEditing(false);

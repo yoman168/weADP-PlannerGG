@@ -1197,7 +1197,7 @@ export interface DesignFolder {
   /** Present on concept folders — the meeting whose notes fill this folder. */
   session?: SketchSession;
   /**
-   * localStorage key holding the files a user created here. Absent on folders
+   * Workspace-state key holding the files a user created here. Absent on folders
    * nothing can be created in, like real-screens.
    */
   storageKey?: string;
@@ -1264,7 +1264,7 @@ export function designFileFromScreen(
  * Every folder in a project, with its files.
  *
  * `created` holds the files the user made, keyed by folder (session) id — the
- * caller reads those from localStorage after mount, so this stays renderable on
+ * caller reads those from workspace state after mount, so this stays renderable on
  * the server.
  */
 export function projectFolders(
@@ -1375,7 +1375,7 @@ export function findProjectScreen(screenId: string): ProjectScreenHit | null {
   return null;
 }
 
-/** Finds a design file the user created. Browser-only — reads localStorage. */
+/** Finds a design file the user created. Reads workspace state. */
 export function findCreatedScreen(screenId: string): ProjectScreenHit | null {
   for (const project of PROJECTS) {
     for (const session of project.sessions) {

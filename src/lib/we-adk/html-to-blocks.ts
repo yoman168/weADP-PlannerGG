@@ -11,6 +11,7 @@ import {
   type BlockProps,
   type CanvasBlock,
 } from '@/lib/we-adk-mock/sketcher';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -340,10 +341,10 @@ export function htmlToBlocks(html: string): CanvasBlock[] {
  */
 export function saveHtmlAndBlocks(screenId: string, html: string): void {
   try {
-    window.localStorage.setItem(`we-adk:design-html:${screenId}`, html);
+    workspaceStore.setItem(`we-adk:design-html:${screenId}`, html);
     const blocks = htmlToBlocks(html);
     if (blocks.length > 0) {
-      window.localStorage.setItem(screenStorageKey(screenId), JSON.stringify(blocks));
+      workspaceStore.setItem(screenStorageKey(screenId), JSON.stringify(blocks));
     }
     window.dispatchEvent(new Event('we-adk:html-updated'));
     window.dispatchEvent(new Event('we-adk:canvas-saved'));

@@ -1,11 +1,29 @@
-allowBuilds:
-  esbuild: set this to true or false
-  sharp: set this to true or false
-  workerd: set this to true or false
-# Single-package repo. pnpm 11 reads its settings from here.
+# Single-package repo. pnpm 11 reads its settings from here rather than from `package.json`,
+# which is why the `pnpm` block that used to live there is gone — pnpm ignored it silently
+# and printed a warning nobody was reading.
 #
-# sharp is Next's optional image optimiser and its install script is skipped;
-# saying so explicitly keeps `pnpm <script>` from stopping on an unapproved build.
+# Three dependencies ship install scripts, and pnpm 11 treats an install that skips any of
+# them as an error. It had left placeholders here ("set this to true or false") waiting for
+# an answer, which is what broke the container build: a non-interactive install cannot
+# answer a prompt.
+#
+# All three are skipped, and none is needed to run this application:
+#
+#   sharp    Next's optional image optimiser; it falls back without it.
+#   esbuild  pulled in by the Cloudflare tooling, not by `next build`.
+#   workerd  the Cloudflare runtime, used only by `wrangler dev`.
+#
+# `strictDepBuilds: false` is what stops that skipping from failing the install. Listing
+# them above is not enough on its own — and nor is allowing them, because with
+# `--frozen-lockfile` pnpm will not adopt a build allowance the lockfile was not written
+# with. Both were tried in a clean container before settling here.
+#
+# The one thing this costs: `pnpm preview:cf` and `pnpm deploy:cf` want esbuild and workerd
+# to have run their scripts. Run `pnpm approve-builds` before using those.
 ignoredBuiltDependencies:
+  - esbuild
   - sharp
+  - workerd
+strictDepBuilds: false
+
 verifyDepsBeforeRun: false

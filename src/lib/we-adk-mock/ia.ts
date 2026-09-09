@@ -5,7 +5,7 @@
  *
  * The round's design files seed it — every screen already has a place in the
  * Main tree, and drawing the sheet from that means it never starts empty. Any
- * edit freezes the sheet to an overlay in localStorage, the same seed +
+ * edit freezes the sheet to an overlay in workspace state, the same seed +
  * overlay split the rest of the mock uses, so renaming a row here does not
  * fight with the file it was drawn from. "Reset" drops the overlay and reads
  * the files again.
@@ -13,6 +13,7 @@
 
 import type { DesignFile, DesignFolder } from './projects';
 import { findPrototypeFile, PROTOTYPE_FILES, readPrototypeId } from '@/lib/we-adk/prototype';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type IAScreenType = 'Screen' | 'Popup' | 'Drawer';
 export type IAPlatform = 'PC' | 'Mobile';
@@ -96,7 +97,7 @@ function normalizeRow(raw: StoredRow): IARow {
     depth4: raw.depth4 ?? '',
     depth5: raw.depth5 ?? '',
     screenId: raw.screenId ?? '',
-    screenKey: (raw as Record<string, unknown>).screenKey as string ?? '',
+    screenKey: ((raw as Record<string, unknown>).screenKey as string) ?? '',
     screenType: raw.screenType ?? 'Screen',
     platform: raw.platform ?? 'PC',
     workItem: raw.workItem ?? '',
@@ -105,8 +106,8 @@ function normalizeRow(raw: StoredRow): IARow {
     link: raw.link ?? '',
     maintainer: raw.maintainer ?? '',
     menuGroup: raw.menuGroup ?? '',
-    status: (raw as Record<string, unknown>).status as IAStatus ?? 'To do',
-    projectName: (raw as Record<string, unknown>).projectName as string ?? '',
+    status: ((raw as Record<string, unknown>).status as IAStatus) ?? 'To do',
+    projectName: ((raw as Record<string, unknown>).projectName as string) ?? '',
     fileId: raw.fileId,
     folderId: raw.folderId,
   };
@@ -115,7 +116,7 @@ function normalizeRow(raw: StoredRow): IARow {
 /** The overlay someone has already edited into being — `null` before that. */
 export function loadIAOverlay(projectId: string, version: number): IARow[] | null {
   try {
-    const raw = window.localStorage.getItem(iaKey(projectId, version));
+    const raw = workspaceStore.getItem(iaKey(projectId, version));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     return isStoredRowArray(parsed) ? parsed.map(normalizeRow) : null;
@@ -126,7 +127,7 @@ export function loadIAOverlay(projectId: string, version: number): IARow[] | nul
 
 function saveIARows(projectId: string, version: number, rows: IARow[]): IARow[] {
   try {
-    window.localStorage.setItem(iaKey(projectId, version), JSON.stringify(rows));
+    workspaceStore.setItem(iaKey(projectId, version), JSON.stringify(rows));
   } catch {
     // Storage unavailable — the sheet won't survive a reload.
   }
@@ -190,19 +191,23 @@ const DEFAULT_CONFIG: ScreenIdConfig = {
 
 export function loadScreenIdConfig(projectId: string): ScreenIdConfig {
   try {
-    const raw = window.localStorage.getItem(`${SCREEN_ID_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${SCREEN_ID_KEY}:${projectId}`);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<ScreenIdConfig>;
       return { ...DEFAULT_CONFIG, ...parsed };
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return DEFAULT_CONFIG;
 }
 
 export function saveScreenIdConfig(projectId: string, config: ScreenIdConfig): void {
   try {
-    window.localStorage.setItem(`${SCREEN_ID_KEY}:${projectId}`, JSON.stringify(config));
-  } catch { /* ignore */ }
+    workspaceStore.setItem(`${SCREEN_ID_KEY}:${projectId}`, JSON.stringify(config));
+  } catch {
+    /* ignore */
+  }
 }
 
 export function formatScreenId(config: ScreenIdConfig, version: number, index: number): string {
@@ -220,14 +225,20 @@ const ID_SUFFIX_KEY = 'we-adk:business:id-suffix-format';
 
 export function loadIdSuffixFormat(projectId: string): IdSuffixFormat {
   try {
-    const v = window.localStorage.getItem(`${ID_SUFFIX_KEY}:${projectId}`);
+    const v = workspaceStore.getItem(`${ID_SUFFIX_KEY}:${projectId}`);
     if (v === 'number' || v === 'alpha' || v === 'mixed') return v;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return 'mixed';
 }
 
 export function saveIdSuffixFormat(projectId: string, fmt: IdSuffixFormat): void {
-  try { window.localStorage.setItem(`${ID_SUFFIX_KEY}:${projectId}`, fmt); } catch { /* ignore */ }
+  try {
+    workspaceStore.setItem(`${ID_SUFFIX_KEY}:${projectId}`, fmt);
+  } catch {
+    /* ignore */
+  }
 }
 
 /* ---- Per-depth config ------------------------------------------------- */
@@ -243,28 +254,46 @@ const DEPTH_CFG_KEY = 'we-adk:business:depth-configs';
 
 export function loadDepthConfigs(projectId: string): IADepthConfigs {
   try {
-    const raw = window.localStorage.getItem(`${DEPTH_CFG_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${DEPTH_CFG_KEY}:${projectId}`);
     if (raw) return JSON.parse(raw) as IADepthConfigs;
-  } catch { /* ignore */ }
-  return { 1: { digits: null, format: null }, 2: { digits: null, format: null }, 3: { digits: null, format: null }, 4: { digits: null, format: null }, 5: { digits: null, format: null } };
+  } catch {
+    /* ignore */
+  }
+  return {
+    1: { digits: null, format: null },
+    2: { digits: null, format: null },
+    3: { digits: null, format: null },
+    4: { digits: null, format: null },
+    5: { digits: null, format: null },
+  };
 }
 
 export function saveDepthConfigs(projectId: string, configs: IADepthConfigs): void {
-  try { window.localStorage.setItem(`${DEPTH_CFG_KEY}:${projectId}`, JSON.stringify(configs)); } catch { /* ignore */ }
+  try {
+    workspaceStore.setItem(`${DEPTH_CFG_KEY}:${projectId}`, JSON.stringify(configs));
+  } catch {
+    /* ignore */
+  }
 }
 
 const RANDOM_DIGITS_KEY = 'we-adk:business:random-digits';
 
 export function loadRandomDigits(projectId: string): number {
   try {
-    const v = Number(window.localStorage.getItem(`${RANDOM_DIGITS_KEY}:${projectId}`));
+    const v = Number(workspaceStore.getItem(`${RANDOM_DIGITS_KEY}:${projectId}`));
     if (v === 3 || v === 4 || v === 5) return v;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return 5;
 }
 
 export function saveRandomDigits(projectId: string, digits: number): void {
-  try { window.localStorage.setItem(`${RANDOM_DIGITS_KEY}:${projectId}`, String(digits)); } catch { /* ignore */ }
+  try {
+    workspaceStore.setItem(`${RANDOM_DIGITS_KEY}:${projectId}`, String(digits));
+  } catch {
+    /* ignore */
+  }
 }
 
 /* ---- Random generators ------------------------------------------------ */
@@ -418,16 +447,28 @@ const PRD_BY_ROUTE: Record<string, string> = {
 };
 
 /** PRD document details — title and requirement items. */
-export const PRD_DOCUMENTS: Record<string, {
-  title: string;
-  description: string;
-  files: { name: string; size: string }[];
-  items: { id: string; status: 'Done' | 'In progress' | 'To do'; title: string; assignee: string }[];
-}> = {
+export const PRD_DOCUMENTS: Record<
+  string,
+  {
+    title: string;
+    description: string;
+    files: { name: string; size: string }[];
+    items: {
+      id: string;
+      status: 'Done' | 'In progress' | 'To do';
+      title: string;
+      assignee: string;
+    }[];
+  }
+> = {
   'PRD-AUTH': {
     title: 'Authentication & Login',
-    description: 'User authentication flow including email/password sign-in, session management with JWT (HS256, 24h expiry), and company SSO integration deferred to phase 2.',
-    files: [{ name: 'auth-flow-diagram.pdf', size: '245 KB' }, { name: 'sso-requirements.docx', size: '82 KB' }],
+    description:
+      'User authentication flow including email/password sign-in, session management with JWT (HS256, 24h expiry), and company SSO integration deferred to phase 2.',
+    files: [
+      { name: 'auth-flow-diagram.pdf', size: '245 KB' },
+      { name: 'sso-requirements.docx', size: '82 KB' },
+    ],
     items: [
       { id: 'REQ-001', status: 'Done', title: 'Email/password sign-in', assignee: 'Kim Minsu' },
       { id: 'REQ-002', status: 'Done', title: 'Remember me checkbox', assignee: 'Kim Minsu' },
@@ -437,91 +478,201 @@ export const PRD_DOCUMENTS: Record<string, {
   },
   'PRD-DASH': {
     title: 'Dashboard & Overview',
-    description: 'The accountant landing page showing monthly spending summary, spend by category breakdown, and recent activity. Date range picker controls the reporting period.',
+    description:
+      'The accountant landing page showing monthly spending summary, spend by category breakdown, and recent activity. Date range picker controls the reporting period.',
     files: [{ name: 'dashboard-mockup-v2.fig', size: '1.2 MB' }],
     items: [
-      { id: 'REQ-005', status: 'Done', title: 'Monthly spending summary cards', assignee: 'Park Seongmin' },
-      { id: 'REQ-006', status: 'In progress', title: 'Spend by category chart', assignee: 'Park Seongmin' },
+      {
+        id: 'REQ-005',
+        status: 'Done',
+        title: 'Monthly spending summary cards',
+        assignee: 'Park Seongmin',
+      },
+      {
+        id: 'REQ-006',
+        status: 'In progress',
+        title: 'Spend by category chart',
+        assignee: 'Park Seongmin',
+      },
       { id: 'REQ-007', status: 'Done', title: 'Date range picker', assignee: 'Kim Minsu' },
       { id: 'REQ-008', status: 'To do', title: 'Export dashboard as PDF', assignee: 'Lee Jiyeon' },
     ],
   },
   'PRD-CLOSE': {
     title: 'Month-end Close',
-    description: 'Close status overview and blocker tracking by cost centre. The single screen that answers "what is blocking the close?" with auto-resolve for stale blockers.',
+    description:
+      'Close status overview and blocker tracking by cost centre. The single screen that answers "what is blocking the close?" with auto-resolve for stale blockers.',
     files: [{ name: 'close-process-flow.pdf', size: '310 KB' }],
     items: [
       { id: 'REQ-009', status: 'Done', title: 'Close status overview', assignee: 'Choi Dongwook' },
-      { id: 'REQ-010', status: 'Done', title: 'Blockers by cost centre', assignee: 'Choi Dongwook' },
-      { id: 'REQ-011', status: 'In progress', title: 'Auto-resolve stale blockers', assignee: 'Jung Minjae' },
+      {
+        id: 'REQ-010',
+        status: 'Done',
+        title: 'Blockers by cost centre',
+        assignee: 'Choi Dongwook',
+      },
+      {
+        id: 'REQ-011',
+        status: 'In progress',
+        title: 'Auto-resolve stale blockers',
+        assignee: 'Jung Minjae',
+      },
     ],
   },
   'PRD-CARD': {
     title: 'Corporate Card Management',
-    description: 'Full lifecycle of corporate card charges — from transaction import to approval. Includes individual and bulk approve flows, reject with reason, and receipt OCR auto-fill planned for phase 2.',
-    files: [{ name: 'card-approval-flow.pdf', size: '198 KB' }, { name: 'ocr-api-spec.md', size: '15 KB' }, { name: 'bulk-approve-wireframe.png', size: '420 KB' }],
+    description:
+      'Full lifecycle of corporate card charges — from transaction import to approval. Includes individual and bulk approve flows, reject with reason, and receipt OCR auto-fill planned for phase 2.',
+    files: [
+      { name: 'card-approval-flow.pdf', size: '198 KB' },
+      { name: 'ocr-api-spec.md', size: '15 KB' },
+      { name: 'bulk-approve-wireframe.png', size: '420 KB' },
+    ],
     items: [
-      { id: 'REQ-012', status: 'Done', title: 'Card transaction list with filters', assignee: 'Kim Minsu' },
+      {
+        id: 'REQ-012',
+        status: 'Done',
+        title: 'Card transaction list with filters',
+        assignee: 'Kim Minsu',
+      },
       { id: 'REQ-013', status: 'Done', title: 'New charge entry form', assignee: 'Kim Minsu' },
       { id: 'REQ-014', status: 'Done', title: 'Charge detail view', assignee: 'Lee Jiyeon' },
-      { id: 'REQ-015', status: 'In progress', title: 'Bulk approve by department', assignee: 'Park Seongmin' },
+      {
+        id: 'REQ-015',
+        status: 'In progress',
+        title: 'Bulk approve by department',
+        assignee: 'Park Seongmin',
+      },
       { id: 'REQ-016', status: 'Done', title: 'Reject with reason', assignee: 'Lee Jiyeon' },
       { id: 'REQ-017', status: 'To do', title: 'Receipt OCR auto-fill', assignee: 'Jung Minjae' },
     ],
   },
   'PRD-EXPENSE': {
     title: 'Personal Expense',
-    description: 'Employee personal expense submission and reimbursement. Includes expense entry, receipt attachment, report detail with line items, and a "returned to me" tab for rejected items.',
+    description:
+      'Employee personal expense submission and reimbursement. Includes expense entry, receipt attachment, report detail with line items, and a "returned to me" tab for rejected items.',
     files: [{ name: 'expense-policy-rules.xlsx', size: '56 KB' }],
     items: [
-      { id: 'REQ-018', status: 'Done', title: 'Expense list with returned tab', assignee: 'Park Seongmin' },
+      {
+        id: 'REQ-018',
+        status: 'Done',
+        title: 'Expense list with returned tab',
+        assignee: 'Park Seongmin',
+      },
       { id: 'REQ-019', status: 'Done', title: 'New expense entry form', assignee: 'Park Seongmin' },
-      { id: 'REQ-020', status: 'Done', title: 'Report detail with line items', assignee: 'Lee Jiyeon' },
-      { id: 'REQ-021', status: 'In progress', title: 'Receipt upload and attach', assignee: 'Choi Dongwook' },
-      { id: 'REQ-022', status: 'To do', title: 'Duplicate expense detection', assignee: 'Jung Minjae' },
+      {
+        id: 'REQ-020',
+        status: 'Done',
+        title: 'Report detail with line items',
+        assignee: 'Lee Jiyeon',
+      },
+      {
+        id: 'REQ-021',
+        status: 'In progress',
+        title: 'Receipt upload and attach',
+        assignee: 'Choi Dongwook',
+      },
+      {
+        id: 'REQ-022',
+        status: 'To do',
+        title: 'Duplicate expense detection',
+        assignee: 'Jung Minjae',
+      },
     ],
   },
   'PRD-TAXINV': {
     title: 'Tax Invoice',
-    description: 'Purchase tax invoice management — list view with type filter (Tax invoice, Invoice, Revised), detail view with supplier/buyer info, and revised invoice linking.',
+    description:
+      'Purchase tax invoice management — list view with type filter (Tax invoice, Invoice, Revised), detail view with supplier/buyer info, and revised invoice linking.',
     files: [{ name: 'tax-invoice-sample.pdf', size: '128 KB' }],
     items: [
-      { id: 'REQ-023', status: 'Done', title: 'Invoice list with type filter', assignee: 'Kim Minsu' },
+      {
+        id: 'REQ-023',
+        status: 'Done',
+        title: 'Invoice list with type filter',
+        assignee: 'Kim Minsu',
+      },
       { id: 'REQ-024', status: 'Done', title: 'Invoice detail view', assignee: 'Kim Minsu' },
       { id: 'REQ-025', status: 'To do', title: 'Revised invoice linking', assignee: 'Lee Jiyeon' },
     ],
   },
   'PRD-RECEIPT': {
     title: 'Cash Receipt',
-    description: 'Cash receipt tracking with receipt number, supplier info, line items, and evidence attachment. Auto-match with corporate card charges planned for phase 2.',
+    description:
+      'Cash receipt tracking with receipt number, supplier info, line items, and evidence attachment. Auto-match with corporate card charges planned for phase 2.',
     files: [{ name: 'receipt-matching-logic.md', size: '8 KB' }],
     items: [
-      { id: 'REQ-026', status: 'Done', title: 'Receipt list with filters', assignee: 'Choi Dongwook' },
-      { id: 'REQ-027', status: 'Done', title: 'Receipt detail with line items', assignee: 'Choi Dongwook' },
-      { id: 'REQ-028', status: 'In progress', title: 'New receipt entry form', assignee: 'Park Seongmin' },
-      { id: 'REQ-029', status: 'To do', title: 'Auto-match with card charges', assignee: 'Jung Minjae' },
+      {
+        id: 'REQ-026',
+        status: 'Done',
+        title: 'Receipt list with filters',
+        assignee: 'Choi Dongwook',
+      },
+      {
+        id: 'REQ-027',
+        status: 'Done',
+        title: 'Receipt detail with line items',
+        assignee: 'Choi Dongwook',
+      },
+      {
+        id: 'REQ-028',
+        status: 'In progress',
+        title: 'New receipt entry form',
+        assignee: 'Park Seongmin',
+      },
+      {
+        id: 'REQ-029',
+        status: 'To do',
+        title: 'Auto-match with card charges',
+        assignee: 'Jung Minjae',
+      },
     ],
   },
   'PRD-APPROVE': {
     title: 'Approval Queue',
-    description: 'Approver-scoped queue sorted by overdue items first. Supports approve with confirmation, return with reason, and batch approve for selected items.',
+    description:
+      'Approver-scoped queue sorted by overdue items first. Supports approve with confirmation, return with reason, and batch approve for selected items.',
     files: [{ name: 'approval-workflow.pdf', size: '175 KB' }],
     items: [
       { id: 'REQ-030', status: 'Done', title: 'Queue sorted by overdue', assignee: 'Lee Jiyeon' },
-      { id: 'REQ-031', status: 'Done', title: 'Approve confirmation dialog', assignee: 'Lee Jiyeon' },
+      {
+        id: 'REQ-031',
+        status: 'Done',
+        title: 'Approve confirmation dialog',
+        assignee: 'Lee Jiyeon',
+      },
       { id: 'REQ-032', status: 'Done', title: 'Return with reason', assignee: 'Lee Jiyeon' },
-      { id: 'REQ-033', status: 'To do', title: 'Batch approve selected items', assignee: 'Park Seongmin' },
+      {
+        id: 'REQ-033',
+        status: 'To do',
+        title: 'Batch approve selected items',
+        assignee: 'Park Seongmin',
+      },
     ],
   },
   'PRD-ADMIN': {
     title: 'Administration & Settings',
-    description: 'Workspace administration — company profile, member management (invite, edit role), and close policy configuration. Role-based access: Accountant, Approver, Member, Admin.',
-    files: [{ name: 'role-permissions-matrix.xlsx', size: '34 KB' }, { name: 'settings-wireframe.fig', size: '890 KB' }],
+    description:
+      'Workspace administration — company profile, member management (invite, edit role), and close policy configuration. Role-based access: Accountant, Approver, Member, Admin.',
+    files: [
+      { name: 'role-permissions-matrix.xlsx', size: '34 KB' },
+      { name: 'settings-wireframe.fig', size: '890 KB' },
+    ],
     items: [
       { id: 'REQ-034', status: 'Done', title: 'Company profile settings', assignee: 'Kim Minsu' },
       { id: 'REQ-035', status: 'Done', title: 'Invite team member', assignee: 'Kim Minsu' },
-      { id: 'REQ-036', status: 'In progress', title: 'Edit member role', assignee: 'Choi Dongwook' },
-      { id: 'REQ-037', status: 'To do', title: 'Close policy configuration', assignee: 'Jung Minjae' },
+      {
+        id: 'REQ-036',
+        status: 'In progress',
+        title: 'Edit member role',
+        assignee: 'Choi Dongwook',
+      },
+      {
+        id: 'REQ-037',
+        status: 'To do',
+        title: 'Close policy configuration',
+        assignee: 'Jung Minjae',
+      },
     ],
   },
 };
@@ -540,7 +691,17 @@ export const PRD_TASK_TAGS: Record<string, string[]> = {
 };
 
 /** Generic tags that don't identify a specific PRD — skip these when matching. */
-const GENERIC_TAGS = new Set(['feature', 'bug', 'ux', 'wording', 'a11y', 'compliance', 'legal', 'flow', 'export']);
+const GENERIC_TAGS = new Set([
+  'feature',
+  'bug',
+  'ux',
+  'wording',
+  'a11y',
+  'compliance',
+  'legal',
+  'flow',
+  'export',
+]);
 
 /** Find which PRD a task belongs to based on its first specific tag. */
 export function prdForTask(task: { tags?: string[] }): { id: string; title: string } | null {
@@ -567,23 +728,23 @@ export function screensForPrd(prdId: string): string[] {
 
 /** Tag → single primary screen route. */
 const TAG_SCREEN: Record<string, string> = {
-  'login': '/eacc/login',
-  'security': '/eacc/login',
-  'dashboard': '/eacc/dashboard',
-  'performance': '/eacc/dashboard',
-  'close': '/eacc/close',
+  login: '/eacc/login',
+  security: '/eacc/login',
+  dashboard: '/eacc/dashboard',
+  performance: '/eacc/dashboard',
+  close: '/eacc/close',
   'corp-card': '/eacc/corp-card',
   'personal-expense': '/eacc/personal-expense',
-  'expense': '/eacc/personal-expense',
+  expense: '/eacc/personal-expense',
   'tax-invoice': '/eacc/tax-invoice',
-  'invoice': '/eacc/tax-invoice',
+  invoice: '/eacc/tax-invoice',
   'cash-receipt': '/eacc/cash-receipt',
-  'uploads': '/eacc/cash-receipt',
-  'approvals': '/eacc/approvals',
-  'approval': '/eacc/approvals',
-  'audit': '/eacc/approvals',
-  'settings': '/eacc/settings',
-  'admin': '/eacc/settings',
+  uploads: '/eacc/cash-receipt',
+  approvals: '/eacc/approvals',
+  approval: '/eacc/approvals',
+  audit: '/eacc/approvals',
+  settings: '/eacc/settings',
+  admin: '/eacc/settings',
 };
 
 /** Find the single most relevant screen for a task based on its tags. */
@@ -600,7 +761,12 @@ export function screenForTask(task: { tags?: string[] }): string | null {
 /* PRD CRUD                                                            */
 /* ------------------------------------------------------------------ */
 
-export type PrdItem = { id: string; status: 'Done' | 'In progress' | 'To do'; title: string; assignee: string };
+export type PrdItem = {
+  id: string;
+  status: 'Done' | 'In progress' | 'To do';
+  title: string;
+  assignee: string;
+};
 export type PrdDoc = {
   title: string;
   description: string;
@@ -630,17 +796,23 @@ export function resolvePrdSeed(prdId: string, route?: string): PrdDoc | null {
   return null;
 }
 
-/** Load a PRD — overlay from localStorage, fallback to seed. */
+/** Load a PRD — overlay from workspace state, fallback to seed. */
 export function loadPrd(prdId: string, route?: string): PrdDoc | null {
   try {
-    const raw = window.localStorage.getItem(prdKey(prdId));
+    const raw = workspaceStore.getItem(prdKey(prdId));
     if (raw) return JSON.parse(raw) as PrdDoc;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return resolvePrdSeed(prdId, route);
 }
 
 function savePrd(prdId: string, doc: PrdDoc): PrdDoc {
-  try { window.localStorage.setItem(prdKey(prdId), JSON.stringify(doc)); } catch { /* ignore */ }
+  try {
+    workspaceStore.setItem(prdKey(prdId), JSON.stringify(doc));
+  } catch {
+    /* ignore */
+  }
   return doc;
 }
 
@@ -654,10 +826,17 @@ export function addPrdItem(prdId: string, item: Omit<PrdItem, 'id'>): PrdDoc | n
   return savePrd(prdId, { ...doc, items: [...doc.items, newItem] });
 }
 
-export function updatePrdItem(prdId: string, itemId: string, patch: Partial<Omit<PrdItem, 'id'>>): PrdDoc | null {
+export function updatePrdItem(
+  prdId: string,
+  itemId: string,
+  patch: Partial<Omit<PrdItem, 'id'>>,
+): PrdDoc | null {
   const doc = loadPrd(prdId);
   if (!doc) return null;
-  return savePrd(prdId, { ...doc, items: doc.items.map((i) => i.id === itemId ? { ...i, ...patch } : i) });
+  return savePrd(prdId, {
+    ...doc,
+    items: doc.items.map((i) => (i.id === itemId ? { ...i, ...patch } : i)),
+  });
 }
 
 export function deletePrdItem(prdId: string, itemId: string): PrdDoc | null {
@@ -666,7 +845,10 @@ export function deletePrdItem(prdId: string, itemId: string): PrdDoc | null {
   return savePrd(prdId, { ...doc, items: doc.items.filter((i) => i.id !== itemId) });
 }
 
-export function updatePrdDoc(prdId: string, patch: Partial<Pick<PrdDoc, 'title' | 'description'>>): PrdDoc | null {
+export function updatePrdDoc(
+  prdId: string,
+  patch: Partial<Pick<PrdDoc, 'title' | 'description'>>,
+): PrdDoc | null {
   const doc = loadPrd(prdId);
   if (!doc) return null;
   return savePrd(prdId, { ...doc, ...patch });
@@ -682,48 +864,71 @@ export type FrdDoc = { items: FrdItem[] };
 const FRD_STORAGE_KEY = 'we-adk:business:frd';
 
 const FRD_SEED: Record<string, FrdDoc> = {
-  'PRD-AUTH': { items: [
-    { id: 'frd-001-1', title: 'Email/password login with field-level validation' },
-    { id: 'frd-001-2', title: 'Inline error messages for wrong credentials (no browser alert)' },
-    { id: 'frd-001-3', title: 'Session timeout redirect to login with return URL' },
-    { id: 'frd-001-4', title: 'Password must be 8+ characters with at least one number' },
-  ] },
-  'PRD-DASH': { items: [
-    { id: 'frd-002-1', title: 'Spend-by-category chart with monthly aggregation' },
-    { id: 'frd-002-2', title: 'Date range picker filtering all dashboard widgets' },
-    { id: 'frd-002-3', title: 'Memoised aggregation for 12-month history performance' },
-    { id: 'frd-002-4', title: 'Summary cards show total spend, pending count, approved ratio' },
-  ] },
-  'PRD-CARD': { items: [
-    { id: 'frd-004-1', title: 'Card list with status filter and search' },
-    { id: 'frd-004-2', title: 'Checkbox column with bulk select/deselect all' },
-    { id: 'frd-004-3', title: 'Sticky action bar showing total amount on bulk approve' },
-    { id: 'frd-004-4', title: 'Confirm step before bulk approve with item count and total' },
-    { id: 'frd-004-5', title: 'Reject requires a reason (free text, min 10 chars)' },
-  ] },
-  'PRD-EXPENSE': { items: [
-    { id: 'frd-005-1', title: 'Expense list with date and status filtering' },
-    { id: 'frd-005-2', title: 'New expense form with receipt photo upload' },
-    { id: 'frd-005-3', title: 'Receipt OCR auto-fill for amount and vendor' },
-    { id: 'frd-005-4', title: 'Returned expenses show rejection reason inline' },
-  ] },
-  'PRD-RECEIPT': { items: [
-    { id: 'frd-007-1', title: 'Receipt list with toolbar CSV export respecting active filters' },
-    { id: 'frd-007-2', title: 'File size validation (10 MB limit) with error message before upload' },
-    { id: 'frd-007-3', title: 'Repair path for stranded attachments over size limit' },
-    { id: 'frd-007-4', title: 'Receipt number auto-generated in format RCP-YYYY-NNNNN' },
-  ] },
-  'PRD-APPROVE': { items: [
-    { id: 'frd-008-1', title: 'Approval queue sorted by submission date, overdue first' },
-    { id: 'frd-008-2', title: 'Keyboard navigation: arrow keys move selection, A/R approve/return' },
-    { id: 'frd-008-3', title: 'Audit trail entry on policy override with reason field' },
-    { id: 'frd-008-4', title: 'Shortcuts must not fire while a text field is focused' },
-  ] },
-  'PRD-ADMIN': { items: [
-    { id: 'frd-009-1', title: 'Role list with permission matrix editor' },
-    { id: 'frd-009-2', title: 'Invite member form with role assignment and email validation' },
-    { id: 'frd-009-3', title: 'Close policy configuration: approval threshold, auto-close rules' },
-  ] },
+  'PRD-AUTH': {
+    items: [
+      { id: 'frd-001-1', title: 'Email/password login with field-level validation' },
+      { id: 'frd-001-2', title: 'Inline error messages for wrong credentials (no browser alert)' },
+      { id: 'frd-001-3', title: 'Session timeout redirect to login with return URL' },
+      { id: 'frd-001-4', title: 'Password must be 8+ characters with at least one number' },
+    ],
+  },
+  'PRD-DASH': {
+    items: [
+      { id: 'frd-002-1', title: 'Spend-by-category chart with monthly aggregation' },
+      { id: 'frd-002-2', title: 'Date range picker filtering all dashboard widgets' },
+      { id: 'frd-002-3', title: 'Memoised aggregation for 12-month history performance' },
+      { id: 'frd-002-4', title: 'Summary cards show total spend, pending count, approved ratio' },
+    ],
+  },
+  'PRD-CARD': {
+    items: [
+      { id: 'frd-004-1', title: 'Card list with status filter and search' },
+      { id: 'frd-004-2', title: 'Checkbox column with bulk select/deselect all' },
+      { id: 'frd-004-3', title: 'Sticky action bar showing total amount on bulk approve' },
+      { id: 'frd-004-4', title: 'Confirm step before bulk approve with item count and total' },
+      { id: 'frd-004-5', title: 'Reject requires a reason (free text, min 10 chars)' },
+    ],
+  },
+  'PRD-EXPENSE': {
+    items: [
+      { id: 'frd-005-1', title: 'Expense list with date and status filtering' },
+      { id: 'frd-005-2', title: 'New expense form with receipt photo upload' },
+      { id: 'frd-005-3', title: 'Receipt OCR auto-fill for amount and vendor' },
+      { id: 'frd-005-4', title: 'Returned expenses show rejection reason inline' },
+    ],
+  },
+  'PRD-RECEIPT': {
+    items: [
+      { id: 'frd-007-1', title: 'Receipt list with toolbar CSV export respecting active filters' },
+      {
+        id: 'frd-007-2',
+        title: 'File size validation (10 MB limit) with error message before upload',
+      },
+      { id: 'frd-007-3', title: 'Repair path for stranded attachments over size limit' },
+      { id: 'frd-007-4', title: 'Receipt number auto-generated in format RCP-YYYY-NNNNN' },
+    ],
+  },
+  'PRD-APPROVE': {
+    items: [
+      { id: 'frd-008-1', title: 'Approval queue sorted by submission date, overdue first' },
+      {
+        id: 'frd-008-2',
+        title: 'Keyboard navigation: arrow keys move selection, A/R approve/return',
+      },
+      { id: 'frd-008-3', title: 'Audit trail entry on policy override with reason field' },
+      { id: 'frd-008-4', title: 'Shortcuts must not fire while a text field is focused' },
+    ],
+  },
+  'PRD-ADMIN': {
+    items: [
+      { id: 'frd-009-1', title: 'Role list with permission matrix editor' },
+      { id: 'frd-009-2', title: 'Invite member form with role assignment and email validation' },
+      {
+        id: 'frd-009-3',
+        title: 'Close policy configuration: approval threshold, auto-close rules',
+      },
+    ],
+  },
 };
 
 function frdKey(prdId: string): string {
@@ -732,14 +937,20 @@ function frdKey(prdId: string): string {
 
 export function loadFrd(prdId: string): FrdDoc {
   try {
-    const raw = window.localStorage.getItem(frdKey(prdId));
+    const raw = workspaceStore.getItem(frdKey(prdId));
     if (raw) return JSON.parse(raw) as FrdDoc;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return FRD_SEED[prdId] ?? { items: [] };
 }
 
 function saveFrd(prdId: string, doc: FrdDoc): FrdDoc {
-  try { window.localStorage.setItem(frdKey(prdId), JSON.stringify(doc)); } catch { /* ignore */ }
+  try {
+    workspaceStore.setItem(frdKey(prdId), JSON.stringify(doc));
+  } catch {
+    /* ignore */
+  }
   return doc;
 }
 
@@ -748,19 +959,24 @@ let frdItemCounter = 0;
 export function addFrdItem(prdId: string, title: string): FrdDoc {
   const doc = loadFrd(prdId);
   frdItemCounter += 1;
-  return saveFrd(prdId, { ...doc, items: [...doc.items, { id: `FRD-${Date.now().toString(36)}-${frdItemCounter}`, title }] });
+  return saveFrd(prdId, {
+    ...doc,
+    items: [...doc.items, { id: `FRD-${Date.now().toString(36)}-${frdItemCounter}`, title }],
+  });
 }
 
 export function updateFrdItem(prdId: string, itemId: string, title: string): FrdDoc {
   const doc = loadFrd(prdId);
-  return saveFrd(prdId, { ...doc, items: doc.items.map((i) => i.id === itemId ? { ...i, title } : i) });
+  return saveFrd(prdId, {
+    ...doc,
+    items: doc.items.map((i) => (i.id === itemId ? { ...i, title } : i)),
+  });
 }
 
 export function deleteFrdItem(prdId: string, itemId: string): FrdDoc {
   const doc = loadFrd(prdId);
   return saveFrd(prdId, { ...doc, items: doc.items.filter((i) => i.id !== itemId) });
 }
-
 
 /**
  * Drawn straight from the round's folder tree, one column per level of real
@@ -794,7 +1010,13 @@ function statusForRoute(route: string | undefined): IAStatus {
   return 'To do';
 }
 
-export function defaultIARows(folder: DesignFolder, projectName?: string, suffixFmt: IdSuffixFormat = 'mixed', randomLen = 5, depthCfgs?: IADepthConfigs): IARow[] {
+export function defaultIARows(
+  folder: DesignFolder,
+  projectName?: string,
+  suffixFmt: IdSuffixFormat = 'mixed',
+  randomLen = 5,
+  depthCfgs?: IADepthConfigs,
+): IARow[] {
   const rows: IARow[] = [];
   const pShort = projectShortName(projectName ?? '');
 
@@ -910,7 +1132,15 @@ export function defaultIARows(folder: DesignFolder, projectName?: string, suffix
     const [depth1 = '', depth2 = '', depth3 = '', depth4 = '', depth5 = ''] = depthSegments;
     const sType = screenTypeFor(file.fileName, file.id);
     const fileStatus = statusForRoute(file.route);
-    const sid = screenCode(pShort, [depth1, depth2, depth3, depth4, depth5], sType, suffixFmt, randomLen, depthCfgs, fileStatus);
+    const sid = screenCode(
+      pShort,
+      [depth1, depth2, depth3, depth4, depth5],
+      sType,
+      suffixFmt,
+      randomLen,
+      depthCfgs,
+      fileStatus,
+    );
     const sKey = screenKeyFromDepths(pShort, [depth1, depth2, depth3, depth4, depth5], sType);
     rows.push({
       id: `ia-${file.id}`,
@@ -951,7 +1181,7 @@ export function defaultIARows(folder: DesignFolder, projectName?: string, suffix
    * sheet's row order does not shift.
    */
   const depthsByFile = new Map<string, string[]>();
-  const depth = (file: DesignFile) => (routeOf(file)?.split('/').filter(Boolean).length ?? 99);
+  const depth = (file: DesignFile) => routeOf(file)?.split('/').filter(Boolean).length ?? 99;
   for (const entry of [...entries].sort((a, b) => depth(a.file) - depth(b.file))) {
     const segments = depthsFor(entry.file, entry.ancestors);
     depthsByFile.set(entry.file.id, segments);
@@ -1146,9 +1376,12 @@ export function updateIARow(
   const resolved = { ...patch };
   if (
     resolved.screenKey === undefined &&
-    (resolved.depth1 !== undefined || resolved.depth2 !== undefined ||
-     resolved.depth3 !== undefined || resolved.depth4 !== undefined ||
-     resolved.depth5 !== undefined || resolved.screenType !== undefined)
+    (resolved.depth1 !== undefined ||
+      resolved.depth2 !== undefined ||
+      resolved.depth3 !== undefined ||
+      resolved.depth4 !== undefined ||
+      resolved.depth5 !== undefined ||
+      resolved.screenType !== undefined)
   ) {
     const target = rows.find((r) => r.id === rowId);
     if (target) {
@@ -1196,7 +1429,7 @@ export function resetIARows(
   depthCfgs?: IADepthConfigs,
 ): IARow[] {
   try {
-    window.localStorage.removeItem(iaKey(projectId, version));
+    workspaceStore.removeItem(iaKey(projectId, version));
   } catch {
     // ignore — there is nothing to remove either way
   }
@@ -1225,11 +1458,11 @@ function rebuildScreenId(
 
   // Decide whether to keep the old suffix or generate a new one:
   // keep it if the length and format haven't changed from what it looks like
-  const suffixOk = existingSuffix.length === randomLen && (
-    (suffixFmt === 'number' && /^\d+$/.test(existingSuffix)) ||
-    (suffixFmt === 'alpha' && /^[a-z]+$/i.test(existingSuffix)) ||
-    (suffixFmt === 'mixed' && /^[a-z0-9]+$/i.test(existingSuffix))
-  );
+  const suffixOk =
+    existingSuffix.length === randomLen &&
+    ((suffixFmt === 'number' && /^\d+$/.test(existingSuffix)) ||
+      (suffixFmt === 'alpha' && /^[a-z]+$/i.test(existingSuffix)) ||
+      (suffixFmt === 'mixed' && /^[a-z0-9]+$/i.test(existingSuffix)));
   const suffix = suffixOk ? existingSuffix.toLowerCase() : randomSuffix(suffixFmt, randomLen);
 
   const parts: string[] = [strip(projectShort)];
@@ -1240,11 +1473,11 @@ function rebuildScreenId(
       // For configured depths, check if the old ID already has a matching segment
       // at this position — if so keep it, otherwise generate new
       const oldDepthPart = oldParts[parts.length] ?? '';
-      const depthOk = oldDepthPart.length === cfg.digits && (
-        (cfg.format === 'number' && /^\d+$/.test(oldDepthPart)) ||
-        (cfg.format === 'alpha' && /^[a-z]+$/i.test(oldDepthPart)) ||
-        (cfg.format === 'mixed' && /^[a-z0-9]+$/i.test(oldDepthPart))
-      );
+      const depthOk =
+        oldDepthPart.length === cfg.digits &&
+        ((cfg.format === 'number' && /^\d+$/.test(oldDepthPart)) ||
+          (cfg.format === 'alpha' && /^[a-z]+$/i.test(oldDepthPart)) ||
+          (cfg.format === 'mixed' && /^[a-z0-9]+$/i.test(oldDepthPart)));
       parts.push(depthOk ? oldDepthPart.toLowerCase() : randomSuffix(cfg.format, cfg.digits));
     } else {
       parts.push(strip(d));
@@ -1271,13 +1504,10 @@ export function regenerateScreenIds(
   const pShort = projectShortName(projectName);
   const prefix = `${IA_KEY}:${projectId}:`;
   try {
-    const keys: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (key?.startsWith(prefix)) keys.push(key);
-    }
+    // The store exposes its keys as a list, where localStorage had `length` and `key(i)`.
+    const keys = workspaceStore.keys().filter((key) => key.startsWith(prefix));
     for (const key of keys) {
-      const raw = window.localStorage.getItem(key);
+      const raw = workspaceStore.getItem(key);
       if (!raw) continue;
       const parsed: unknown = JSON.parse(raw);
       if (!isStoredRowArray(parsed)) continue;
@@ -1294,7 +1524,9 @@ export function regenerateScreenIds(
         );
         return { ...row, screenId: newScreenId, prd: `PRD-${newScreenId}` };
       });
-      window.localStorage.setItem(key, JSON.stringify(updated));
+      workspaceStore.setItem(key, JSON.stringify(updated));
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }

@@ -85,6 +85,7 @@ import {
   versionFolderKey,
 } from '@/lib/we-adk-mock/versions';
 import { loadScreenBlocks, type DevicePresetId } from '@/lib/we-adk-mock/sketcher';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** A draft's key — a screen id is unique, but the task it came from names it. */
 const draftKey = (draft: ProjectDraft) => `${draft.taskId ?? 'project'}:${draft.screenId}`;
@@ -119,7 +120,7 @@ function fileNameOf(draft: ProjectDraft): string {
 /** The page saved for a screen, if one was ever generated or edited. */
 function loadDesignHtml(screenId: string): string | null {
   try {
-    return window.localStorage.getItem(`we-adk:design-html:${screenId}`);
+    return workspaceStore.getItem(`we-adk:design-html:${screenId}`);
   } catch {
     return null;
   }
@@ -724,7 +725,7 @@ export default function DraftsPage() {
                        * parse recovers.
                        */
                       try {
-                        window.localStorage.setItem(
+                        workspaceStore.setItem(
                           `we-adk:design-html:${open.screenId}`,
                           updatedHtml,
                         );

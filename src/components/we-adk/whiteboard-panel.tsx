@@ -215,7 +215,7 @@ export function WhiteboardPanel({
   const flashTimer = useRef<number | null>(null);
   /** Bumped when the surface changes underneath, so the counts are re-read. */
   const [rev, setRev] = useState(0);
-  /** What is stored for this task. Read after mount — both live in localStorage. */
+  /** What is stored for this task. Read after mount — both are workspace state. */
   const [boardCount, setBoardCount] = useState(0);
   const [tableCount, setTableCount] = useState(0);
 

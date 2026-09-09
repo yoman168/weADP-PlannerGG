@@ -1,10 +1,20 @@
 'use client';
 
 /**
- * "Connect your Claude account" dialog. Every user of this deployment brings
- * their own Claude Code subscription: they run `claude setup-token` on their
- * machine, paste the token here, and it is verified against the bridge before
- * being saved to this browser only.
+ * "Connect your Claude account" dialog.
+ *
+ * Two ways for the AI features to have a credential, and this is the second one: the API
+ * normally holds one key for the whole deployment (`ANTHROPIC_API_KEY`), and anything
+ * pasted here overrides it for this browser only, so someone can spend their own quota
+ * instead of the organisation's.
+ *
+ * An API key is what to paste. This used to ask for a `claude setup-token` token, from when
+ * the AI ran by shelling out to the local CLI — a server-side SDK cannot use a subscription
+ * that way. Such tokens are still accepted and sent as a bearer token, but an API key is the
+ * supported path, and the instructions below now say so.
+ *
+ * Whatever is pasted is verified with one tiny Haiku call before being saved, and it is
+ * saved to this browser only — the API never stores it, and refuses to.
  */
 import { CheckCircle2, Loader2, Plug, Unplug } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -75,8 +85,9 @@ export function ClaudeConnectDialog({ trigger }: { trigger: ReactNode }) {
             {connected ? 'Claude account connected' : 'Connect your Claude account'}
           </DialogTitle>
           <DialogDescription>
-            AI features run on your own Claude Code subscription. The token is stored only in this
-            browser and sent with your requests — the server never keeps it.
+            The API has its own key for everyone; a key here overrides it for this browser only, so
+            you spend your own quota. It is stored in this browser and sent with your requests — the
+            server never keeps it.
           </DialogDescription>
         </DialogHeader>
 
@@ -88,13 +99,28 @@ export function ClaudeConnectDialog({ trigger }: { trigger: ReactNode }) {
         ) : (
           <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
             <li>
-              On your own machine, run{' '}
+              Create a key at{' '}
+              <a
+                href="https://console.anthropic.com/settings/keys"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2"
+              >
+                console.anthropic.com
+              </a>
+              .
+            </li>
+            <li>
+              Paste it below. It starts with{' '}
+              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">sk-ant-api</code>.
+            </li>
+            <li className="text-muted-foreground/80">
+              A{' '}
               <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
                 claude setup-token
               </code>{' '}
-              (requires Claude Code and a Claude subscription).
+              token also works, but an API key is the supported path.
             </li>
-            <li>Copy the token it prints (starts with sk-ant-) and paste it below.</li>
           </ol>
         )}
 
@@ -106,7 +132,7 @@ export function ClaudeConnectDialog({ trigger }: { trigger: ReactNode }) {
             onKeyDown={(event) => {
               if (event.key === 'Enter') void verifyAndSave();
             }}
-            placeholder={connected ? 'Paste a new token to replace it' : 'sk-ant-oat01-…'}
+            placeholder={connected ? 'Paste a new key to replace it' : 'sk-ant-api03-…'}
             autoComplete="off"
             spellCheck={false}
           />
@@ -126,7 +152,11 @@ export function ClaudeConnectDialog({ trigger }: { trigger: ReactNode }) {
               <Unplug className="size-4" /> Disconnect
             </Button>
           )}
-          <Button type="button" onClick={() => void verifyAndSave()} disabled={verifying || !draft.trim()}>
+          <Button
+            type="button"
+            onClick={() => void verifyAndSave()}
+            disabled={verifying || !draft.trim()}
+          >
             {verifying ? <Loader2 className="size-4 animate-spin" /> : <Plug className="size-4" />}
             {verifying ? 'Verifying…' : 'Verify & save'}
           </Button>
