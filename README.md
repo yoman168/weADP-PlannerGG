@@ -14,16 +14,67 @@ Other scripts: `pnpm build`, `pnpm start` (production server), `pnpm typecheck`.
 ## Docker
 
 ```bash
-docker compose up -d --build
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3003/adk/we-adk
+docker compose up -d --build                     # app + db, loopback only
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3003/we-adk
+
+docker compose --profile tunnel up -d            # + a public URL
+docker compose logs tunnel | grep trycloudflare  # read that URL
 ```
 
 The image builds with `BUILD_TARGET=standalone`, so unlike the default `export`
 target it is a real Node server and the routes under `src/app/api` **run** — that
 is the whole backend this app has. It listens on `127.0.0.1:3003` (3000–3002 are
-taken by other containers on this machine) under `BASE_PATH=/adk`, ready for the
-shared nginx edge. `@anthropic-ai/claude-code` is installed in the image so the
-Claude bridge has a `claude` on PATH.
+taken by other containers on this machine). `@anthropic-ai/claude-code` is
+installed in the image so the Claude bridge has a `claude` on PATH.
+
+The `tunnel` profile starts this project's own edge: an nginx plus a cloudflared,
+reaching the app over the compose network so the app stays loopback-bound.
+
+This is the **second** of two edges on this machine, deliberately separate so a
+URL shared with one audience does not expose every other project's paths:
+
+```text
+Edge A — this repo, deploy/nginx/we-adk.conf
+  cloudflared → we-adk-edge :8080
+       ├─ /ohmycmo/  → host.docker.internal:8889  OhMyCMO
+       └─ /          → app:3000                   WE-ADK (catch-all)
+
+Edge B — we-testcase-ms/deploy/edge
+  cloudflared → macmini-edge :8080
+       ├─ /cases/       → :3000  we-testcase
+       ├─ /securescan/  → :3001  SecureScan
+       └─ /ptas168/     → :8082  PTAS168
+```
+
+we-adk is Edge A's catch-all rather than a `/we-adk/` prefix, which is why
+`BASE_PATH` can stay empty: its routes already begin with `/we-adk`, and `/eacc`,
+`/api` and `/_next` come along for free without enumerating them. Adding a third
+app here just means one more `location` above the catch-all.
+
+That nginx is not optional. Cloudflare percent-encodes `(` and `[` in Next.js
+chunk paths, and Next 15 returns 404 when both are encoded in one URL. This app
+has a `(workspace)` route group under `[projectId]`, so pointing cloudflared
+straight at the app makes the sketcher **edit and preview pages fail outright** —
+`Application error: a client-side exception has occurred`, from a `ChunkLoadError`
+on `(workspace)/layout-….js`. nginx's `$uri` is already decoded, so
+`proxy_pass http://app$uri` hands the app the literal path and it serves it. See
+[deploy/nginx/we-adk.conf](deploy/nginx/we-adk.conf). It is behind a profile because a
+free Quick Tunnel's hostname is random and changes whenever that container is
+recreated — this way rebuilding the app leaves the public URL alone. Note that
+`docker compose restart tunnel` does **not** mint a new hostname; cloudflared
+reuses stale state from the container filesystem and comes back registered but
+unreachable. Force a genuinely new one with:
+
+```bash
+docker compose --profile tunnel up -d --force-recreate --no-deps tunnel
+```
+
+`BASE_PATH` is empty by default, which suits the own-tunnel setup: the app owns
+the whole hostname and serves `/we-adk` directly. The alternative is the shared
+Mac mini nginx edge, which fronts five apps on one hostname and routes by path
+prefix without stripping it — that needs `BASE_PATH=/adk` in `.env` plus a
+rebuild, since Next inlines it into every `/_next` URL at build time. See
+[deploy/EDGE.md](deploy/EDGE.md) and [deploy/patch-edge.py](deploy/patch-edge.py).
 
 Three build targets, selected by `BUILD_TARGET`:
 

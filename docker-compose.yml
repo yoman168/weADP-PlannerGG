@@ -1,23 +1,36 @@
-# we-adk in Docker, behind the shared Mac mini nginx edge.
+# we-adk in Docker, with its own Cloudflare tunnel.
 #
-#   docker compose up -d --build
-#   docker compose logs -f app
+#   docker compose up -d --build                    # app + db, loopback only
+#   docker compose --profile tunnel up -d           # + a public URL
+#   docker compose logs tunnel | grep trycloudflare # read that URL
 #
-# Bound to loopback only: the public path is
-#   cloudflared → macmini-edge :8080 → host.docker.internal:3003 → this app
-# so there is no reason for :3003 to answer on the LAN.
+# Two ways to serve this publicly, and they want different BASE_PATH values:
 #
-# The edge lives in we-testcase-ms/deploy/edge and is shared by five projects.
-# Adding a route there needs `nginx -s reload`, never a tunnel restart — the
-# Quick Tunnel mints a NEW random URL every time it restarts.
+#   own tunnel (default)  BASE_PATH empty. This stack's own cloudflared points
+#                         straight at the app, so there is no prefix to share
+#                         and the URL is …trycloudflare.com/we-adk.
+#
+#   shared nginx edge     BASE_PATH=/adk in .env, then rebuild. The Mac mini
+#                         edge in we-testcase-ms/deploy/edge fronts five apps on
+#                         one hostname and routes by path prefix without
+#                         stripping it, so the app must own that prefix itself.
+#                         See deploy/EDGE.md and deploy/patch-edge.py.
+#
+# BASE_PATH is baked into the client bundle at build time, so switching needs
+# `docker compose up -d --build`, not just a restart.
+#
+# The tunnel sits behind a profile on purpose: a Quick Tunnel mints a NEW random
+# URL whenever its container is recreated, so a plain `up -d --build` to rebuild
+# the app leaves the public URL alone.
 
 services:
   app:
     build:
       context: .
       args:
-        # Must match the `location /adk/` block in the edge's nginx.conf.
-        BASE_PATH: /adk
+        # Empty for the own-tunnel setup; set BASE_PATH=/adk in .env for the
+        # shared edge. See the header.
+        BASE_PATH: ${BASE_PATH-}
     image: we-adk:latest
     container_name: we-adk-app
     restart: unless-stopped
@@ -27,7 +40,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
-      BASE_PATH: /adk
+      BASE_PATH: ${BASE_PATH-}
       # Present so the app can reach the db once it stops reading mock modules.
       # Nothing queries it yet, so the app starts fine whether or not db is up.
       DATABASE_URL: postgres://${POSTGRES_USER:-weadk}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-weadk}
@@ -39,7 +52,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/adk/we-adk"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000${BASE_PATH-}/we-adk"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -77,6 +90,66 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # nginx between the tunnel and the app. NOT optional for a public URL: it
+  # decodes the percent-encoded ( ) and [ ] that Cloudflare puts in Next.js
+  # chunk paths, which the app itself 404s. Without it the sketcher edit and
+  # preview pages fail with a ChunkLoadError. See deploy/nginx/we-adk.conf.
+  edge:
+    image: nginx:1.27-alpine
+    container_name: we-adk-edge
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    volumes:
+      - ./deploy/nginx/we-adk.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      # Docker Desktop Mac host IPv4. Needed to reach OhMyCMO on :8889 — the
+      # hostname's IPv6 form is broken here, same as on the other edge.
+      - "host.docker.internal:192.168.65.254"
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # A public URL for we-adk alone, independent of the shared macmini-tunnel.
+  #
+  #   docker compose --profile tunnel up -d
+  #   docker compose logs tunnel | grep trycloudflare
+  #
+  # Reaches nginx over the compose network, so the app stays loopback-bound.
+  #
+  # --protocol http2 is not optional here: this network blocks outbound UDP on
+  # 7844, so cloudflared's QUIC transport fails its pre-check and it would spend
+  # every startup falling back anyway.
+  #
+  # Free Quick Tunnel, so the hostname is random and changes whenever this
+  # container is recreated. `docker compose restart tunnel` is NOT enough to mint
+  # a new one — cloudflared reuses stale state from the container filesystem and
+  # comes back registered but unreachable. Force a clean one with:
+  #   docker compose --profile tunnel up -d --force-recreate --no-deps tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: we-adk-tunnel
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate --protocol http2 --url http://edge:8080
+    depends_on:
+      edge:
+        condition: service_healthy
     logging:
       driver: json-file
       options:

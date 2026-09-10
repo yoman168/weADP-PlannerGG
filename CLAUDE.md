@@ -26,8 +26,8 @@ After making changes, verify whichever instance you are working on responds:
 # dev server (port from above)
 curl -s -m 5 -o /dev/null -w "%{http_code}\n" http://localhost:3004/we-adk
 
-# the Docker container (note the /adk basePath)
-curl -s -m 5 -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3003/adk/we-adk
+# the Docker container (BASE_PATH is empty by default; /adk only for the shared edge)
+curl -s -m 5 -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3003/we-adk
 ```
 
 If it returns `000` (timeout) or `500`:
@@ -63,10 +63,11 @@ Common causes of hangs:
 The `export` target drops everything under `src/app/api/` **without erroring**.
 If an API route 404s in a built app, check the target before debugging the route.
 
-`BASE_PATH` sets Next's `basePath`; the Docker image builds with `/adk` for the
-shared nginx edge. It is baked into the client bundle and every `/_next` URL at
-build time, so changing it needs a rebuild. Anything that reconstructs a URL
-server-side must account for it — see the two comments in
+`BASE_PATH` sets Next's `basePath`. It is empty by default, which is what the
+own-tunnel setup wants; `/adk` is only for the shared nginx edge. Either way it
+is baked into the client bundle and every `/_next` URL at build time, so changing
+it needs a rebuild, not a restart. Anything that reconstructs a URL server-side
+must account for it — see the two comments in
 `src/app/api/prototype/[slug]/route.ts`.
 
 ## Docker
