@@ -77,6 +77,100 @@ Cloudflare is still a target for the workspace alone: `pnpm build` and `pnpm dep
 unchanged, and produce the static export they always did. Run `pnpm approve-builds` first,
 since that path wants esbuild and workerd to have run their install scripts.
 
+## Shipping it
+
+```
+pull request   →  tests, contract check, both images built            nothing published
+push to main   →  the same, then published to ghcr.io, then deployed
+push of a tag  →  the same, published; deployed when someone says so
+```
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) is the pipeline and
+[`deploy.yml`](.github/workflows/deploy.yml) is the release. The jobs, in order:
+
+| Job      | What it decides                                                                  |
+| -------- | -------------------------------------------------------------------------------- |
+| `api`    | The Java tests pass, and exports the OpenAPI document from the service it boots   |
+| `web`    | The committed contract and generated types match that document, and TypeScript compiles |
+| `stack`  | `shellcheck` on the deploy scripts, and every compose stack resolves              |
+| `images` | Both images build; on a push they are pushed to `ghcr.io/<owner>/we-adk/{api,web}` |
+| `deploy` | On `main` only: the images just published are put on the host                     |
+
+Images are tagged three ways — `sha-1a2b3c4` for every commit, the branch or git tag's own
+name, and `latest` from `main`. The sha tag is what a deploy is given, because it is the one
+that names exactly one build.
+
+A tag publishes and stops there. Releasing it is running **Deploy** from the Actions tab with
+`v1.2.0` in the box, which is the same path a rollback takes, with an older tag.
+
+### What the host needs
+
+One machine with Docker and the compose plugin, a user in the `docker` group, and one file:
+
+```bash
+mkdir -p ~/we-adk/deploy
+# deploy/prod.env.example in this repository is the template. Fill in the real values.
+$EDITOR ~/we-adk/deploy/prod.env
+```
+
+That file is the only thing on the host the pipeline does not send, and it is deliberate:
+the database password and the Anthropic key belong to the host and never pass through
+GitHub. Everything else — the compose files and the scripts that drive them — is shipped on
+every run, so the host is never a branch of this repository that has drifted.
+
+Then, on GitHub, under the repository's **Settings → Secrets and variables → Actions**:
+
+| Name                 | Kind                   | What it is                                                  |
+| -------------------- | ---------------------- | ----------------------------------------------------------- |
+| `PUBLIC_API_URL`     | variable               | The API URL the browser will use. Compiled into the bundle. |
+| `OAUTH_CLIENT_ID`    | variable, optional     | Defaults to `we-adk-workspace`                              |
+| `DEPLOY_HOST`        | variable (`production` environment) | The host to deploy to. Unset, the deploy step says so and passes |
+| `DEPLOY_USER`        | variable, optional     | Defaults to `deploy`                                        |
+| `DEPLOY_PORT`        | variable, optional     | Defaults to `22`                                            |
+| `DEPLOY_PATH`        | variable, optional     | Defaults to `~/we-adk`                                      |
+| `PUBLIC_WEB_URL`     | variable, optional     | Only to label the deployment in GitHub's UI                 |
+| `DEPLOY_SSH_KEY`     | secret                 | A private key whose public half is in that user's `authorized_keys` |
+| `DEPLOY_KNOWN_HOSTS` | secret, strongly advised | `ssh-keyscan -H your.host` — without it the first connection trusts whatever answers |
+
+No registry credential is needed. The job signs in to ghcr.io as itself, with a token that
+expires when it finishes.
+
+`PUBLIC_API_URL` is a repository variable rather than an environment one because the image
+is built before any environment is in play — and it has to be right, because
+`NEXT_PUBLIC_API_BASE_URL` is compiled into the browser bundle and cannot be moved by
+restarting anything. CI stamps the URL it built with onto the image as a label and
+`scripts/release.sh` refuses a release whose label disagrees with the host's `prod.env`,
+before it stops anything. That check is the difference between finding this out here and
+finding it out in a browser console.
+
+### On the host
+
+[`scripts/release.sh`](scripts/release.sh) is what the deploy job runs over SSH, and it is
+an ordinary script you can run yourself:
+
+```bash
+cd ~/we-adk
+bash scripts/release.sh status      # what is running, and what it was released from
+bash scripts/release.sh rollback    # the release before this one
+bash scripts/release.sh v1.2.0      # or any tag that exists in the registry
+```
+
+It pulls both images, writes `deploy/prod.release.env`, and starts the stack. That file is
+what makes the difference: while it exists, `scripts/lib/stack-env.sh` layers
+[`deploy/compose.release.yml`](deploy/compose.release.yml) on, and the api and web services
+run the published images rather than building from source. Delete it and `pnpm stack:prod`
+builds on the host again, exactly as before.
+
+Then it waits for both containers to report healthy — the API's is its readiness probe, so
+it is false until Flyway has finished — and if they do not, it puts the previous release
+back and fails. `pnpm stack:prod:logs api` for what happened.
+
+**Migrations are not part of that.** Flyway runs inside the API at startup and only goes
+forward, so a rollback returns the code and leaves the schema where the release left it. A
+migration that older code cannot read is therefore a thing to think about before it ships:
+add columns, do not repurpose them, and drop one only after a release that no longer reads
+it is the one you would roll back to.
+
 ## Running it without Docker
 
 Still supported, and quicker for tight iteration on the frontend:
@@ -101,7 +195,8 @@ src/  public/  next.config.ts   the workspace (Next.js)
 backend/                        the API (Spring Boot)
 deploy/                         Dockerfiles, compose files, per-environment settings
 openapi/                        the contract the TypeScript client is generated from
-scripts/                        stack control, contract export, the OAuth2 flow check
+scripts/                        stack control, contract export, the release, the OAuth2 flow check
+.github/workflows/              the pipeline, and the deploy it ends in
 ```
 
 Everything to do with running the system lives in `deploy/`, including the two Dockerfiles.

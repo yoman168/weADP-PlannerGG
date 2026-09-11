@@ -1,0 +1,144 @@
+name: Deploy
+
+# Put one published release on the prod stack.
+#
+# Called by ci.yml after every push to main with the sha tag it has just published, and
+# run on its own from the Actions tab with any tag that exists in the registry — which is
+# how a tagged release goes out, and how a bad one is rolled back.
+#
+# The host side is scripts/release.sh, over SSH. The host needs, once: Docker with the
+# compose plugin, a user in the docker group that DEPLOY_SSH_KEY signs in as, and
+# deploy/prod.env under DEPLOY_PATH — the one file with real credentials, which this
+# workflow never sees and never writes. Everything else it needs is shipped on each run.
+# README.md → "Shipping it" has the setup.
+#
+# With no DEPLOY_HOST the job says so and succeeds. The images are published regardless,
+# so a repository without a host still has a working pipeline and nothing red.
+
+on:
+  workflow_call:
+    inputs:
+      image_tag:
+        description: The tag both images were published under — sha-1a2b3c4, v1.2.0 or latest
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: The tag both images were published under — sha-1a2b3c4, v1.2.0 or latest
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  production:
+    name: Release ${{ inputs.image_tag }}
+    runs-on: ubuntu-latest
+    # One release at a time, and never cancelled: a second one waits its turn. A run
+    # stopped half-way through `compose up` is the one state the host must not be left in.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_WEB_URL }}
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER || 'deploy' }}
+      # Expanded by the remote shell, so `~` works; no spaces.
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '~/we-adk' }}
+    steps:
+      # The tag is typed by a person on a manual run, so it is checked before it is quoted
+      # into a remote command line.
+      - name: Is there a host to deploy to?
+        id: host
+        run: |
+          if [[ -z "$DEPLOY_HOST" ]]; then
+            echo "::notice title=Deploy skipped::No DEPLOY_HOST variable on the production environment. The images tagged $IMAGE_TAG are published; README.md → Shipping it."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! "$IMAGE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "::error::'$IMAGE_TAG' is not an image tag."
+            exit 1
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - if: steps.host.outputs.configured == 'true'
+        uses: actions/checkout@v4
+
+      # Plain ssh rather than a marketplace action: what runs on the host is exactly what is
+      # written here, and the only credential involved is the one in this repository's
+      # secrets. The host key is pinned from DEPLOY_KNOWN_HOSTS when there is one; without
+      # it the first connection trusts whatever answers, which is said out loud.
+      - name: Connect
+        if: steps.host.outputs.configured == 'true'
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [[ -z "$SSH_KEY" ]]; then
+            echo "::error::DEPLOY_HOST is set but the DEPLOY_SSH_KEY secret is not."
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [[ -n "$KNOWN_HOSTS" ]]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            echo "::warning title=Host key not pinned::No DEPLOY_KNOWN_HOSTS secret; trusting the key $DEPLOY_HOST presented. Save 'ssh-keyscan -p $DEPLOY_PORT -H $DEPLOY_HOST' as that secret to pin it."
+            ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<CONFIG
+          Host deploy
+            HostName $DEPLOY_HOST
+            Port $DEPLOY_PORT
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+          CONFIG
+          ssh deploy 'echo "connected to $(hostname) as $(whoami)"; docker compose version'
+
+      # The stack definition and the scripts that drive it, laid out as they are in the
+      # repository because scripts/stack.sh finds deploy/ relative to itself. deploy/prod.env
+      # is not in this list, deliberately: it is the host's.
+      - name: Ship the stack definition
+        if: steps.host.outputs.configured == 'true'
+        run: |
+          # $DEPLOY_PATH is expanded here, by the runner, deliberately — the remote shell
+          # sees a literal path and expands only the ~ in it.
+          # shellcheck disable=SC2029
+          tar -czf - \
+            deploy/compose.yml deploy/compose.release.yml \
+            scripts/stack.sh scripts/lib/stack-env.sh scripts/release.sh \
+            | ssh deploy "mkdir -p $DEPLOY_PATH && tar -xzf - -C $DEPLOY_PATH"
+
+      # The registry token goes over stdin, which is where release.sh reads it from, so it
+      # is never on a command line or in a process list on either machine. It is this job's
+      # own GITHUB_TOKEN: it can read the repository's packages and expires with the job.
+      - name: Release
+        if: steps.host.outputs.configured == 'true'
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Expanded here rather than on the host, again deliberately: what the host runs is
+          # a command line this workflow wrote in full, with no variables of its own in it.
+          # shellcheck disable=SC2029
+          printf '%s' "$GHCR_TOKEN" | ssh deploy "cd $DEPLOY_PATH && \
+            GHCR_USER='$GHCR_USER' IMAGE_REPOSITORY='ghcr.io/${GITHUB_REPOSITORY,,}' RELEASED_FROM='$GITHUB_SHA' \
+            bash scripts/release.sh '$IMAGE_TAG'"
+          {
+            echo "Released \`$IMAGE_TAG\` to \`$DEPLOY_HOST\` from ${GITHUB_SHA::7}."
+            echo
+            echo "Roll back with the Deploy workflow and the previous tag, or on the host: \`bash scripts/release.sh rollback\`."
+          } >> "$GITHUB_STEP_SUMMARY"

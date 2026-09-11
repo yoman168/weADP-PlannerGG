@@ -38,7 +38,7 @@ esac
 
 # The project name, the layered env files and `compose` itself — shared with tunnel.sh so
 # the two scripts cannot disagree about which stack they are driving.
-# shellcheck source=lib/stack-env.sh
+# shellcheck source=scripts/lib/stack-env.sh
 source scripts/lib/stack-env.sh
 
 # Said once, at the point it can still be acted on.

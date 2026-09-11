@@ -27,8 +27,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Read by stack-env.sh below, which is what shellcheck cannot see from here.
+# shellcheck disable=SC2034
 ENVIRONMENT=dev
-# shellcheck source=lib/stack-env.sh
+# shellcheck source=scripts/lib/stack-env.sh
 source scripts/lib/stack-env.sh
 
 WEB_PORT=3000
