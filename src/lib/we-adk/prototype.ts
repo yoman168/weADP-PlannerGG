@@ -452,7 +452,7 @@ export function findPrototypeByRoute(route: string): PrototypeFile | null {
 }
 
 /**
- * localStorage key holding this file's layout edits. Each html file keeps its
+ * Workspace-state key holding this file's layout edits. Each html file keeps its
  * own, so editing the bulk-approve screen never changes the list screen it was
  * copied from.
  */

@@ -26,9 +26,9 @@ import {
   type MeetingFileKind,
 } from '@/lib/we-adk-mock/meeting-files';
 
-/** Cap per file, so one long log cannot fill the localStorage budget. */
+/** Cap per file, so one long log cannot fill the value size limit. */
 const MAX_TEXT_CHARS = 8000;
-/** Only store dataUrl for images up to this size to avoid filling localStorage. */
+/** Only store dataUrl for images up to this size to avoid oversized values. */
 const MAX_IMAGE_BYTES = 500_000;
 
 const KIND_ICON: Record<MeetingFileKind, typeof FileText> = {

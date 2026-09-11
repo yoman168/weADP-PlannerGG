@@ -21,6 +21,7 @@ import { designToHtml } from '@/lib/we-adk/design-html';
 import { prototypeDesignBlocks } from '@/lib/we-adk/prototype-design';
 import { isPrototypeFile } from '@/lib/we-adk/prototype';
 import { loadScreenBlocks, type CanvasBlock } from '@/lib/we-adk-mock/sketcher';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 function key(screenId: string): string {
   return `we-adk:design-html:${screenId}`;
@@ -29,7 +30,7 @@ function key(screenId: string): string {
 /** The stored page for a screen, if one was ever generated or saved. */
 export function loadScreenHtml(screenId: string): string | null {
   try {
-    return window.localStorage.getItem(key(screenId));
+    return workspaceStore.getItem(key(screenId));
   } catch {
     return null;
   }
@@ -46,7 +47,7 @@ export function loadScreenHtml(screenId: string): string | null {
  */
 export function saveScreenHtml(screenId: string, html: string): void {
   try {
-    window.localStorage.setItem(key(screenId), html);
+    workspaceStore.setItem(key(screenId), html);
     window.dispatchEvent(new Event('we-adk:html-updated'));
   } catch {
     /* storage full — the edit stays on screen but is not kept */

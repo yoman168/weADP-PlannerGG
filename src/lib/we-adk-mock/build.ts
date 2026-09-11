@@ -97,7 +97,7 @@ function baseSession(taskId: string, state: BuildState): BuildSession {
   };
 }
 
-/** Browser-only — the seeds live in localStorage; the server render has none. */
+/** Reads workspace state, which the server render does not have. */
 function buildSeedFor(taskId: string): BuildSeed | undefined {
   try {
     return loadBuildSeeds()[taskId];

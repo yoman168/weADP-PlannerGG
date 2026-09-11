@@ -1,0 +1,22 @@
+# The stack on published images.
+#
+# Layered over compose.yml by scripts/lib/stack-env.sh whenever deploy/<env>.release.env
+# exists — the file scripts/release.sh writes, naming the two images CI published for one
+# commit. The api and web services then run those images and build nothing: `!reset`
+# removes the base file's `build:` block outright rather than leaving it beside the image,
+# where `up --build` would rebuild from source and tag the result over the pulled one.
+# Needs Compose 2.24 or later, which is what says "unknown tag !reset" on anything older.
+#
+# Postgres and adminer are untouched; they were images already.
+#
+# `:?` makes a missing name an error naming the file to look in, instead of compose quietly
+# trying to pull an image called ":".
+
+services:
+  api:
+    image: ${API_IMAGE:?deploy/<env>.release.env names the api image — see scripts/release.sh}
+    build: !reset null
+
+  web:
+    image: ${WEB_IMAGE:?deploy/<env>.release.env names the web image — see scripts/release.sh}
+    build: !reset null

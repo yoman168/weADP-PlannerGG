@@ -1,11 +1,14 @@
 'use client';
 
 /**
- * Each user connects their own Claude Code account: the token from
- * `claude setup-token` lives only in this browser's localStorage and is sent
- * as a header with every AI request. The server never persists it.
+ * A per-browser Anthropic credential, overriding the API's own for this user.
+ *
+ * Stays in `localStorage` deliberately — it is one of the three keys that never leave the
+ * browser, alongside the session token. The API rejects it if sent, and a check constraint
+ * on `workspace_state` rejects it again.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { authHeaders } from '@/lib/api/session';
 
 const TOKEN_STORAGE_KEY = 'we-adk:claude-token';
 export const CLAUDE_TOKEN_HEADER = 'x-claude-token';
@@ -37,10 +40,29 @@ export function clearClaudeToken(): void {
   }
 }
 
-/** Header object to spread into fetch calls against the AI bridge routes. */
+/**
+ * Headers to spread into fetch calls against the AI bridge routes.
+ *
+ * Two credentials, doing different jobs, which is why they travel together. The bearer
+ * token says who is asking and is what the API checks before doing anything at all; the
+ * Claude token is optional and says whose Claude quota to spend. The bridge is the one
+ * place both are needed, so this is the one place that assembles them — every call site
+ * spreads this object, and adding the two headers by hand at each one would be a chance
+ * to miss one.
+ *
+ * The invariant, deliberately stated as something you can check rather than a count that
+ * goes stale as call sites are added: no `fetch` to `/api/sketcher/*` or
+ * `/api/claude-auth/*` should have a `headers` object without either this function or
+ * {@link CLAUDE_TOKEN_HEADER} in it. Two calls in `sketcher-editor.tsx` sent neither for
+ * a while, which billed that canvas's AI to the deployment's key instead of the user's
+ * and 401'd once tokens were required — a count in this comment did not catch it.
+ */
 export function claudeHeaders(): Record<string, string> {
   const token = getClaudeToken();
-  return token ? { [CLAUDE_TOKEN_HEADER]: token } : {};
+  return {
+    ...authHeaders(),
+    ...(token ? { [CLAUDE_TOKEN_HEADER]: token } : {}),
+  };
 }
 
 export function useClaudeAccount(): {

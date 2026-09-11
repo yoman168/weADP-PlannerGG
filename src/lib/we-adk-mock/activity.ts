@@ -14,6 +14,7 @@
  * empty log, which is the truth about it. A log with invented history in it
  * would be the one thing in this mockup that cannot be trusted.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface ActivityEvent {
   id: string;
@@ -47,7 +48,7 @@ function isEvent(value: unknown): value is ActivityEvent {
 /** Newest first — the order it is read in. */
 export function loadActivity(projectId: string): ActivityEvent[] {
   try {
-    const raw = window.localStorage.getItem(`${KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${KEY}:${projectId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -88,7 +89,7 @@ export function recordActivity(
   };
   const next = [event, ...existing].slice(0, MAX_EVENTS);
   try {
-    window.localStorage.setItem(`${KEY}:${projectId}`, JSON.stringify(next));
+    workspaceStore.setItem(`${KEY}:${projectId}`, JSON.stringify(next));
   } catch {
     // Storage unavailable — the log lasts as long as the tab does.
   }
@@ -97,7 +98,7 @@ export function recordActivity(
 
 export function clearActivity(projectId: string): ActivityEvent[] {
   try {
-    window.localStorage.removeItem(`${KEY}:${projectId}`);
+    workspaceStore.removeItem(`${KEY}:${projectId}`);
   } catch {
     // Nothing to do — the read will keep returning what is there.
   }

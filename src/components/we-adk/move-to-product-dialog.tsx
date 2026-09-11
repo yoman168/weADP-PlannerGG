@@ -58,7 +58,7 @@ import {
   removeStandaloneDraft,
   type DraftPlacement,
 } from '@/lib/we-adk/task-design';
-import { inertPreviewHtml } from '@/lib/we-adk/mockup-pages';
+import { inertPreviewHtml, openFlowDocument } from '@/lib/we-adk/mockup-pages';
 import { loadRoundFolders } from '@/lib/we-adk/round-screens';
 import type { MeetingIA } from '@/lib/we-adk-mock/mockup-tasks';
 import {
@@ -70,6 +70,7 @@ import {
   type IARow,
   type IAScreenType,
 } from '@/lib/we-adk-mock/ia';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** "Untitled project", then "Untitled project 2", and so on. */
 function untitledName(taken: string[]): string {
@@ -370,7 +371,7 @@ export function MoveToProductDialog({
       const sourceBlocks = loadScreenBlocks(screen.id, '');
       if (sourceBlocks.length > 0) {
         try {
-          window.localStorage.setItem(screenStorageKey(screenId), JSON.stringify(sourceBlocks));
+          workspaceStore.setItem(screenStorageKey(screenId), JSON.stringify(sourceBlocks));
         } catch { /* storage full — the copy keeps the parsed blocks */ }
       }
       /*
@@ -454,11 +455,18 @@ export function MoveToProductDialog({
    * whole of it. Same as the button on the customer's own preview.
    */
   const openInBrowser = (screen: MovingScreen) => {
-    if (!screen.html) return;
-    const tab = window.open('', '_blank');
-    if (!tab) return;
-    tab.document.write(screen.html);
-    tab.document.close();
+    // The set, not the page: these screens link to each other, and the whole
+    // point of reading one here is deciding whether it belongs with the rest.
+    openFlowDocument(
+      screens.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        html: entry.html,
+        parentId: entry.ia.parentId,
+      })),
+      screen.name,
+      screen.id,
+    );
   };
 
   const openButtonClass =

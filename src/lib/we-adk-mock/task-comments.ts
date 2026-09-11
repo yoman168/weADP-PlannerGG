@@ -11,6 +11,7 @@
  * to storage until someone acts on them, so an untouched task costs nothing.
  */
 import { type ProjectTask } from './tasks';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type TaskEntryKind = 'comment' | 'system';
 
@@ -94,7 +95,7 @@ export function seedTaskHistory(task: ProjectTask): TaskComment[] {
 
 function readStored(projectId: string, taskId: string): TaskComment[] | null {
   try {
-    const raw = window.localStorage.getItem(storeKey(projectId, taskId));
+    const raw = workspaceStore.getItem(storeKey(projectId, taskId));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     return isTaskCommentArray(parsed) ? parsed : null;
@@ -106,7 +107,7 @@ function readStored(projectId: string, taskId: string): TaskComment[] | null {
 function write(projectId: string, taskId: string, entries: TaskComment[]): TaskComment[] {
   const next = sortEntries(entries).slice(-200);
   try {
-    window.localStorage.setItem(storeKey(projectId, taskId), JSON.stringify(next));
+    workspaceStore.setItem(storeKey(projectId, taskId), JSON.stringify(next));
   } catch {
     // Storage unavailable — the thread simply won't survive a reload.
   }

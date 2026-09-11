@@ -4,7 +4,7 @@
  * behind a concept folder, the consolidated package behind the design folder,
  * the captured screens behind real-screens.
  *
- * Browser-only — it reads the same localStorage the rest of Sketcher uses.
+ * It reads the same workspace state the rest of Sketcher uses.
  */
 import {
   loadUploadedFiles,

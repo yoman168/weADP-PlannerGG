@@ -20,6 +20,7 @@ import { useLocale } from '@/lib/locale';
 import { ChatPane, type ChatTurn } from '@/components/we-adk/claude-chat';
 import { loadUploadedFiles, sessionFiles } from '@/lib/we-adk-mock/meeting-files';
 import { findProject, type DesignProject } from '@/lib/we-adk-mock/projects';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Data types                                                          */
@@ -41,7 +42,7 @@ interface StoredChat {
 }
 
 /* ------------------------------------------------------------------ */
-/* localStorage helpers                                                */
+/* Workspace-state helpers                                                */
 /* ------------------------------------------------------------------ */
 
 const CHAT_STORE = 'we-adk:research:chats';
@@ -49,7 +50,7 @@ const FOLDER_STORE = 'we-adk:research:chat-folders';
 
 function loadChats(projectId: string): StoredChat[] {
   try {
-    const raw = window.localStorage.getItem(`${CHAT_STORE}:${projectId}`);
+    const raw = workspaceStore.getItem(`${CHAT_STORE}:${projectId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as StoredChat[]) : [];
@@ -60,13 +61,13 @@ function loadChats(projectId: string): StoredChat[] {
 
 function saveChats(projectId: string, chats: StoredChat[]): void {
   try {
-    window.localStorage.setItem(`${CHAT_STORE}:${projectId}`, JSON.stringify(chats.slice(0, 30)));
+    workspaceStore.setItem(`${CHAT_STORE}:${projectId}`, JSON.stringify(chats.slice(0, 30)));
   } catch {}
 }
 
 function loadChatFolders(projectId: string): ChatFolder[] {
   try {
-    const raw = window.localStorage.getItem(`${FOLDER_STORE}:${projectId}`);
+    const raw = workspaceStore.getItem(`${FOLDER_STORE}:${projectId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ChatFolder[]) : [];
@@ -77,7 +78,7 @@ function loadChatFolders(projectId: string): ChatFolder[] {
 
 function saveChatFolders(projectId: string, folders: ChatFolder[]): void {
   try {
-    window.localStorage.setItem(`${FOLDER_STORE}:${projectId}`, JSON.stringify(folders));
+    workspaceStore.setItem(`${FOLDER_STORE}:${projectId}`, JSON.stringify(folders));
   } catch {}
 }
 

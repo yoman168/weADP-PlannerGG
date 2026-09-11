@@ -7,10 +7,11 @@
  * are listed as cards under the board instead, so the task shows what it produced
  * without claiming somebody sent it.
  *
- * A picture is stored as a data URL, which localStorage will refuse past a few
+ * A picture is stored as a data URL, which the API will refuse past a few
  * megabytes — so writing says whether it worked rather than losing the board
  * quietly.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type BoardKind = 'whiteboard' | 'flow' | 'entities';
 
@@ -67,7 +68,7 @@ function isArtifactArray(value: unknown): value is BoardArtifact[] {
 
 export function loadArtifacts(sessionId: string): BoardArtifact[] {
   try {
-    const raw = window.localStorage.getItem(cardsKey(sessionId));
+    const raw = workspaceStore.getItem(cardsKey(sessionId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return isArtifactArray(parsed) ? parsed : [];
@@ -79,10 +80,10 @@ export function loadArtifacts(sessionId: string): BoardArtifact[] {
 function write(sessionId: string, artifacts: BoardArtifact[]): boolean {
   try {
     if (artifacts.length === 0) {
-      window.localStorage.removeItem(cardsKey(sessionId));
+      workspaceStore.removeItem(cardsKey(sessionId));
       return true;
     }
-    window.localStorage.setItem(cardsKey(sessionId), JSON.stringify(artifacts));
+    workspaceStore.setItem(cardsKey(sessionId), JSON.stringify(artifacts));
     return true;
   } catch {
     return false;

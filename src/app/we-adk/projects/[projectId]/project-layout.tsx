@@ -7,7 +7,12 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui';
 import { ProjectTile } from '@/components/we-adk/project-chrome';
 import { useLocale, LOCALE_LABELS, type Locale } from '@/lib/locale';
-import { PROJECTS, findProject } from '@/lib/we-adk-mock/projects';
+import {
+  PROJECTS,
+  WORKSPACE_LABEL,
+  findProject,
+  projectWorkspace,
+} from '@/lib/we-adk-mock/projects';
 
 /**
  * A project has one tool — Business, at `/sketcher` — so there is no tool rail:
@@ -34,6 +39,19 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
   const project = ready ? findProject(params.projectId) : null;
   const base = `/we-adk/projects/${params.projectId}`;
 
+  /*
+   * Back to the list this project is actually in.
+   *
+   * "Projects" named neither of them and led to whichever tab the home page
+   * opened on, so leaving a Product project put you in the Customer list with
+   * no sign of the project you just left. Until a created project arrives from
+   * storage there is nothing to name, and the generic label stands in for the
+   * one tick that takes.
+   */
+  const workspace = project ? projectWorkspace(project) : null;
+  const backHref = workspace ? `/we-adk?tab=${workspace}` : '/we-adk';
+  const backLabel = workspace ? WORKSPACE_LABEL[workspace] : t('nav.projects');
+
   return (
     // The full viewport, not a minimum: with `min-h` the row grew past the
     // viewport whenever a child asked for full height, which is the strip of
@@ -45,11 +63,11 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
       <div className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-3 border-b bg-[#fafafa] px-4 dark:bg-[#0d1017]">
         {/* Left: back + project identity */}
         <Link
-          href="/we-adk"
+          href={backHref}
           className="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-1.5 text-xs"
         >
           <ArrowLeft className="size-3" />
-          {t('nav.projects')}
+          {backLabel}
         </Link>
 
         {project && (
@@ -87,16 +105,6 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
             9+
           </span>
         </button>
-
-        <div className="hidden shrink-0 items-center gap-1.5 rounded-full border bg-emerald-50 px-2.5 py-1 md:flex dark:bg-emerald-500/10">
-          <span className="flex size-4 items-center justify-center rounded-full bg-emerald-500 text-[8px] font-bold text-white">
-            S
-          </span>
-          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-            {t('nav.members')}
-          </span>
-        </div>
-
       </div>
 
       {/* A column so a page can fill the row with `flex-1`, and scrolling so a

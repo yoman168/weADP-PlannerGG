@@ -6,7 +6,7 @@ export const WORK_GROUPS = ['Sandbox', 'Cloud', 'HD Korea Shipbuilding', 'Harim'
 /**
  * One screen (canvas) inside a work mockup. `seedPattern` decides what the
  * Sketcher canvas starts from when the screen is opened, and each screen keeps
- * its own saved canvas in localStorage.
+ * its own saved canvas in workspace state.
  */
 export interface MockupScreen {
   id: string;

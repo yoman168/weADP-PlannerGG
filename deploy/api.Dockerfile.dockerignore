@@ -1,0 +1,5 @@
+# The API build context is `backend/`. Only the wrapper, the build files and `src` are
+# copied, so this is about not shipping build output to the daemon on every build.
+build
+.gradle
+*.md

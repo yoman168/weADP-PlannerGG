@@ -12,6 +12,7 @@
  * canvas resolve, so the reference follows the file as it moves between
  * rounds rather than pointing at a copy that stops matching.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface TaskDesignRef {
   /** Canvas id of the design file — what the preview resolves. */
@@ -32,7 +33,7 @@ function key(projectId: string, taskId: string): string {
 
 export function loadTaskDesignRefs(projectId: string, taskId: string): TaskDesignRef[] {
   try {
-    const raw = window.localStorage.getItem(key(projectId, taskId));
+    const raw = workspaceStore.getItem(key(projectId, taskId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as TaskDesignRef[]) : [];
@@ -43,7 +44,7 @@ export function loadTaskDesignRefs(projectId: string, taskId: string): TaskDesig
 
 function save(projectId: string, taskId: string, refs: TaskDesignRef[]): void {
   try {
-    window.localStorage.setItem(key(projectId, taskId), JSON.stringify(refs));
+    workspaceStore.setItem(key(projectId, taskId), JSON.stringify(refs));
   } catch {
     // Storage unavailable — the reference simply won't survive a reload.
   }

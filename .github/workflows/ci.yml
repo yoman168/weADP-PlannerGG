@@ -1,0 +1,279 @@
+name: CI
+
+# The pipeline, end to end.
+#
+#   pull request      →  api, web, images          nothing published, nothing deployed
+#   push to main      →  api, web, images, deploy  images to ghcr.io, then the prod stack
+#   push of a v* tag  →  api, web, images          images to ghcr.io; deploy it by hand
+#
+# The deploy is deploy.yml, which also runs on its own from the Actions tab to put any
+# published tag on the stack — which is what a rollback is. README.md → "Shipping it".
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+# A new push supersedes the run in flight for the same pull request. A push to main queues
+# behind the one running instead: cancelling a run that has already published images, or
+# is half-way through a deploy, is worse than waiting for it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API — build, test, and export the contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # Testcontainers needs a Docker daemon; ubuntu-latest has one.
+      #
+      # --no-daemon because a CI runner is used once: a background daemon would outlive the
+      # step, hold the build cache open and gain nothing.
+      - name: Test
+        working-directory: backend
+        run: ./gradlew --no-daemon build
+
+      # The contract is exported from the running service, because springdoc builds it from
+      # the Spring context rather than from source. Postgres is required for that context to
+      # start at all: Flyway owns the schema and Hibernate validates against it.
+      - name: Start Postgres
+        run: |
+          docker run -d --name ci-postgres \
+            -e POSTGRES_DB=weadk -e POSTGRES_USER=weadk -e POSTGRES_PASSWORD=weadk \
+            -p 5432:5432 postgres:17-alpine
+          for _ in $(seq 1 30); do
+            docker exec ci-postgres pg_isready -U weadk -d weadk && break
+            sleep 2
+          done
+
+      - name: Export openapi.json
+        working-directory: backend
+        env:
+          DB_URL: jdbc:postgresql://localhost:5432/weadk
+          DB_USER: weadk
+          DB_PASSWORD: weadk
+          PORT: '8080'
+        run: |
+          ./gradlew --no-daemon -x test bootRun &
+          for _ in $(seq 1 60); do
+            curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://localhost:8080/v3/api-docs -o /tmp/api-docs.json
+          node ../scripts/openapi/normalize.mjs /tmp/api-docs.json > ../openapi/openapi.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: openapi/openapi.json
+
+  web:
+    name: Web — types match the API, then typecheck
+    runs-on: ubuntu-latest
+    needs: api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The contract as the API actually serves it, not as it was last committed.
+      - uses: actions/download-artifact@v4
+        with:
+          name: openapi
+          path: openapi
+
+      # This is the check that earns this job.
+      #
+      # The Java DTOs and the TypeScript client can disagree without anything failing to
+      # compile on either side — the frontend is typed against a file that was generated
+      # from an older version of the API, and the mismatch surfaces at runtime as a field
+      # that is quietly undefined. So the document is re-exported from the running service
+      # above, the types are regenerated from it here, and a diff against what is committed
+      # fails the build. Regenerate locally with `pnpm api:export && pnpm api:types`.
+      - name: openapi.json and schema.d.ts are current
+        run: |
+          pnpm api:types
+          if ! git diff --exit-code -- openapi/openapi.json src/lib/api/schema.d.ts; then
+            echo "::error::The API contract has moved. Run 'pnpm api:export && pnpm api:types' and commit the result."
+            exit 1
+          fi
+
+      - run: pnpm typecheck
+
+  stack:
+    name: Stack — the scripts and compose files that deploy it
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The deploy runs on shell, on a host nobody is watching. A typo in release.sh is
+      # found here or in production.
+      - name: shellcheck
+        run: shellcheck --severity=warning --source-path=SCRIPTDIR scripts/*.sh scripts/lib/*.sh
+
+      # Every shape the stack is ever assembled in, resolved. compose catches an undefined
+      # variable, a bad reference and a malformed override — and the release overlay is
+      # only ever exercised on the host, so this is the one place it is checked at all.
+      - name: The stacks resolve
+        run: |
+          set -euo pipefail
+          check() {
+            ENVIRONMENT="$1" bash -c 'source scripts/lib/stack-env.sh; compose config -q' \
+              && echo "  $1: ok"
+          }
+          check dev
+
+          # The other stack: the root compose file, which is what the nginx edge serves.
+          # It reads a git-ignored .env, so a value stands in for the one secret it needs.
+          POSTGRES_PASSWORD=ci docker compose -f docker-compose.yml config -q \
+            && echo "  root docker-compose.yml: ok"
+
+          # prod.env is the host's and is git-ignored, so the committed template stands in.
+          cp deploy/prod.env.example deploy/prod.env
+          check prod
+
+          # And prod as a deploy host runs it: on published images, building nothing.
+          cat > deploy/prod.release.env <<'RELEASE'
+          RELEASE_TAG=ci
+          API_IMAGE=ghcr.io/example/api:ci
+          WEB_IMAGE=ghcr.io/example/web:ci
+          RELEASE
+          check prod
+          ENVIRONMENT=prod bash -c 'source scripts/lib/stack-env.sh; compose config' > /tmp/release.yml
+          grep -q 'image: ghcr.io/example/web:ci' /tmp/release.yml \
+            || { echo "::error::compose.release.yml did not swap in the published images."; exit 1; }
+          ! grep -qE '^[[:space:]]+build:' /tmp/release.yml \
+            || { echo "::error::A build section survived compose.release.yml, so a release would rebuild from source."; exit 1; }
+          echo "  the release overlay builds nothing: ok"
+
+  images:
+    name: Images — build both; publish from main and tags
+    runs-on: ubuntu-latest
+    # After the tests, so an image is never published for a commit that failed them. On a
+    # pull request this costs a few minutes of wall clock and buys the same guarantee for
+    # the Dockerfiles as the tests give the code: a runtime stage that no longer builds is
+    # found here, not on the host.
+    needs: [api, web, stack]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.names.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The docker-container driver, which is what the GitHub Actions layer cache needs.
+      - uses: docker/setup-buildx-action@v3
+
+      # Lowercase because a registry path must be and GITHUB_REPOSITORY follows the owner's
+      # spelling. The sha tag is what deploy.yml is handed: one per commit, the same for
+      # both images, and what `scripts/release.sh rollback` on the host reads back.
+      - id: names
+        run: |
+          echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # Only when something will be pushed. A pull request builds and discards.
+      - if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tags: sha-1a2b3c4 always; the branch or git tag's own name; latest from main only.
+      - id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.names.outputs.repository }}/api
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Context and Dockerfile as deploy/compose.yml has them, so this is the image
+      # `pnpm stack:prod` would have built on the host.
+      #
+      # One architecture: the runner's, which is x86-64. An arm64 host cannot run these —
+      # add `platforms: linux/amd64,linux/arm64` here and to the web build below, and accept
+      # that the emulated half of each build takes considerably longer.
+      - name: API image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          file: deploy/api.Dockerfile
+          target: runtime
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.names.outputs.repository }}/web
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=ref,event=tag
+            type=ref,event=pr
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # The web image inlines PUBLIC_API_URL into the browser bundle when it is built, so an
+      # image is built for one deployment's API and no other. The URL is a repository
+      # variable — repository-level, because this job runs before any environment is in
+      # play — and it is stamped on the image as a label, which scripts/release.sh compares
+      # with the host's deploy/prod.env before it starts anything. Unset, the localhost
+      # default is the one deploy/compose.yml uses, and a pull request still builds.
+      - name: Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/web.Dockerfile
+          target: runtime
+          push: ${{ github.event_name == 'push' }}
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.PUBLIC_API_URL || 'http://localhost:8080' }}
+            NEXT_PUBLIC_OAUTH_CLIENT_ID=${{ vars.OAUTH_CLIENT_ID || 'we-adk-workspace' }}
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: |
+            ${{ steps.meta-web.outputs.labels }}
+            com.weadk.public-api-url=${{ vars.PUBLIC_API_URL || 'http://localhost:8080' }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+  # main only. A tag publishes and stops, so a release goes out when someone runs Deploy
+  # with its name rather than the moment the tag lands.
+  deploy:
+    name: Deploy
+    needs: images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/deploy.yml
+    with:
+      image_tag: ${{ needs.images.outputs.tag }}
+    secrets: inherit

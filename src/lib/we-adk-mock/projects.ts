@@ -1069,6 +1069,26 @@ export function findProject(projectId: string): DesignProject | null {
 }
 
 /**
+ * The two workspaces a project is filed in: work done for a customer, and the
+ * products we own.
+ *
+ * Keyed on `archived` because that is the field the store has always used, and
+ * renaming it would orphan every project already filed under the old value.
+ * The mapping lives here so the home page's tabs and a project's back link
+ * cannot drift into disagreeing about which list a project belongs to.
+ */
+export type ProjectWorkspace = 'customer' | 'product';
+
+export const WORKSPACE_LABEL: Record<ProjectWorkspace, string> = {
+  customer: 'Customer',
+  product: 'Product',
+};
+
+export function projectWorkspace(project: DesignProject): ProjectWorkspace {
+  return project.archived === true ? 'customer' : 'product';
+}
+
+/**
  * Whether this id is one of the samples that ship with the mockup.
  *
  * The seeded projects carry demo content that only makes sense as a
@@ -1197,7 +1217,7 @@ export interface DesignFolder {
   /** Present on concept folders — the meeting whose notes fill this folder. */
   session?: SketchSession;
   /**
-   * localStorage key holding the files a user created here. Absent on folders
+   * Workspace-state key holding the files a user created here. Absent on folders
    * nothing can be created in, like real-screens.
    */
   storageKey?: string;
@@ -1264,7 +1284,7 @@ export function designFileFromScreen(
  * Every folder in a project, with its files.
  *
  * `created` holds the files the user made, keyed by folder (session) id — the
- * caller reads those from localStorage after mount, so this stays renderable on
+ * caller reads those from workspace state after mount, so this stays renderable on
  * the server.
  */
 export function projectFolders(
@@ -1375,7 +1395,7 @@ export function findProjectScreen(screenId: string): ProjectScreenHit | null {
   return null;
 }
 
-/** Finds a design file the user created. Browser-only — reads localStorage. */
+/** Finds a design file the user created. Reads workspace state. */
 export function findCreatedScreen(screenId: string): ProjectScreenHit | null {
   for (const project of PROJECTS) {
     for (const session of project.sessions) {

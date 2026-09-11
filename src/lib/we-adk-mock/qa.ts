@@ -5,7 +5,7 @@
  * components invents data. Swapping it for a real service — a test runner, an
  * agent, a bug tracker — means replacing these functions and nothing else.
  *
- * Seeds are static and overlays live in localStorage, the same pattern the
+ * Seeds are static and overlays are workspace state, the same pattern the
  * task board uses: the seeded case is the fact, the overlay is what has
  * happened to it in this browser. Bugs and extra evidence are overlay-only.
  *
@@ -27,6 +27,7 @@ import {
 import { isSeededProject } from './projects';
 import { seedFixBuild } from './build-seeds';
 import { loadUserTasks, saveUserTasks, setTaskStatusOverride, type ProjectTask } from './tasks';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* Seeded test cases                                                   */
@@ -353,7 +354,7 @@ const KEY = {
 
 function read<T>(key: string, projectId: string, fallback: T): T {
   try {
-    const raw = window.localStorage.getItem(`${key}:${projectId}`);
+    const raw = workspaceStore.getItem(`${key}:${projectId}`);
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch {
@@ -363,7 +364,7 @@ function read<T>(key: string, projectId: string, fallback: T): T {
 
 function write(key: string, projectId: string, value: unknown): void {
   try {
-    window.localStorage.setItem(`${key}:${projectId}`, JSON.stringify(value));
+    workspaceStore.setItem(`${key}:${projectId}`, JSON.stringify(value));
   } catch {
     // Storage unavailable — the change won't survive a reload.
   }

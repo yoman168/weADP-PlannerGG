@@ -10,6 +10,7 @@
  * that already exist stay where they are.
  */
 import { type ChatTurn } from '@/components/we-adk/claude-chat';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 const STORAGE_KEY = 'we-adk:board-chat';
 
@@ -19,7 +20,7 @@ function chatKey(sessionId: string, scope?: string): string {
 
 export function loadBoardChat(sessionId: string, scope?: string): ChatTurn[] {
   try {
-    const raw = window.localStorage.getItem(chatKey(sessionId, scope));
+    const raw = workspaceStore.getItem(chatKey(sessionId, scope));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ChatTurn[]) : [];
@@ -32,7 +33,7 @@ export function saveBoardChat(sessionId: string, turns: ChatTurn[], scope?: stri
   try {
     // Last forty turns: enough to read back, small enough not to crowd the boards
     // themselves out of storage.
-    window.localStorage.setItem(chatKey(sessionId, scope), JSON.stringify(turns.slice(-40)));
+    workspaceStore.setItem(chatKey(sessionId, scope), JSON.stringify(turns.slice(-40)));
   } catch {
     // Storage unavailable — the thread simply does not persist.
   }

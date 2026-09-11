@@ -1,0 +1,147 @@
+# The whole system, as one stack.
+#
+# Three services — Postgres, the API, the workspace — and a database browser behind a
+# profile. This file describes the production shape: built images, no source mounted,
+# nothing that depends on a developer's machine.
+#
+# It is run twice, as two independent stacks:
+#
+#   pnpm stack:dev      # dev  — web 3000, api 8080, db 5433
+#   pnpm stack:prod     # prod — web 3100, api 8180, db 5434
+#
+# Both can run at once. What keeps them apart is the compose project name below, which also
+# prefixes the volumes, so `weadk-dev` and `weadk-prod` have separate databases that cannot
+# be confused for each other. The dev stack layers `compose.dev.yml` on top of this to mount
+# the source and swap in the development servers.
+#
+# Everything variable comes from `deploy/<env>.env`.
+
+name: ${STACK_NAME:-weadk}
+
+# Container names are set on every service, so `docker ps` reads `weadk-dev-api` rather
+# than compose's default `weadk-dev-api-1` — the trailing index is for replicas, and none
+# of these has any. Each one carries the stack name because a container name is unique to
+# the daemon, not to the project: without it, starting prod while dev was up would collide.
+#
+# The cost is that `docker compose up --scale` no longer works on these services. Nothing
+# here scales — one database, one API, one web server — so that is a price of nothing.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: ${STACK_NAME:-weadk}-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-weadk}
+      POSTGRES_USER: ${DB_USER:-weadk}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-weadk}
+    ports:
+      - '${DB_PORT:-5433}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # The named database and user, not just the server. The API's first migration fails
+      # confusingly if it connects before the database itself exists.
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-weadk} -d ${DB_NAME:-weadk}']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  api:
+    container_name: ${STACK_NAME:-weadk}-api
+    build:
+      # Relative to this file, so the context is the API project and the Dockerfile sits
+      # here beside it.
+      context: ../backend
+      dockerfile: ../deploy/api.Dockerfile
+      target: runtime
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Inside the stack, Postgres answers on its service name and its own port.
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-weadk}
+      DB_USER: ${DB_USER:-weadk}
+      DB_PASSWORD: ${DB_PASSWORD:-weadk}
+
+      # open | jwt | oauth2. See backend/README.md — they are alternatives, not layers.
+      SECURITY_MODE: ${SECURITY_MODE:-open}
+
+      # Every one of these has to be the URL a browser reaches, not a service name: they end
+      # up in tokens, in redirects and in the CORS check, all of which happen in the browser.
+      OAUTH2_ISSUER: ${PUBLIC_API_URL:-http://localhost:8080}
+      # Derived from PUBLIC_WEB_URL unless set outright. Set them outright when the workspace
+      # is opened from more than one place — on localhost and through a tunnel, say — as a
+      # comma-separated list of every origin. One PUBLIC_WEB_URL cannot say that, and a
+      # browser arriving from an origin missing here is refused, not redirected.
+      # scripts/tunnel.sh writes these into deploy/dev.local.env.
+      OAUTH2_REDIRECT_URIS: ${OAUTH2_REDIRECT_URIS:-${PUBLIC_WEB_URL:-http://localhost:3000}/auth/callback}
+      OAUTH2_POST_LOGOUT_URIS: ${OAUTH2_POST_LOGOUT_URIS:-${PUBLIC_WEB_URL:-http://localhost:3000}/login}
+      CORS_ORIGINS: ${CORS_ORIGINS:-${PUBLIC_WEB_URL:-http://localhost:3000}}
+
+      # The first account, created once on an empty user table.
+      WEADK_AUTH_SEED_EMAIL: ${SEED_EMAIL:-}
+      WEADK_AUTH_SEED_PASSWORD: ${SEED_PASSWORD:-}
+      WEADK_AUTH_SEED_NAME: ${SEED_NAME:-}
+
+      # For the `jwt` mode's own token endpoint. Unused in `oauth2`.
+      WEADK_AUTH_JWT_SECRET: ${JWT_SECRET:-}
+
+      # Absent, the AI endpoints report themselves unavailable rather than failing.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # An internal service should publish its API surface; a public one has less reason to.
+      SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED:-true}
+    ports:
+      - '${API_PORT:-8080}:8080'
+    restart: unless-stopped
+
+  web:
+    container_name: ${STACK_NAME:-weadk}-web
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      target: runtime
+      args:
+        # Build arguments, not environment: `NEXT_PUBLIC_*` is inlined into the browser
+        # bundle when the image is built and cannot be changed afterwards. Each stack
+        # therefore builds its own image, pointed at its own API.
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID:-we-adk-workspace}
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      # Where this server reaches the API, which is not where the browser does. The AI
+      # proxies run here, inside the stack, and `api` is a name only the stack can resolve.
+      API_INTERNAL_URL: http://api:8080
+      # Left on because the proxies are reached through the stack rather than from the
+      # loopback interface, so the routes' own loopback guard would refuse every request.
+      SKETCHER_AI_ALLOW_REMOTE: '1'
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    restart: unless-stopped
+
+  # A browser onto the database, the way Swagger UI is one onto the API.
+  #
+  # Behind a profile because it is a development tool: it puts an unauthenticated door in
+  # front of Postgres, and that has no business coming up as part of a normal start.
+  #
+  #   pnpm stack:dev:tools      # then http://localhost:8090
+  adminer:
+    container_name: ${STACK_NAME:-weadk}-adminer
+    image: adminer:5
+    profiles: ['tools']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+    ports:
+      # Loopback only, so it is not reachable from the network.
+      - '127.0.0.1:${ADMINER_PORT:-8090}:8080'
+    restart: unless-stopped
+
+volumes:
+  pgdata:

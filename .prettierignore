@@ -1,0 +1,18 @@
+# Generated from the API's OpenAPI document by `pnpm api:types`. Formatting it here would
+# fight the drift check in CI: Prettier would rewrite it, the next generation would undo
+# that, and the diff would fail a build for no reason anyone can act on.
+src/lib/api/schema.d.ts
+openapi/
+
+# Deployment files. The env files are shell-style rather than anything prettier parses, and
+# the compose files carry aligned comment blocks that reformatting would break up.
+deploy/*.env
+deploy/*.env.example
+
+# Build output and vendored trees.
+.next
+.next-*
+.open-next
+out
+node_modules
+pnpm-lock.yaml

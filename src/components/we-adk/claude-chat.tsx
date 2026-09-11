@@ -580,7 +580,7 @@ export function ChatPane({
     };
   }, []);
 
-  // Saved turns arrive from localStorage after mount; adopt them as long as
+  // Saved turns arrive from workspace state after mount; adopt them as long as
   // nothing has been said in this pane yet.
   useEffect(() => {
     setTurns((current) =>

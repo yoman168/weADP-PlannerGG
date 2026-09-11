@@ -4,7 +4,6 @@ export const en: Record<string, string> = {
   'app.subtitle': 'Design system',
   'nav.projects': 'Projects',
   'nav.notifications': 'Notifications',
-  'nav.members': 'Members',
   'nav.archive': 'Archive',
   'nav.saveGitlab': 'Save to GitLab →',
   'nav.spend': 'Spend',
@@ -15,7 +14,6 @@ export const en: Record<string, string> = {
   'shell.claudeOff': 'Claude not connected',
   'shell.claudeManage': 'Claude account connected — click to manage',
   'shell.claudeConnectHint': 'Connect your Claude account to use AI features',
-  'nav.mockupOnly': 'UI mockup only — no live data',
   // ── Tools / sidebar ──
   // ── Sketcher tabs ──
   'tab.main': 'Main',
@@ -210,7 +208,6 @@ export const en: Record<string, string> = {
   'chat.pickFile': 'Pick a design file in the explorer to preview it.',
   // ── Floating action bar ──
   'action.improveAi': 'Improve by AI',
-  'action.createTask': 'Create task',
   // ── Preview page ──
   'preview.prototypeHint': '{summary} · Edit UI changes this screen; Edit opens its canvas.',
   'preview.releasedHint':
@@ -350,13 +347,17 @@ export const en: Record<string, string> = {
     'Runs the local Claude Code CLI — nothing leaves this machine except the prompt.',
   'generate.generating': 'Generating',
   // ── Project home ──
-  'action.taskCreated': 'Task created — see it in Overview.',
   'home.title': 'Your projects',
-  'home.subtitle':
-    'Turn a customer conversation into a versioned project brief, screens and a clickable prototype — every design file kept in the project it belongs to.',
+  'home.subtitle': 'Manage customer and product projects, designs, and prototypes in one place.',
   'home.create': 'Create {noun}',
   'home.search': 'Search projects',
   'home.clearSearch': 'Clear search',
+  'home.allStatus': 'All status',
+  'home.filterStatus': 'Filter projects by status',
+  'home.sortBy': 'Sort projects',
+  'home.sortNewest': 'Newest',
+  'home.sortOldest': 'Oldest',
+  'home.sortName': 'Name A–Z',
   'home.noArchived': 'Nothing archived yet.',
   'home.noMatch': 'No projects match that search',
   'home.noMatchHint': 'Try a customer, an owner or a stage instead.',
@@ -371,11 +372,6 @@ export const en: Record<string, string> = {
   'home.meetings': '{count} meetings',
   'home.liveScreens': '{count} live screens',
   'home.noBrief': 'No brief yet — open it to start the first conversation.',
-  'home.workspace': 'This workspace',
-  'home.statProjects': 'Projects',
-  'home.statFiles': 'Design files',
-  'home.statMeetings': 'Meetings',
-  'home.statSpend': 'Claude spend',
   // ── Project not in this browser ──
   'project.missing': 'This project is not in this browser',
   'project.missingHint':

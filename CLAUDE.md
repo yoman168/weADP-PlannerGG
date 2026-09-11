@@ -49,6 +49,30 @@ Common causes of hangs:
 - `src/app/api/` — API routes (restored from `src/app/_api/` for dev mode)
 - `src/app/_api/` — backup of API routes (used for static export builds)
 - Toast: use `showToast()` or `useToast()` from `@/components/ui/toast` — no provider wrapping needed
+- `scripts/claude-bridge.mjs` — the `claude` CLI behind the Messages API. While `CLAUDE_BRIDGE_URL` is set (dev), the API (`backend/`) sends every AI call through it, any caller or server key included; without it (prod) the key is used directly. Runs as the `claude-bridge` container, which signs in with `CLAUDE_CODE_OAUTH_TOKEN` from the git-ignored `deploy/dev.secrets.env` (`claude setup-token` mints it)
+- `scripts/lib/stack-env.sh` — the compose project name and its layered env files, shared by `stack.sh`, `tunnel.sh` and `release.sh` so all three drive the same stack
+- CI/CD is `.github/workflows/ci.yml` (test → contract → shellcheck and compose → images to ghcr.io) and `deploy.yml` (SSH to the host, then `scripts/release.sh`). A release is `deploy/<env>.release.env` on the host: while it exists, `deploy/compose.release.yml` is layered on and the stack runs published images instead of building. Anything written to that file must be followed by re-sourcing `stack-env.sh`, which decides the compose invocation when it is sourced. README.md → "Shipping it"
+
+## Two Docker stacks, and which is which
+
+This repository currently describes the system twice, because two answers to
+"run we-adk with a database" were written in parallel and merged. Read the right
+one for what you are doing; they share no files and no ports.
+
+| | root `docker-compose.yml` | `deploy/compose.yml` |
+| --- | --- | --- |
+| Started by | `docker compose up -d --build` | `pnpm stack:dev` |
+| What runs | the workspace and a Postgres | Postgres, the API in `backend/`, the workspace, the Claude bridge |
+| Schema owned by | `deploy/db/01-schema.sql`, on the initdb hook | Flyway, in `backend/src/main/resources/db/migration` |
+| Ports | app 3003, db 5436 | web 3000, api 8080, db 5433 (dev) |
+| Public access | the nginx edge and the shared Cloudflare tunnel | `pnpm stack:dev:tunnel`, its own quick tunnels |
+
+**The root one is what is deployed.** The edge in `deploy/nginx/we-adk.conf`
+points at it, so treat it as production until something says otherwise.
+
+Folding these into one is outstanding work, and it is a decision rather than a
+refactor: the app's state now lives in the API's tables rather than in the raw
+schema, so the two databases are not interchangeable.
 
 ## Build targets
 
@@ -62,6 +86,10 @@ Common causes of hangs:
 
 The `export` target drops everything under `src/app/api/` **without erroring**.
 If an API route 404s in a built app, check the target before debugging the route.
+
+Both images build with `BUILD_TARGET=standalone`: the root `Dockerfile` and
+`deploy/web.Dockerfile`. There is one name for this knob, so do not reintroduce
+a second.
 
 `BASE_PATH` sets Next's `basePath`. It is empty by default, which is what the
 own-tunnel setup wants; `/adk` is only for the shared nginx edge. Either way it
@@ -79,12 +107,13 @@ docker compose up -d --build     # app on 127.0.0.1:3003, postgres on 127.0.0.1:
 Credentials come from the gitignored `.env` (`cp .env.example .env`). The schema
 in `deploy/db/01-schema.sql` applies only via the `initdb` hook on an empty
 volume, so schema changes need `docker compose down -v`, which destroys the data.
-Nothing in the app queries the database yet.
 
 Public access goes through a Cloudflare tunnel shared with four other projects —
 read [deploy/EDGE.md](deploy/EDGE.md) before touching it. **Never restart
 `macmini-tunnel`**: it is a Quick Tunnel and mints a new random public URL for
 every project on every restart.
+
+The other stack is `pnpm stack:dev`, above.
 
 ## Package manager
 

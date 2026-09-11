@@ -18,21 +18,14 @@ import { useMemo } from 'react';
 import { Link2 } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, cn } from '@/components/ui';
 import { listPageControls, setPageControlTargets } from '@/lib/we-adk/mockup-pages';
+import { loadDesignHtml } from '@/lib/we-adk/design-html';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface LinkTarget {
   id: string;
   name: string;
   /** Shown beside the name, so a popup is not mistaken for a page. */
   kind?: string;
-}
-
-/** The page saved for a screen, if one was ever generated or edited. */
-function loadDesignHtml(screenId: string): string | null {
-  try {
-    return window.localStorage.getItem(`we-adk:design-html:${screenId}`);
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -46,7 +39,7 @@ export function saveScreenLink(screenId: string, index: number, name: string): b
   const html = loadDesignHtml(screenId);
   if (!html) return false;
   try {
-    window.localStorage.setItem(
+    workspaceStore.setItem(
       `we-adk:design-html:${screenId}`,
       setPageControlTargets(html, { [index]: name }),
     );

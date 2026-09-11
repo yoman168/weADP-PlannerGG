@@ -30,6 +30,7 @@ import {
   type FilterControl,
   type PairEntry,
 } from '@/lib/we-adk-mock/sketcher';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** Which kind of section a block stands for, when it stands for one at all. */
 const BLOCK_SECTION_TYPE: Partial<Record<BlockKind, SectionType>> = {
@@ -328,7 +329,7 @@ export function configToCanvas(
 
 function readJson<T>(key: string): T | null {
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = workspaceStore.getItem(key);
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
@@ -337,7 +338,7 @@ function readJson<T>(key: string): T | null {
 
 function writeJson(key: string, value: unknown): void {
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    workspaceStore.setItem(key, JSON.stringify(value));
   } catch {
     // Storage unavailable — the other view simply will not see this edit.
   }

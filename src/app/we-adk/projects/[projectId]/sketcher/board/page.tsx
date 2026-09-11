@@ -356,7 +356,7 @@ function ProjectBoard() {
   const [generated, setGenerated] = useState<Record<string, SketchScreen[]>>({});
   const [uploaded, setUploaded] = useState<Record<string, MeetingFile[]>>({});
 
-  // Files the user created live in localStorage, so load them after mount.
+  // Files the user created are workspace state, so load them after mount.
   useEffect(() => {
     if (!project) return;
     const loaded: Record<string, SketchScreen[]> = {};

@@ -31,7 +31,6 @@ import Link from 'next/link';
 import {
   ChevronDown,
   ChevronRight,
-  ClipboardList,
   Code2,
   ExternalLink,
   Folder,
@@ -55,7 +54,6 @@ import { ChatPane } from '@/components/we-adk/claude-chat';
 import { DesignHtmlButton } from '@/components/we-adk/design-html-button';
 import { ScreenLinkPicker } from '@/components/we-adk/screen-link-picker';
 import { PageEditor } from '@/components/we-adk/page-editor';
-import { TaskFormDialog } from '@/components/we-adk/task-form-dialog';
 import { businessEditHref, businessPreviewHref, previewHref } from '@/components/we-adk/mockup-board';
 import {
   DeviceSwitcher,
@@ -63,7 +61,7 @@ import {
   type PreviewMode,
 } from '@/components/we-adk/screen-preview';
 import { findProject } from '@/lib/we-adk-mock/projects';
-import { createTask, projectTasks } from '@/lib/we-adk-mock/tasks';
+import { projectTasks } from '@/lib/we-adk-mock/tasks';
 import { saveHtmlAndBlocks } from '@/lib/we-adk/html-to-blocks';
 import { describeCanvas } from '@/lib/we-adk/sketcher-operations';
 import {
@@ -85,6 +83,9 @@ import {
   versionFolderKey,
 } from '@/lib/we-adk-mock/versions';
 import { loadScreenBlocks, type DevicePresetId } from '@/lib/we-adk-mock/sketcher';
+import { workspaceStore } from '@/lib/api/workspace-store';
+import { loadDesignHtml } from '@/lib/we-adk/design-html';
+import { openFlowDocument } from '@/lib/we-adk/mockup-pages';
 
 /** A draft's key — a screen id is unique, but the task it came from names it. */
 const draftKey = (draft: ProjectDraft) => `${draft.taskId ?? 'project'}:${draft.screenId}`;
@@ -114,15 +115,6 @@ function fileNameOf(draft: ProjectDraft): string {
     .replace(/^-|-$/g, '')
     .toLowerCase();
   return `${base || 'untitled'}.html`;
-}
-
-/** The page saved for a screen, if one was ever generated or edited. */
-function loadDesignHtml(screenId: string): string | null {
-  try {
-    return window.localStorage.getItem(`we-adk:design-html:${screenId}`);
-  } catch {
-    return null;
-  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -194,7 +186,6 @@ export default function DraftsPage() {
   const [picked, setPicked] = useState<number | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(true);
   const [aiPrompt, setAiPrompt] = useState<string | null>(null);
-  const [taskOpen, setTaskOpen] = useState(false);
   /** The page behind the open draft, re-read whenever one is saved. */
   const [pageHtml, setPageHtml] = useState<string | null>(null);
   /**
@@ -272,6 +263,32 @@ export default function DraftsPage() {
   // The one on show: what was picked, while it is still in the list.
   const open = shown.find((draft) => draftKey(draft) === openId) ?? shown[0];
   const openScreenId = open?.screenId;
+
+  /**
+   * The request in its own tab — and the rest of them with it, wired.
+   *
+   * A generated page draws its navigation and writes `data-screen` rather than
+   * an href, which this tab turns into navigation when it shows the page. Alone
+   * in a browser that sidebar is drawn and dead, so the whole set goes over as
+   * one document and the tab opens on the request being looked at.
+   *
+   * Falls back to the route this button has always opened, for a request with
+   * no generated page: there is nothing to put in a standalone document, and a
+   * flow that does not contain the screen someone was on is worse than a link
+   * that does not walk.
+   */
+  const openInBrowser = (draft: ProjectDraft) => {
+    if (loadDesignHtml(draft.screenId)) {
+      const set = drafts.map((entry) => ({
+        id: entry.screenId,
+        name: entry.name,
+        html: loadDesignHtml(entry.screenId) ?? undefined,
+      }));
+      if (openFlowDocument(set, t('tab.drafts'), draft.screenId)) return;
+    }
+    // Declared above the guard that proves the project exists, so optional here.
+    window.open(previewHref(draft.screenId, project?.id), '_blank', 'noopener');
+  };
 
   // The page follows the screen, and any save of it from the editor or chat.
   useEffect(() => {
@@ -698,11 +715,14 @@ export default function DraftsPage() {
                     {t('drafts.open')}
                   </Link>
                 </Button>
-                <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" asChild>
-                  <a href={previewHref(open.screenId, project.id)} target="_blank" rel="noreferrer">
-                    <ExternalLink className="size-3" />
-                    {t('view.openBrowser')}
-                  </a>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  onClick={() => openInBrowser(open)}
+                >
+                  <ExternalLink className="size-3" />
+                  {t('view.openBrowser')}
                 </Button>
               </div>
             </div>
@@ -724,7 +744,7 @@ export default function DraftsPage() {
                        * parse recovers.
                        */
                       try {
-                        window.localStorage.setItem(
+                        workspaceStore.setItem(
                           `we-adk:design-html:${open.screenId}`,
                           updatedHtml,
                         );
@@ -768,7 +788,7 @@ export default function DraftsPage() {
                   </div>
                 )}
 
-                {/* The same two actions Main floats over a screen. The strip
+                {/* The same action Main floats over a screen. The strip
                     lets clicks through; only the pill catches them. */}
                 {tab === 'preview' && (
                   <div className="pointer-events-none absolute inset-x-0 bottom-4 z-40 flex justify-center">
@@ -785,16 +805,6 @@ export default function DraftsPage() {
                       >
                         <Sparkles className="size-3.5" />
                         {t('action.improveAi')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5 rounded-full"
-                        onClick={() => setTaskOpen(true)}
-                        title={`Raise a task about ${open.name}`}
-                      >
-                        <ClipboardList className="size-3.5" />
-                        {t('action.createTask')}
                       </Button>
                     </div>
                   </div>
@@ -904,29 +914,6 @@ export default function DraftsPage() {
               kind: entry.placement?.screenType,
             }))}
           onClose={() => setPicked(null)}
-        />
-      )}
-
-      {/* Create task, with the draft already written into the form. */}
-      {open && (
-        <TaskFormDialog
-          open={taskOpen}
-          defaults={{
-            title: `Improve ${open.name}`,
-            status: 'Request',
-            priority: 2,
-            category: 'Design',
-            description: `Raised from the draft ${fileNameOf(open)}${
-              open.route ? ` (${open.route})` : ''
-            }. ${open.fromLabel}, not in a round yet.`,
-            tags: ['design'],
-          }}
-          onClose={() => setTaskOpen(false)}
-          onSave={(fields) => {
-            createTask(project.id, fields);
-            setTaskOpen(false);
-            showToast(t('action.taskCreated'));
-          }}
         />
       )}
     </div>

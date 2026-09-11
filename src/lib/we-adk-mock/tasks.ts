@@ -12,6 +12,7 @@ import {
   loadVersionCount,
   loadVersionStatuses,
 } from './versions';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type TaskStatus = 'Complete' | 'Request' | 'Progress' | 'Feedback';
 
@@ -310,14 +311,14 @@ export function projectTasks(projectId: string): ProjectTask[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* User-created tasks (localStorage)                                   */
+/* User-created tasks (workspace state)                                   */
 /* ------------------------------------------------------------------ */
 
 const USER_TASKS_KEY = 'we-adk:user-tasks';
 
 export function loadUserTasks(projectId: string): ProjectTask[] {
   try {
-    const raw = window.localStorage.getItem(`${USER_TASKS_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${USER_TASKS_KEY}:${projectId}`);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ProjectTask[]) : [];
@@ -328,7 +329,7 @@ export function loadUserTasks(projectId: string): ProjectTask[] {
 
 export function saveUserTasks(projectId: string, tasks: ProjectTask[]): void {
   try {
-    window.localStorage.setItem(`${USER_TASKS_KEY}:${projectId}`, JSON.stringify(tasks));
+    workspaceStore.setItem(`${USER_TASKS_KEY}:${projectId}`, JSON.stringify(tasks));
   } catch {}
 }
 
@@ -426,7 +427,7 @@ export type TaskStatusOverrides = Record<string, TaskStatus>;
 
 export function loadTaskStatusOverrides(projectId: string): TaskStatusOverrides {
   try {
-    const raw = window.localStorage.getItem(`${STATUS_OVERRIDE_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${STATUS_OVERRIDE_KEY}:${projectId}`);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? (parsed as TaskStatusOverrides) : {};
@@ -442,7 +443,7 @@ export function setTaskStatusOverride(
 ): TaskStatusOverrides {
   const next = { ...loadTaskStatusOverrides(projectId), [taskId]: status };
   try {
-    window.localStorage.setItem(`${STATUS_OVERRIDE_KEY}:${projectId}`, JSON.stringify(next));
+    workspaceStore.setItem(`${STATUS_OVERRIDE_KEY}:${projectId}`, JSON.stringify(next));
   } catch {
     // Storage unavailable — the move simply won't survive a reload.
   }
@@ -464,7 +465,7 @@ export type TaskAssignmentOverrides = Record<string, TaskAssignment>;
 
 export function loadTaskAssignmentOverrides(projectId: string): TaskAssignmentOverrides {
   try {
-    const raw = window.localStorage.getItem(`${ASSIGNMENT_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${ASSIGNMENT_KEY}:${projectId}`);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? (parsed as TaskAssignmentOverrides) : {};
@@ -487,7 +488,7 @@ export function setTaskAssignmentOverride(
   const current = loadTaskAssignmentOverrides(projectId);
   const next = { ...current, [taskId]: { ...current[taskId], ...patch } };
   try {
-    window.localStorage.setItem(`${ASSIGNMENT_KEY}:${projectId}`, JSON.stringify(next));
+    workspaceStore.setItem(`${ASSIGNMENT_KEY}:${projectId}`, JSON.stringify(next));
   } catch {
     // Storage unavailable — the reassignment simply won't survive a reload.
   }
@@ -524,7 +525,7 @@ export function needsHumanTester(testedBy: TestedBy | undefined): boolean {
  * The round new work lands in: the newest one that has not shipped.
  *
  * Imported lazily through a function rather than at module scope because the
- * versions module reads localStorage, and this file is also imported on the
+ * versions module reads workspace state, and this file is also imported on the
  * server where that does not exist.
  */
 /**
@@ -565,7 +566,7 @@ export type TaskVersionOverrides = Record<string, number | null>;
 
 export function loadTaskVersionOverrides(projectId: string): TaskVersionOverrides {
   try {
-    const raw = window.localStorage.getItem(`${VERSION_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${VERSION_KEY}:${projectId}`);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? (parsed as TaskVersionOverrides) : {};
@@ -581,7 +582,7 @@ export function setTaskVersionOverride(
 ): TaskVersionOverrides {
   const next = { ...loadTaskVersionOverrides(projectId), [taskId]: version };
   try {
-    window.localStorage.setItem(`${VERSION_KEY}:${projectId}`, JSON.stringify(next));
+    workspaceStore.setItem(`${VERSION_KEY}:${projectId}`, JSON.stringify(next));
   } catch {
     // Storage unavailable — the move simply won't survive a reload.
   }
@@ -637,7 +638,7 @@ export type TestedByOverrides = Record<string, TestedBy>;
 
 export function loadTestedByOverrides(projectId: string): TestedByOverrides {
   try {
-    const raw = window.localStorage.getItem(`${TESTED_BY_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${TESTED_BY_KEY}:${projectId}`);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null ? (parsed as TestedByOverrides) : {};
@@ -658,7 +659,7 @@ export function setTestedByOverride(
 ): TestedByOverrides {
   const next = { ...loadTestedByOverrides(projectId), [taskId]: testedBy };
   try {
-    window.localStorage.setItem(`${TESTED_BY_KEY}:${projectId}`, JSON.stringify(next));
+    workspaceStore.setItem(`${TESTED_BY_KEY}:${projectId}`, JSON.stringify(next));
   } catch {
     // Storage unavailable — the choice simply won't survive a reload.
   }

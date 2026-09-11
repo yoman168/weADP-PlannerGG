@@ -12,7 +12,7 @@
  * links, tasks and the html export all keep pointing at the same thing; only
  * the canvas behind it is replaced.
  *
- * Browser-only — every side of this lives in localStorage.
+ * Every side of this is workspace state, held in the API.
  */
 import { loadScreenBlocks, screenStorageKey, type CanvasBlock } from '@/lib/we-adk-mock/sketcher';
 import { addCopiedScreen, type SeedPattern, type SketchScreen } from '@/lib/we-adk-mock/sketches';
@@ -31,6 +31,7 @@ import {
   memberScopedId,
   prototypeConfigKeyForScreen,
 } from '@/lib/we-adk/prototype';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** One of the member's designs, and what merging it would do to the round. */
 export interface MergeCandidate {
@@ -88,9 +89,9 @@ function copyScreenConfig(fromScreenId: string, toScreenId: string): void {
   const to = prototypeConfigKeyForScreen(toScreenId);
   if (!from || !to || from === to) return;
   try {
-    const raw = window.localStorage.getItem(from);
-    if (raw) window.localStorage.setItem(to, raw);
-    else window.localStorage.removeItem(to);
+    const raw = workspaceStore.getItem(from);
+    if (raw) workspaceStore.setItem(to, raw);
+    else workspaceStore.removeItem(to);
   } catch {
     // Storage unavailable — the target keeps the layout it had.
   }
@@ -108,15 +109,15 @@ export function forkScreenForMember(screen: SketchScreen, memberId: string): Ske
   const id = memberScopedId(screen.id, memberId);
   const blocks = blocksOf(screen);
   try {
-    window.localStorage.setItem(screenStorageKey(id), JSON.stringify(blocks));
+    workspaceStore.setItem(screenStorageKey(id), JSON.stringify(blocks));
   } catch {
     // Canvas won't persist; the copy still opens on the screen's own design.
   }
   copyScreenConfig(screen.id, id);
   // Copy the design HTML so the member sees the latest UI, not the auto-generated wireframe.
   try {
-    const html = window.localStorage.getItem(`we-adk:design-html:${screen.id}`);
-    if (html) window.localStorage.setItem(`we-adk:design-html:${id}`, html);
+    const html = workspaceStore.getItem(`we-adk:design-html:${screen.id}`);
+    if (html) workspaceStore.setItem(`we-adk:design-html:${id}`, html);
   } catch { /* storage full */ }
   return { ...screen, id };
 }
@@ -202,7 +203,7 @@ export function mergeIntoVersion(
       // it. Writing the round's own id would be a no-op, which is exactly right
       // for a design the member never touched.
       try {
-        window.localStorage.setItem(screenStorageKey(candidate.existingId), JSON.stringify(blocks));
+        workspaceStore.setItem(screenStorageKey(candidate.existingId), JSON.stringify(blocks));
       } catch {
         // Storage unavailable — the round keeps the canvas it had.
       }

@@ -16,6 +16,7 @@ import { type FileDiff } from '@/lib/we-adk/version-diff';
 import { type DesignFile } from './projects';
 import { loadUserTasks, saveUserTasks, type ProjectTask } from './tasks';
 import { findInProgressVersion, isVersionLocked, loadVersionStatuses } from './versions';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface BuildSeed {
   taskId: string;
@@ -47,7 +48,7 @@ const SEED_KEY = 'we-adk:build-seeds';
 /** Every seed, keyed by task id — the shape `loadBuildSession` asks in. */
 export function loadBuildSeeds(): Record<string, BuildSeed> {
   try {
-    const raw = window.localStorage.getItem(SEED_KEY);
+    const raw = workspaceStore.getItem(SEED_KEY);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     return typeof parsed === 'object' && parsed !== null
@@ -60,7 +61,7 @@ export function loadBuildSeeds(): Record<string, BuildSeed> {
 
 function saveBuildSeeds(seeds: Record<string, BuildSeed>): void {
   try {
-    window.localStorage.setItem(SEED_KEY, JSON.stringify(seeds));
+    workspaceStore.setItem(SEED_KEY, JSON.stringify(seeds));
   } catch {
     // Storage unavailable — the generated builds won't survive a reload.
   }

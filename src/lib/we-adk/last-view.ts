@@ -10,6 +10,7 @@
  * Replaces an earlier version that stored the folder id as a bare string; that
  * shape is still read, so nobody loses their place on the way to this one.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface LastView {
   folder: string | null;
@@ -29,7 +30,7 @@ const EMPTY: LastView = { folder: null, screen: null, expanded: [] };
 
 export function loadLastView(projectId: string): LastView {
   try {
-    const raw = window.localStorage.getItem(key(projectId));
+    const raw = workspaceStore.getItem(key(projectId));
     if (!raw) return EMPTY;
     // The old format: just the folder id.
     if (!raw.startsWith('{')) return { ...EMPTY, folder: raw };
@@ -73,7 +74,7 @@ const EMPTY_USER: LastUserView = { member: null, file: null, expanded: [] };
 
 export function loadLastUserView(projectId: string): LastUserView {
   try {
-    const raw = window.localStorage.getItem(`${USER_KEY}:${projectId}`);
+    const raw = workspaceStore.getItem(`${USER_KEY}:${projectId}`);
     if (!raw) return EMPTY_USER;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return EMPTY_USER;
@@ -94,10 +95,10 @@ export function saveLastUserView(projectId: string, patch: Partial<LastUserView>
   try {
     const next: LastUserView = { ...loadLastUserView(projectId), ...patch };
     if (!next.member && !next.file && next.expanded.length === 0) {
-      window.localStorage.removeItem(`${USER_KEY}:${projectId}`);
+      workspaceStore.removeItem(`${USER_KEY}:${projectId}`);
       return;
     }
-    window.localStorage.setItem(`${USER_KEY}:${projectId}`, JSON.stringify(next));
+    workspaceStore.setItem(`${USER_KEY}:${projectId}`, JSON.stringify(next));
   } catch {
     // Storage unavailable — the view simply will not be restored next time.
   }
@@ -108,10 +109,10 @@ export function saveLastView(projectId: string, patch: Partial<LastView>): void 
   try {
     const next: LastView = { ...loadLastView(projectId), ...patch };
     if (!next.folder && !next.screen && next.expanded.length === 0) {
-      window.localStorage.removeItem(key(projectId));
+      workspaceStore.removeItem(key(projectId));
       return;
     }
-    window.localStorage.setItem(key(projectId), JSON.stringify(next));
+    workspaceStore.setItem(key(projectId), JSON.stringify(next));
   } catch {
     // Storage unavailable — the view simply will not be restored next time.
   }

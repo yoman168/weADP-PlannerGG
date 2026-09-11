@@ -7,7 +7,7 @@
  * A folder is either a customer meeting (concept designs) or the project's real
  * screens captured from the live product. Files the user creates — generated
  * from meeting notes, copied from a real screen, or started blank — are stored
- * in localStorage against the folder they were created in, so they survive a
+ * in workspace state against the folder they were created in, so they survive a
  * reload without pretending there is a backend.
  */
 import { type Chip } from './types';
@@ -18,6 +18,7 @@ import {
   type BlockProps,
   type CanvasBlock,
 } from './sketcher';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type SeedPattern = 'listPage' | 'detailPage' | 'dashboard';
 
@@ -92,7 +93,7 @@ function isSketchScreenArray(value: unknown): value is SketchScreen[] {
 
 export function loadGeneratedScreens(sessionId: string): SketchScreen[] {
   try {
-    const raw = window.localStorage.getItem(generatedStoreKey(sessionId));
+    const raw = workspaceStore.getItem(generatedStoreKey(sessionId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return isSketchScreenArray(parsed) ? parsed : [];
@@ -111,7 +112,7 @@ export function loadGeneratedScreens(sessionId: string): SketchScreen[] {
  */
 export function saveGeneratedScreens(sessionId: string, screens: SketchScreen[]): void {
   try {
-    window.localStorage.setItem(generatedStoreKey(sessionId), JSON.stringify(screens));
+    workspaceStore.setItem(generatedStoreKey(sessionId), JSON.stringify(screens));
   } catch {
     // Storage unavailable — the screens simply won't persist.
   }
@@ -130,7 +131,7 @@ export function removeGeneratedScreen(sessionId: string, screenId: string): Sket
   const next = loadGeneratedScreens(sessionId).filter((entry) => entry.id !== screenId);
   saveGeneratedScreens(sessionId, next);
   try {
-    window.localStorage.removeItem(screenStorageKey(screenId));
+    workspaceStore.removeItem(screenStorageKey(screenId));
   } catch {
     // ignore
   }
@@ -209,7 +210,7 @@ export function addPrototypeCopy(
     props: structuredClone(block.props),
   }));
   try {
-    window.localStorage.setItem(screenStorageKey(input.id), JSON.stringify(cloned));
+    workspaceStore.setItem(screenStorageKey(input.id), JSON.stringify(cloned));
   } catch {
     // Canvas won't persist; the copy still opens on the screen's own design.
   }
@@ -256,7 +257,7 @@ export function materialiseGeneratedScreens(
       createBlock(entry.kind, entry.props),
     );
     try {
-      window.localStorage.setItem(screenStorageKey(id), JSON.stringify(blocks));
+      workspaceStore.setItem(screenStorageKey(id), JSON.stringify(blocks));
     } catch {
       // Canvas won't persist, but the screen still opens on its seed layout.
     }
@@ -311,7 +312,7 @@ export function addCopiedScreen(
   }));
 
   try {
-    window.localStorage.setItem(screenStorageKey(id), JSON.stringify(cloned));
+    workspaceStore.setItem(screenStorageKey(id), JSON.stringify(cloned));
   } catch {
     // Canvas won't persist; the copy still opens on its seed layout.
   }

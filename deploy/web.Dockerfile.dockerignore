@@ -1,0 +1,31 @@
+# Everything the build does not need. This matters more than it looks: without it the whole
+# repository is sent to the daemon on every build, including two `node_modules` trees and a
+# Maven target directory, and a one-line source change becomes a minute of uploading.
+
+.git
+.github
+
+# Dependencies and build output are produced inside the image, not copied into it. A macOS
+# `node_modules` in particular must never reach a Linux image — the native builds in it are
+# for the wrong platform and fail at runtime rather than at build time.
+node_modules
+.next
+.next-*
+.open-next
+out
+.wrangler
+backend/target
+**/target
+
+# Local state and editor files.
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.tsbuildinfo
+.dev-server.log
+.claude
+
+# Documentation is not part of a running service.
+*.md
+!README.md

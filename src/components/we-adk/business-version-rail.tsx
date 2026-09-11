@@ -69,7 +69,7 @@ export function BusinessVersionRail() {
   /**
    * Read after mount, and again whenever the route changes.
    *
-   * The rounds live in localStorage, so there is nothing to read during the
+   * The rounds are workspace state, so there is nothing to read during the
    * server pass. Re-reading on navigation is what keeps the counts honest: a
    * design added on Main changes one of them, and the rail has no other way to
    * hear about it.

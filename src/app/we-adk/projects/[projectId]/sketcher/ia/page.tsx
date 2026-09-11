@@ -1349,7 +1349,7 @@ function IAPageInner() {
     ? Number.parseInt(folderParam.slice('version-'.length), 10)
     : Number.NaN;
 
-  // Read after mount — everything here lives in localStorage — and again on
+  // Read after mount — everything here is workspace state — and again on
   // every navigation into the tab, so a file added on Main shows up here too.
   useEffect(() => {
     const project = findProject(params.projectId);

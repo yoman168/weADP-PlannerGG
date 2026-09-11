@@ -7,6 +7,7 @@
  * into a scene once (see `strokesAsElements`), and the data-URL size helper the
  * attach paths share.
  */
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface Stroke {
   /** CSS colour. An eraser stroke was simply white — the paper colour. */
@@ -39,7 +40,7 @@ function isStrokeArray(value: unknown): value is Stroke[] {
 /** Strokes from a board drawn before Excalidraw, or none. */
 export function loadBoard(sessionId: string): Stroke[] {
   try {
-    const raw = window.localStorage.getItem(boardKey(sessionId));
+    const raw = workspaceStore.getItem(boardKey(sessionId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     return isStrokeArray(parsed) ? parsed : [];
@@ -51,7 +52,7 @@ export function loadBoard(sessionId: string): Stroke[] {
 /** Called once the strokes have been converted, so they cannot be re-imported. */
 export function clearBoard(sessionId: string): void {
   try {
-    window.localStorage.removeItem(boardKey(sessionId));
+    workspaceStore.removeItem(boardKey(sessionId));
   } catch {
     // Storage unavailable — the strokes stay, and convert again next time.
   }

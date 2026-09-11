@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { mergeReferenceText, type MeetingFile } from '@/lib/we-adk-mock/meeting-files';
 import { type DesignFolder, type DesignProject } from '@/lib/we-adk-mock/projects';
 import { generatedScreenSchema, type GeneratedScreen } from './sketcher-operations';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 /* ------------------------------------------------------------------ */
 /* The context that goes in                                            */
@@ -221,7 +222,7 @@ function storeKey(projectId: string): string {
 
 export function loadDesignPackage(projectId: string): StoredDesignPackage | null {
   try {
-    const raw = window.localStorage.getItem(storeKey(projectId));
+    const raw = workspaceStore.getItem(storeKey(projectId));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     const pkg = designPackageSchema.safeParse(parsed);
@@ -242,7 +243,7 @@ export function loadDesignPackage(projectId: string): StoredDesignPackage | null
 
 export function saveDesignPackage(projectId: string, pkg: StoredDesignPackage): void {
   try {
-    window.localStorage.setItem(storeKey(projectId), JSON.stringify(pkg));
+    workspaceStore.setItem(storeKey(projectId), JSON.stringify(pkg));
   } catch {
     // Storage unavailable — the package just won't survive a reload.
   }
@@ -250,7 +251,7 @@ export function saveDesignPackage(projectId: string, pkg: StoredDesignPackage): 
 
 export function clearDesignPackage(projectId: string): void {
   try {
-    window.localStorage.removeItem(storeKey(projectId));
+    workspaceStore.removeItem(storeKey(projectId));
   } catch {
     // ignore
   }

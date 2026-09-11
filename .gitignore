@@ -1,10 +1,11 @@
 node_modules
 .next
+# One per NEXT_DIST_DIR, which next.config.ts documents for a second dev server.
+.next-*
 .open-next
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store
-.next-run
 
 # Dev server output, when it is started detached
 .dev-server.log
@@ -20,3 +21,15 @@ out
 # This is a pnpm repo (packageManager: pnpm@11.3.0). An npm run here leaves a
 # second lockfile that silently drifts from pnpm-lock.yaml.
 package-lock.json
+
+# Gradle's output and its per-project caches, rebuilt by every `./gradlew` run and by the
+# api image build. The wrapper itself is committed — including gradle-wrapper.jar, which is
+# how the pinned Gradle version and its checksum travel with the repo.
+backend/build
+backend/.gradle
+*.class
+
+# Real credentials for the prod stack. `deploy/prod.env.example` is the template; the dev
+# stack's file is committed because everything in it is a throwaway.
+deploy/*.env
+!deploy/dev.env

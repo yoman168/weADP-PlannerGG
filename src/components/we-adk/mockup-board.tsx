@@ -250,7 +250,7 @@ export function MockupBoard({
   const { t } = useLocale();
   const [blocksByScreen, setBlocksByScreen] = useState<Record<string, CanvasBlock[]> | null>(null);
 
-  // localStorage is browser-only, so canvases load after mount.
+  // the store is filled before first render, but a canvas is still read in an effect so the SSR markup stays stable.
   const signature = screens.map((screen) => screen.id).join(',');
   useEffect(() => {
     const loaded: Record<string, CanvasBlock[]> = {};

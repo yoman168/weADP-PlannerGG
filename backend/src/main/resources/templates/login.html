@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · WE-ADK</title>
+    <style>
+      /*
+       * Deliberately self-contained: no CDN, no font fetch, no build step. This page is the
+       * one thing that has to render when the rest of the system is having a bad day, so it
+       * depends on nothing it does not carry.
+       */
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f5f7;
+        --card: #ffffff;
+        --text: #111827;
+        --muted: #6b7280;
+        --border: #d1d5db;
+        --accent: #4f46e5;
+        --error-bg: #fee2e2;
+        --error-text: #991b1b;
+        --ok-bg: #dcfce7;
+        --ok-text: #166534;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b0e14;
+          --card: #131720;
+          --text: #e5e7eb;
+          --muted: #9ca3af;
+          --border: #2b323f;
+          --accent: #818cf8;
+          --error-bg: #3f1d1d;
+          --error-text: #fca5a5;
+          --ok-bg: #14321f;
+          --ok-text: #86efac;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: var(--bg);
+        color: var(--text);
+        font:
+          400 14px/1.5 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      .card {
+        width: 100%;
+        max-width: 380px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 24px;
+      }
+      .mark {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 13px;
+        color: #fff;
+        background: linear-gradient(135deg, #34d399, #0d9488);
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .brand p {
+        margin: 0;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      label {
+        display: block;
+        font-weight: 500;
+        font-size: 12px;
+        margin: 0 0 6px;
+      }
+      input {
+        width: 100%;
+        height: 38px;
+        padding: 0 11px;
+        margin-bottom: 16px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+      }
+      input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-color: var(--accent);
+      }
+      button {
+        width: 100%;
+        height: 38px;
+        border: 0;
+        border-radius: 6px;
+        background: var(--accent);
+        color: #fff;
+        font: 500 14px/1 inherit;
+        cursor: pointer;
+      }
+      button:hover {
+        filter: brightness(1.08);
+      }
+      .note {
+        margin: 14px 0 0;
+        font-size: 11px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .banner {
+        margin: 0 0 16px;
+        padding: 9px 11px;
+        border-radius: 6px;
+        font-size: 12px;
+      }
+      .banner.error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+      .banner.ok {
+        background: var(--ok-bg);
+        color: var(--ok-text);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">W</span>
+        <span>
+          <h1>Sign in to WE-ADK</h1>
+          <p>Design, build and deliver</p>
+        </span>
+      </div>
+
+      <p class="banner error" th:if="${failed}" role="alert">
+        That email and password do not match an account.
+      </p>
+      <p class="banner ok" th:if="${signedOut}" role="status">You have been signed out.</p>
+
+      <!--
+        th:action rather than action, so Thymeleaf's Spring Security integration adds the
+        CSRF token. Without it the form posts and is rejected, which looks exactly like a
+        wrong password.
+      -->
+      <form method="post" th:action="@{/login}">
+        <label for="username">Email</label>
+        <input
+          id="username"
+          name="username"
+          type="email"
+          autocomplete="username"
+          required
+          autofocus
+          placeholder="you@example.com"
+        />
+
+        <label for="password">Password</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+        />
+
+        <button type="submit">Sign in</button>
+      </form>
+
+      <p class="note">Your password is only ever typed here, on the server that checks it.</p>
+    </main>
+  </body>
+</html>

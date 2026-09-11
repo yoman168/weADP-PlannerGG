@@ -77,7 +77,7 @@ export function BoardCards({
   const [artifacts, setArtifacts] = useState<BoardArtifact[]>([]);
   const [preview, setPreview] = useState<BoardArtifact | null>(null);
 
-  // localStorage, so after mount rather than during render.
+  // workspace state, so after mount rather than during render.
   useEffect(() => {
     setArtifacts(loadArtifacts(sessionId));
   }, [sessionId, refreshKey]);

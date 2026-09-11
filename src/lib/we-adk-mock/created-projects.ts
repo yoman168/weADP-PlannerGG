@@ -17,6 +17,7 @@
  */
 
 import type { DesignProject, ProjectAccent } from './projects';
+import { workspaceStore } from '@/lib/api/workspace-store';
 
 const KEY = 'we-adk:projects';
 
@@ -114,7 +115,7 @@ function isStored(value: unknown): value is StoredProject {
 
 function read(): StoredProject[] {
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = workspaceStore.getItem(KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -194,7 +195,7 @@ export function createProject(
     createdAt: today,
   };
   try {
-    window.localStorage.setItem(KEY, JSON.stringify([...stored, entry]));
+    workspaceStore.setItem(KEY, JSON.stringify([...stored, entry]));
   } catch {
     // Storage unavailable — the project works for this session and is gone on
     // reload. Better than refusing to create it.
@@ -219,7 +220,7 @@ export function updateProject(projectId: string, fields: NewProjectFields): Desi
   };
   stored[index] = updated;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(stored));
+    workspaceStore.setItem(KEY, JSON.stringify(stored));
   } catch {
     /* */
   }
@@ -230,7 +231,7 @@ export function updateProject(projectId: string, fields: NewProjectFields): Desi
 export function deleteProject(projectId: string): void {
   const stored = read().filter((entry) => entry.id !== projectId);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(stored));
+    workspaceStore.setItem(KEY, JSON.stringify(stored));
   } catch {
     /* */
   }
@@ -246,7 +247,7 @@ export function toggleArchiveProject(projectId: string): DesignProject | null {
   const updated: StoredProject = { ...entry, archived: !entry.archived };
   stored[index] = updated;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(stored));
+    workspaceStore.setItem(KEY, JSON.stringify(stored));
   } catch {
     /* */
   }

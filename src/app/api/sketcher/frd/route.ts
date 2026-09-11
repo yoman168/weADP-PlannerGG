@@ -1,38 +1,31 @@
+/**
+ * A PRD becomes functional requirements.
+ *
+ * A straight forward: nothing here depends on the block catalogue, so there is nothing to
+ * validate on this side. When the model answers in prose instead of JSON the API returns
+ * that prose with an empty `items`, and the caller derives its own list — which is why
+ * this route reports an empty result rather than an error.
+ */
 import { NextResponse, type NextRequest } from 'next/server';
-import { isLoopbackRequest, readClaudeToken, runClaude } from '@/lib/we-adk/claude-cli';
+import { z } from 'zod';
+import { forward } from '@/lib/api/backend';
+import { isLoopbackRequest } from '@/lib/api/loopback';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function buildPrompt(prdId: string, prdTitle: string, prdDescription: string, prdRequirements: string[], screens: string[]): string {
-  return [
-    'You are a business analyst generating Functional Requirements (FRD) from a Product Requirements Document (PRD).',
-    '',
-    `PRD: [${prdId}] ${prdTitle}`,
-    `Description: ${prdDescription}`,
-    '',
-    'Product Requirements (PRD items):',
-    ...prdRequirements.map((r, i) => `  ${i + 1}. ${r}`),
-    '',
-    'Screens in this feature:',
-    ...screens.map((s) => `  - ${s}`),
-    '',
-    'Generate 4–8 functional requirements that describe specific, implementable behaviors for these screens.',
-    'Each FRD item should be a concrete UI behavior, data rule, or interaction — not a copy of the PRD items.',
-    'Think about: validation rules, edge cases, loading states, error handling, data formats, permissions, and UX details.',
-    '',
-    'Respond with ONLY a JSON array, no markdown fences, no prose:',
-    '[{"title": "Short functional requirement"}, ...]',
-  ].join('\n');
-}
+const requestSchema = z.object({
+  prdId: z.string().min(1).max(60),
+  prdTitle: z.string().min(1).max(300),
+  prdDescription: z.string().max(4_000).optional(),
+  requirements: z.array(z.string().max(600)).max(60).default([]),
+  screens: z.array(z.string().max(300)).max(60).default([]),
+  projectId: z.string().max(120).optional(),
+});
 
-function extractJsonArray(text: string): unknown[] {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
-  const candidate = (fenced?.[1] ?? text).trim();
-  const start = candidate.indexOf('[');
-  const end = candidate.lastIndexOf(']');
-  if (start === -1 || end <= start) throw new Error('No JSON array found');
-  return JSON.parse(candidate.slice(start, end + 1)) as unknown[];
+interface FrdReply {
+  items?: { title?: string }[];
+  reply?: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -40,31 +33,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Only local requests allowed.' }, { status: 403 });
   }
 
-  const token = readClaudeToken(request);
-  if (!token) {
-    return NextResponse.json({ error: 'Connect your Claude account first.' }, { status: 401 });
-  }
-
-  let body: { prdId: string; prdTitle: string; prdDescription: string; requirements: string[]; screens: string[] };
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const outcome = await runClaude({
-    prompt: buildPrompt(body.prdId, body.prdTitle, body.prdDescription, body.requirements, body.screens),
-    token,
-  });
+  const parsed = requestSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Could not read that PRD.' }, { status: 400 });
+  }
 
+  const outcome = await forward<FrdReply>(request, '/api/ai/frd', parsed.data);
   if (!outcome.ok) {
     return NextResponse.json({ error: outcome.error }, { status: outcome.status });
   }
 
-  try {
-    const items = extractJsonArray(outcome.text);
-    return NextResponse.json({ items });
-  } catch {
-    return NextResponse.json({ reply: outcome.text, items: [] });
-  }
+  return NextResponse.json({
+    items: outcome.data.items ?? [],
+    ...(outcome.data.reply ? { reply: outcome.data.reply } : {}),
+  });
 }
