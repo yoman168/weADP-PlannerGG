@@ -36,6 +36,7 @@ import {
   Input,
   cn,
 } from '@/components/ui';
+import { showToast } from '@/components/ui/toast';
 import { useApiSession } from '@/lib/api/session';
 import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import { ChatPane, readChatEvent, type ChatTurn } from '@/components/we-adk/claude-chat';
@@ -70,6 +71,7 @@ import {
 import {
   inertPreviewHtml,
   listPageControls,
+  openFlowDocument,
   parseGeneratedPages,
   readPreviewNav,
   readPreviewPick,
@@ -655,6 +657,41 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
     id: screen.id,
     name: screen.name,
   }));
+
+  /**
+   * The flow in its own tab: every screen of this build, wired.
+   *
+   * The button used to hand over the one page on screen, and a generated page
+   * is deliberately inert — the model writes `data-screen` where a real product
+   * would have an href, and the preview turns that into navigation. Alone in a
+   * tab it is a screen with a drawn, dead sidebar. So the tab gets what the
+   * preview gets: the whole set, the same resolver, and the click that asks for
+   * the next screen.
+   *
+   * `startAt` is what is being looked at now, because that is the screen the
+   * person clicking this button already chose.
+   */
+  const openFlow = (startAt?: string) => {
+    const ordered = startAt
+      ? [
+          ...treeScreens.filter((screen) => screen.id === startAt),
+          ...treeScreens.filter((screen) => screen.id !== startAt),
+        ]
+      : treeScreens;
+    const opened = openFlowDocument(
+      ordered.map((screen) => ({
+        id: screen.id,
+        name: screen.name,
+        html: screen.html,
+        parentId: screen.ia.parentId,
+        screenType: screen.ia.screenType,
+      })),
+      selected?.title ?? 'Screens',
+    );
+    if (!opened) {
+      showToast('No screen has a page yet — generate the screens first.', 'info');
+    }
+  };
   const generateAbort = useRef<AbortController | null>(null);
 
   const stopGenerating = () => {
@@ -1353,15 +1390,13 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                 <div className="ml-auto flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      const tab = window.open('', '_blank');
-                      if (tab) {
-                        tab.document.write(activePage.html);
-                        tab.document.close();
-                      }
-                    }}
+                    onClick={() => openFlow(activePage.id)}
                     className="text-muted-foreground hover:text-foreground hover:bg-muted flex size-7 items-center justify-center rounded-md transition-colors"
-                    title="Open in browser"
+                    title={
+                      treeScreens.length > 1
+                        ? `Open all ${treeScreens.length} screens in a browser tab, wired together`
+                        : 'Open in browser'
+                    }
                     aria-label="Open in browser"
                   >
                     <ExternalLink className="size-3.5" />

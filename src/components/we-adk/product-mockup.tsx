@@ -50,7 +50,7 @@ import {
   type IARow,
   type IAScreenType,
 } from '@/lib/we-adk-mock/ia';
-import { inertPreviewHtml, readPreviewNav } from '@/lib/we-adk/mockup-pages';
+import { inertPreviewHtml, openFlowDocument, readPreviewNav } from '@/lib/we-adk/mockup-pages';
 import { loadRoundFolders } from '@/lib/we-adk/round-screens';
 import { loadStandaloneDrafts } from '@/lib/we-adk/task-design';
 import { PROJECTS, type DesignProject } from '@/lib/we-adk-mock/projects';
@@ -484,11 +484,21 @@ function IAStep({
                         <button
                           type="button"
                           onClick={() => {
-                            if (!screen.html) return;
-                            const tab = window.open('', '_blank');
-                            if (!tab) return;
-                            tab.document.write(screen.html);
-                            tab.document.close();
+                            // The tree being agreed here is what the rail in
+                            // that tab reads, so it is drawn from the draft
+                            // rather than from where the screens came in.
+                            openFlowDocument(
+                              [screen, ...screens.filter((entry) => entry.id !== screen.id)].map(
+                                (entry) => ({
+                                  id: entry.id,
+                                  name: entry.name,
+                                  html: entry.html,
+                                  parentId: iaOf(entry.id).parentId,
+                                  screenType: iaOf(entry.id).screenType,
+                                }),
+                              ),
+                              productName ?? screen.name,
+                            );
                           }}
                           disabled={!screen.html}
                           title="Open in browser"

@@ -58,7 +58,7 @@ import {
   removeStandaloneDraft,
   type DraftPlacement,
 } from '@/lib/we-adk/task-design';
-import { inertPreviewHtml } from '@/lib/we-adk/mockup-pages';
+import { inertPreviewHtml, openFlowDocument } from '@/lib/we-adk/mockup-pages';
 import { loadRoundFolders } from '@/lib/we-adk/round-screens';
 import type { MeetingIA } from '@/lib/we-adk-mock/mockup-tasks';
 import {
@@ -455,11 +455,18 @@ export function MoveToProductDialog({
    * whole of it. Same as the button on the customer's own preview.
    */
   const openInBrowser = (screen: MovingScreen) => {
-    if (!screen.html) return;
-    const tab = window.open('', '_blank');
-    if (!tab) return;
-    tab.document.write(screen.html);
-    tab.document.close();
+    // The set, not the page: these screens link to each other, and the whole
+    // point of reading one here is deciding whether it belongs with the rest.
+    openFlowDocument(
+      [screen, ...screens.filter((entry) => entry.id !== screen.id)].map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        html: entry.html,
+        parentId: entry.ia.parentId,
+        screenType: entry.ia.screenType,
+      })),
+      screen.name,
+    );
   };
 
   const openButtonClass =

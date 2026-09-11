@@ -759,3 +759,200 @@ export function setPageControlTargets(html: string, targets: Record<number, stri
     return html;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* The whole flow, as one file                                         */
+/* ------------------------------------------------------------------ */
+
+/** A screen as the flow document needs it: a page, a name, and its parent. */
+export interface FlowScreen {
+  id: string;
+  name: string;
+  html?: string;
+  parentId?: string | null;
+  screenType?: string;
+}
+
+/** `srcdoc` carries a whole document in an attribute, so all five matter. */
+function attr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function text(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * The screens indented by what opens what, parents before children.
+ *
+ * The same order the board's tree reads in, so the rail in the exported file
+ * and the rail in the app are the same list — a screen that sat under the till
+ * in one does not sit beside it in the other.
+ */
+function flowOrdered(screens: FlowScreen[]): { screen: FlowScreen; depth: number }[] {
+  const byParent = new Map<string, FlowScreen[]>();
+  const ids = new Set(screens.map((screen) => screen.id));
+  for (const screen of screens) {
+    // A parent outside this set is no parent here: the screen is top level,
+    // rather than missing from a rail that would then be shorter than the
+    // document it describes.
+    const parent = screen.parentId && ids.has(screen.parentId) ? screen.parentId : '';
+    byParent.set(parent, [...(byParent.get(parent) ?? []), screen]);
+  }
+  const out: { screen: FlowScreen; depth: number }[] = [];
+  const seen = new Set<string>();
+  const walk = (parent: string, depth: number) => {
+    for (const screen of byParent.get(parent) ?? []) {
+      if (seen.has(screen.id)) continue;
+      seen.add(screen.id);
+      out.push({ screen, depth });
+      walk(screen.id, depth + 1);
+    }
+  };
+  walk('', 0);
+  // A cycle in the parents would leave screens unvisited, and a dropped screen
+  // is worse than a flat one.
+  for (const screen of screens) {
+    if (!seen.has(screen.id)) out.push({ screen, depth: 0 });
+  }
+  return out;
+}
+
+const FLOW_STYLE = [
+  '*{box-sizing:border-box}',
+  'body{margin:0;height:100vh;display:flex;font:13px/1.5 -apple-system,BlinkMacSystemFont,',
+  '"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:#18181b;background:#f4f5f7}',
+  '#rail{width:232px;flex:0 0 232px;background:#fff;border-right:1px solid #e4e4e7;',
+  'display:flex;flex-direction:column;overflow:hidden}',
+  '#rail h1{margin:0;padding:14px 16px 10px;font-size:12px;font-weight:600;letter-spacing:.04em;',
+  'text-transform:uppercase;color:#71717a;border-bottom:1px solid #f1f1f3}',
+  '#rail nav{flex:1;overflow-y:auto;padding:6px 0}',
+  '#rail button{display:block;width:100%;text-align:left;border:0;border-left:2px solid transparent;',
+  'background:none;font:inherit;color:#3f3f46;padding:6px 12px;cursor:pointer}',
+  '#rail button:hover{background:#f4f4f5;color:#18181b}',
+  '#rail button[aria-current="true"]{background:#eef2ff;border-left-color:#4f46e5;color:#1e1b4b;',
+  'font-weight:600}',
+  '#rail .kind{color:#a1a1aa;font-weight:400;font-size:11px}',
+  '#rail p{margin:0;padding:10px 16px;border-top:1px solid #f1f1f3;color:#a1a1aa;font-size:11px}',
+  '#stage{flex:1;min-width:0;position:relative;background:#fff}',
+  '#stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}',
+  '#stage iframe[hidden]{display:none}',
+  '@media (max-width:720px){body{flex-direction:column;height:auto}',
+  '#rail{width:auto;flex:none;border-right:0;border-bottom:1px solid #e4e4e7}',
+  '#rail nav{max-height:30vh}#stage{height:70vh}}',
+].join('');
+
+/**
+ * The click a generated page cannot make on its own.
+ *
+ * Every screen is a sandboxed frame, so it asks rather than navigates — the
+ * same arrangement the workspace uses, and the same message. This is the half
+ * that listens, which in the app is a React effect and here is six lines.
+ */
+const FLOW_SCRIPT = [
+  '(function(){',
+  "var frames=[].slice.call(document.querySelectorAll('#stage iframe'));",
+  "var buttons=[].slice.call(document.querySelectorAll('#rail button'));",
+  'function show(id){',
+  'var found=false;',
+  "frames.forEach(function(f){var here=f.getAttribute('data-id')===id;if(here)found=true;f.hidden=!here});",
+  'if(!found)return;',
+  "buttons.forEach(function(b){b.setAttribute('aria-current',b.getAttribute('data-id')===id?'true':'false')});",
+  "if(window.history&&window.history.replaceState)window.history.replaceState(null,'','#'+encodeURIComponent(id));",
+  '}',
+  "buttons.forEach(function(b){b.addEventListener('click',function(){show(b.getAttribute('data-id'))})});",
+  "window.addEventListener('message',function(e){",
+  'var d=e.data;',
+  "if(!d||typeof d!=='object'||d.source!=='" + PREVIEW_NAV_SOURCE + "')return;",
+  "if(typeof d.to==='string')show(d.to);",
+  '});',
+  // A link shared with the anchor still opens on the screen it names.
+  'var at=location.hash?decodeURIComponent(location.hash.slice(1)):null;',
+  'if(at)show(at);',
+  '})();',
+].join('');
+
+/**
+ * Every screen of a build, in one standalone document.
+ *
+ * "Open in browser" used to hand over the one page being looked at, which is
+ * the right thing to look at and the wrong thing to walk: the pages are
+ * generated with their navigation deliberately inert — the model is told to
+ * write `data-screen` instead of an href — and the app turns that attribute
+ * into navigation at preview time. Opened raw, a sidebar is drawn and dead,
+ * which reads as broken rather than as a still.
+ *
+ * So the export does what the app does. Each screen is rewritten by
+ * `inertPreviewHtml`, which resolves `data-screen` to the screen it names and
+ * injects the script that reports a click; the frame around them listens for
+ * that message and swaps which one is showing. No server, no origin, nothing
+ * fetched — it opens from a tab, from a file, or out of an email.
+ *
+ * Screens with no page yet are listed nowhere: a rail entry that shows a blank
+ * frame is a dead end with a label on it.
+ */
+export function flowDocument(screens: FlowScreen[], title: string): string {
+  const ready = screens.filter((screen) => (screen.html ?? '').trim().length > 0);
+  if (ready.length === 0) return '';
+
+  const links: PreviewLink[] = ready.map((screen) => ({ id: screen.id, name: screen.name }));
+  const ordered = flowOrdered(ready);
+  const first = ordered[0]?.screen.id ?? ready[0]!.id;
+
+  const rail = ordered
+    .map(({ screen, depth }) => {
+      const kind =
+        screen.screenType && screen.screenType !== 'Screen'
+          ? ` <span class="kind">${text(screen.screenType)}</span>`
+          : '';
+      return [
+        `<button type="button" data-id="${attr(screen.id)}"`,
+        ` aria-current="${screen.id === first ? 'true' : 'false'}"`,
+        ` style="padding-left:${12 + depth * 14}px">`,
+        `${text(screen.name)}${kind}</button>`,
+      ].join('');
+    })
+    .join('');
+
+  const stage = ordered
+    .map(({ screen }) => {
+      const page = inertPreviewHtml(screen.html ?? '', links, screen.id);
+      return [
+        `<iframe data-id="${attr(screen.id)}" title="${attr(screen.name)}"`,
+        ' sandbox="allow-scripts"',
+        screen.id === first ? '' : ' hidden',
+        ` srcdoc="${attr(page)}"></iframe>`,
+      ].join('');
+    })
+    .join('');
+
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="en"><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${text(title)}</title>`,
+    `<style>${FLOW_STYLE}</style></head><body>`,
+    `<div id="rail"><h1>${text(title)}</h1><nav>${rail}</nav>`,
+    `<p>${ready.length} screen${ready.length === 1 ? '' : 's'} · generated by WE-ADK</p></div>`,
+    `<div id="stage">${stage}</div>`,
+    `<script>${FLOW_SCRIPT}</script>`,
+    '</body></html>',
+  ].join('');
+}
+
+/** Opens a flow document in a new tab. Browser-only. */
+export function openFlowDocument(screens: FlowScreen[], title: string): boolean {
+  const html = flowDocument(screens, title);
+  if (!html) return false;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener');
+  // Long enough for the tab to have read it, short enough not to leak.
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return true;
+}
