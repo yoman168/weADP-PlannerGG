@@ -7,6 +7,7 @@
 #   scripts/stack.sh dev  down      # stop, keeping the database
 #   scripts/stack.sh dev  logs api  # follow one service
 #   scripts/stack.sh dev  tools     # add the database browser
+#   scripts/stack.sh dev  urls      # where it is answering, tunnels included
 #   scripts/stack.sh dev  ps
 #   scripts/stack.sh dev  reset     # stop and DELETE the database
 #
@@ -14,6 +15,11 @@
 # has its own compose project name, its own volumes and its own ports, and every command
 # here carries the environment as its first word — so there is no "current" stack to be
 # wrong about, and no way to `down` production while meaning to restart dev.
+#
+# Everything the system needs to run is a container in that stack, including the two
+# services that are only there in development: `claude-bridge`, which is how the API
+# reaches Claude without an API key, and the Cloudflare tunnels behind the `tunnel`
+# profile. Nothing is left running on the developer's machine to be forgotten.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -30,29 +36,51 @@ case "$ENVIRONMENT" in
     ;;
 esac
 
-ENV_FILE="deploy/${ENVIRONMENT}.env"
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE." >&2
-  [[ "$ENVIRONMENT" == "prod" ]] &&
-    echo "Copy deploy/prod.env.example to it and fill in the credentials." >&2
-  exit 1
-fi
+# The project name, the layered env files and `compose` itself — shared with tunnel.sh so
+# the two scripts cannot disagree about which stack they are driving.
+# shellcheck source=lib/stack-env.sh
+source scripts/lib/stack-env.sh
 
-# The dev stack layers its overrides on top of the base file; prod is the base file alone.
-FILES=(-f deploy/compose.yml)
-[[ "$ENVIRONMENT" == "dev" ]] && FILES+=(-f deploy/compose.dev.yml)
+# Said once, at the point it can still be acted on.
+#
+# The dev API has no Anthropic key, so it calls the claude-bridge container instead — and
+# that container has no Keychain to borrow a login from the way a process on the Mac would.
+# `claude setup-token` mints the long-lived token it needs.
+check_claude_token() {
+  [[ "$ENVIRONMENT" == "dev" ]] || return 0
+  [[ -n "$(stack_value CLAUDE_CODE_OAUTH_TOKEN)" ]] && return 0
+  cat >&2 <<'NOTE'
 
-# Read the project name out of the env file rather than guessing it, so the name in
-# `docker ps` is the one the file declares.
-STACK_NAME="$(grep -E '^STACK_NAME=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
-STACK_NAME="${STACK_NAME:-weadk-$ENVIRONMENT}"
+  note: the AI features have no credential, so they will answer with an error.
+        Run `claude setup-token` and put the token it prints in deploy/dev.secrets.env:
 
-compose() {
-  docker compose --env-file "$ENV_FILE" -p "$STACK_NAME" "${FILES[@]}" "$@"
+            CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat...
+
+        Then `pnpm stack:dev` again. An ANTHROPIC_API_KEY in deploy/dev.secrets.env
+        works too — the bridge runs the CLI with it.
+NOTE
 }
 
-url() {
-  grep -E "^$1=" "$ENV_FILE" | head -1 | cut -d= -f2-
+# Where the stack is answering.
+#
+# Localhost always, because the published ports do not stop working when a tunnel is up —
+# and the tunnels underneath, read from the containers themselves, because a quick tunnel's
+# hostname is generated at startup and written down nowhere a person would think to look.
+print_urls() {
+  local web api tunnel_web tunnel_api
+  web="http://localhost:$(stack_value WEB_PORT)"
+  api="http://localhost:$(stack_value API_PORT)"
+  echo "    workspace  $web"
+  echo "    api        $api"
+  echo "    docs       $api/swagger-ui.html"
+
+  tunnel_web="$(tunnel_hostname tunnel-web)"
+  tunnel_api="$(tunnel_hostname tunnel-api)"
+  if [[ -n "$tunnel_web" || -n "$tunnel_api" ]]; then
+    echo "  and through the tunnels:"
+    [[ -n "$tunnel_web" ]] && echo "    workspace  $tunnel_web"
+    [[ -n "$tunnel_api" ]] && echo "    api        $tunnel_api"
+  fi
 }
 
 case "$COMMAND" in
@@ -60,9 +88,16 @@ case "$COMMAND" in
     compose up -d --build "$@"
     echo
     echo "  $STACK_NAME is up."
-    echo "    workspace  $(url PUBLIC_WEB_URL)"
-    echo "    api        $(url PUBLIC_API_URL)"
-    echo "    docs       $(url PUBLIC_API_URL)/swagger-ui.html"
+    print_urls
+    check_claude_token
+    ;;
+  urls)
+    echo "  $STACK_NAME"
+    print_urls
+    # An `&&` chain here would make "there are tunnels" the script's exit status.
+    if [[ -z "$(tunnel_hostname tunnel-web)" ]]; then
+      echo "  (no tunnels — 'pnpm stack:dev:tunnel' puts it on the internet)"
+    fi
     ;;
   down) compose down "$@" ;;
   restart) compose restart "$@" ;;
@@ -71,7 +106,7 @@ case "$COMMAND" in
   build) compose build "$@" ;;
   tools)
     compose --profile tools up -d adminer "$@"
-    echo "  database browser  http://localhost:$(grep -E '^ADMINER_PORT=' "$ENV_FILE" | cut -d= -f2-)"
+    echo "  database browser  http://localhost:$(stack_value ADMINER_PORT)"
     ;;
   reset)
     # Deliberately awkward. `down -v` deletes the database, and doing that to the wrong

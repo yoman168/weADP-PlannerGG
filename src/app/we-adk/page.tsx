@@ -1,9 +1,9 @@
 'use client';
 
 import {
-  ArrowRight,
+  ArrowUpDown,
   Clock,
-  EllipsisVertical,
+  Ellipsis,
   FolderPlus,
   Layers,
   MessagesSquare,
@@ -12,11 +12,10 @@ import {
   Plus,
   Search,
   Trash2,
-  Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Button,
   Dialog,
@@ -24,12 +23,16 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Progress,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   cn,
 } from '@/components/ui';
 import { CreateProjectDialog } from '@/components/we-adk/create-project-dialog';
 import { EditProjectDialog } from '@/components/we-adk/edit-project-dialog';
-import { ProjectTile, stagePercent } from '@/components/we-adk/project-chrome';
+import { ProjectTile } from '@/components/we-adk/project-chrome';
 import { StatusChip } from '@/components/we-adk/status-chip';
 import { useLocale } from '@/lib/locale';
 import {
@@ -41,12 +44,11 @@ import {
 } from '@/lib/we-adk-mock/created-projects';
 import {
   PROJECTS,
-  PROJECT_STAGES,
   isSeededProject,
   projectRealScreens,
   projectSketchScreens,
   relativeUpdated,
-  stageIndex,
+  WORKSPACE_LABEL,
   type DesignProject,
 } from '@/lib/we-adk-mock/projects';
 import { startWithNoRounds } from '@/lib/we-adk-mock/versions';
@@ -60,11 +62,23 @@ import { startWithNoRounds } from '@/lib/we-adk-mock/versions';
  * labels change.
  */
 const TABS = [
-  { id: 'archived', label: 'Customer', noun: 'customer' },
-  { id: 'active', label: 'Product', noun: 'product' },
+  { id: 'archived', label: WORKSPACE_LABEL.customer, noun: 'customer' },
+  { id: 'active', label: WORKSPACE_LABEL.product, noun: 'product' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
+
+/** How the grid is ordered. Newest first, because that is what you came back for. */
+const SORTS = [
+  { id: 'newest', key: 'home.sortNewest' },
+  { id: 'oldest', key: 'home.sortOldest' },
+  { id: 'name', key: 'home.sortName' },
+] as const;
+
+type SortId = (typeof SORTS)[number]['id'];
+
+/** The status filter's "no filter" value — Radix items cannot carry an empty one. */
+const ANY_STATUS = 'all';
 
 /** Dropdown that closes on outside click or Escape. */
 function ProjectActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
@@ -100,7 +114,7 @@ function ProjectActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete
         )}
         aria-label="Project actions"
       >
-        <EllipsisVertical className="size-4" />
+        <Ellipsis className="size-4" />
       </button>
       {open && (
         <div className="bg-popover text-popover-foreground border-border absolute right-0 z-50 mt-1 min-w-[140px] rounded-md border py-1 shadow-md">
@@ -141,14 +155,14 @@ function Meta({ icon: Icon, children }: { icon: typeof Clock; children: ReactNod
 }
 
 /**
- * A project as a full-width row: who it is for, what it is about, how much of
- * it has been drawn, and where it has got to in the pipeline.
+ * A project as a card: who it is for, what it is about, what has been made,
+ * and how far down the pipeline it has got.
  *
- * The whole row opens the project — the link is an overlay under the content
+ * The whole card opens the project — the link is an overlay under the content
  * rather than a wrapper around it, so the actions menu stays a real button
  * instead of a button nested inside an anchor.
  */
-function ProjectRow({
+function ProjectCard({
   project,
   today,
   onEdit,
@@ -165,102 +179,73 @@ function ProjectRow({
   const files = projectSketchScreens(project).length;
   const liveScreens = projectRealScreens(project).length;
   const meetings = project.sessions.length;
-  const step = stageIndex(project.stage);
   // A created project has a customer but not always an owner yet.
   const who = [project.customer, project.owner].filter(Boolean).join(' · ');
 
   return (
-    <article className="group border-border/70 bg-card hover:border-foreground/25 relative rounded-2xl border shadow-sm transition-colors">
+    <article className="group border-border/70 bg-card hover:border-foreground/25 relative flex flex-col rounded-2xl border shadow-sm transition-colors">
       <Link
         href={`/we-adk/projects/${project.id}/sketcher`}
         aria-label={`Open ${project.name}`}
         className="focus-visible:ring-ring absolute inset-0 z-10 rounded-2xl focus-visible:ring-2 focus-visible:outline-none"
       />
 
-      <div className="pointer-events-none relative z-20 flex gap-4 p-5">
-        <ProjectTile project={project} className="size-11 rounded-xl text-base shadow-sm" />
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h2 className="truncate font-semibold tracking-tight">{project.name}</h2>
-              {who && <p className="text-muted-foreground mt-0.5 truncate text-xs">{who}</p>}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <StatusChip {...project.status} />
-              {editable && <ProjectActionsMenu onEdit={onEdit} onDelete={onDelete} />}
-            </div>
+      <div className="pointer-events-none relative z-20 flex flex-1 flex-col p-5">
+        {/* Whose project it is, and where it stands. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <ProjectTile project={project} className="size-10 rounded-xl text-sm shadow-sm" />
+            <StatusChip {...project.status} />
           </div>
+          {editable && <ProjectActionsMenu onEdit={onEdit} onDelete={onDelete} />}
+        </div>
 
-          <p
-            className={cn(
-              'mt-2.5 line-clamp-2 max-w-2xl text-[13px] leading-relaxed',
-              project.summary ? 'text-muted-foreground' : 'text-muted-foreground/70',
-            )}
-          >
-            {project.summary || t('home.noBrief')}
-          </p>
+        <h2 className="mt-4 truncate font-semibold tracking-tight">{project.name}</h2>
+        {who && <p className="text-muted-foreground mt-1 truncate text-xs">{who}</p>}
 
-          {/* What has been made, and how far down the pipeline it is. */}
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-            <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
-              <Meta icon={Layers}>
-                {files === 1 ? t('home.fileOne') : t('home.files', { count: files })}
-              </Meta>
-              {liveScreens > 0 && (
-                <Meta icon={Monitor}>{t('home.liveScreens', { count: liveScreens })}</Meta>
-              )}
-              {meetings > 0 && (
-                <Meta icon={MessagesSquare}>
-                  {meetings === 1 ? t('home.meetingOne') : t('home.meetings', { count: meetings })}
-                </Meta>
-              )}
-              <Meta icon={Clock}>
-                {t('home.updated', {
-                  when: today ? relativeUpdated(project.updatedAt, today) : project.updatedAt,
-                })}
-              </Meta>
-              <Meta icon={Wallet}>
-                <span className="text-foreground font-medium tabular-nums">
-                  ${project.spend.toFixed(2)}
-                </span>
-              </Meta>
-            </div>
+        <p
+          className={cn(
+            'mt-2.5 line-clamp-2 text-[13px] leading-relaxed',
+            project.summary ? 'text-muted-foreground' : 'text-muted-foreground/70',
+          )}
+        >
+          {project.summary || t('home.noBrief')}
+        </p>
 
-            <div className="flex items-center gap-3">
-              <div className="w-28">
-                <div className="mb-1.5 flex items-baseline justify-between gap-2">
-                  <span className="text-[11px] font-medium">{project.stage}</span>
-                  <span className="text-muted-foreground text-[10px] tabular-nums">
-                    {step}/{PROJECT_STAGES.length}
-                  </span>
-                </div>
-                <Progress value={stagePercent(project.stage)} className="h-1" />
-              </div>
-              <ArrowRight className="text-muted-foreground size-4 shrink-0 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
-            </div>
-          </div>
+        {/* What has been made. */}
+        <div className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+          <Meta icon={Layers}>
+            {files === 1 ? t('home.fileOne') : t('home.files', { count: files })}
+          </Meta>
+          {meetings > 0 && (
+            <Meta icon={MessagesSquare}>
+              {meetings === 1 ? t('home.meetingOne') : t('home.meetings', { count: meetings })}
+            </Meta>
+          )}
+          {liveScreens > 0 && (
+            <Meta icon={Monitor}>{t('home.liveScreens', { count: liveScreens })}</Meta>
+          )}
+          <Meta icon={Clock}>
+            {t('home.updated', {
+              when: today ? relativeUpdated(project.updatedAt, today) : project.updatedAt,
+            })}
+          </Meta>
         </div>
       </div>
     </article>
   );
 }
 
-/** A number the whole workspace shares, for the side rail. */
-function RailStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      <span className="text-sm font-semibold tabular-nums">{value}</span>
-    </div>
-  );
-}
-
-export default function SketcherProjectsPage() {
+function ProjectsPage() {
   const { t } = useLocale();
   const router = useRouter();
-  const [tab, setTab] = useState<TabId>(TABS[0].id);
+  const wanted = useSearchParams().get('tab');
+  const [tab, setTab] = useState<TabId>(
+    TABS.find((entry) => entry.noun === wanted)?.id ?? TABS[0].id,
+  );
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<string>(ANY_STATUS);
+  const [sort, setSort] = useState<SortId>('newest');
   const [today, setToday] = useState<string | null>(null);
   const [created, setCreated] = useState<DesignProject[]>([]);
   const [creating, setCreating] = useState(false);
@@ -303,24 +288,35 @@ export default function SketcherProjectsPage() {
     (project.archived === true) === (id === 'archived');
 
   const needle = search.trim().toLowerCase();
-  const projects = all.filter((project) => {
-    if (!inTab(project, tab)) return false;
-    if (!needle) return true;
-    return [project.name, project.customer, project.owner, project.stage]
-      .join(' ')
-      .toLowerCase()
-      .includes(needle);
-  });
+
+  // The statuses actually in this workspace — offering one nothing carries
+  // would only be a way to empty the grid.
+  const statuses = [
+    ...new Set(all.filter((project) => inTab(project, tab)).map((project) => project.status.label)),
+  ];
+
+  const projects = all
+    .filter((project) => {
+      if (!inTab(project, tab)) return false;
+      if (status !== ANY_STATUS && project.status.label !== status) return false;
+      if (!needle) return true;
+      return [project.name, project.customer, project.owner, project.stage]
+        .join(' ')
+        .toLowerCase()
+        .includes(needle);
+    })
+    // `updatedAt` is `YYYY-MM-DD`, so comparing the strings compares the dates.
+    .sort((a, b) => {
+      if (sort === 'name') return a.name.localeCompare(b.name);
+      if (sort === 'oldest') return a.updatedAt.localeCompare(b.updatedAt);
+      return b.updatedAt.localeCompare(a.updatedAt);
+    });
 
   // The tab in view names what the create button makes and what the form calls it.
   const activeTab = TABS.find((entry) => entry.id === tab) ?? TABS[0];
 
-  const totals = {
-    projects: all.length,
-    files: all.reduce((sum, project) => sum + projectSketchScreens(project).length, 0),
-    meetings: all.reduce((sum, project) => sum + project.sessions.length, 0),
-    spend: all.reduce((sum, project) => sum + project.spend, 0),
-  };
+  // An empty grid reads differently when you narrowed it yourself.
+  const narrowed = needle !== '' || status !== ANY_STATUS;
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -337,41 +333,46 @@ export default function SketcherProjectsPage() {
         </Button>
       </header>
 
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
-          {/* The two workspaces, and a way to find one project inside them. */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="border-border/70 bg-background inline-flex rounded-xl border p-1 shadow-sm">
-              {TABS.map((entry) => {
-                const count = all.filter((project) => inTab(project, entry.id)).length;
-                const selected = tab === entry.id;
-                return (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => setTab(entry.id)}
-                    aria-current={selected ? 'page' : undefined}
+      <div className="flex min-w-0 flex-col gap-4">
+        {/* The two workspaces, and a way to find one project inside them. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="border-border/70 bg-background inline-flex rounded-xl border p-1 shadow-sm">
+            {TABS.map((entry) => {
+              const count = all.filter((project) => inTab(project, entry.id)).length;
+              const selected = tab === entry.id;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  // Statuses differ between the two workspaces, so a filter
+                  // carried across would point at an option that is not there.
+                  onClick={() => {
+                    setTab(entry.id);
+                    setStatus(ANY_STATUS);
+                  }}
+                  aria-current={selected ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm transition-colors',
+                    selected
+                      ? 'bg-foreground text-background font-medium'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {entry.label}
+                  <span
                     className={cn(
-                      'flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm transition-colors',
-                      selected
-                        ? 'bg-foreground text-background font-medium'
-                        : 'text-muted-foreground hover:text-foreground',
+                      'rounded-full px-1.5 text-[11px] tabular-nums',
+                      selected ? 'bg-background/20' : 'bg-muted text-muted-foreground',
                     )}
                   >
-                    {entry.label}
-                    <span
-                      className={cn(
-                        'rounded-full px-1.5 text-[11px] tabular-nums',
-                        selected ? 'bg-background/20' : 'bg-muted text-muted-foreground',
-                      )}
-                    >
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
+          <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
             <div className="relative w-full sm:w-64">
               <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <label className="sr-only" htmlFor="project-search">
@@ -385,73 +386,86 @@ export default function SketcherProjectsPage() {
                 className="bg-background h-9 rounded-xl pl-9 text-sm"
               />
             </div>
-          </div>
 
-          {projects.length === 0 ? (
-            <div className="border-border flex flex-col items-center gap-4 rounded-2xl border border-dashed py-20 text-center">
-              <span className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-xl">
-                {needle ? <Search className="size-5" /> : <FolderPlus className="size-5" />}
-              </span>
-              <div className="max-w-sm">
-                <p className="font-medium">
-                  {needle ? t('home.noMatch') : t('home.emptyTitle', { noun: activeTab.noun })}
-                </p>
-                <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                  {needle ? t('home.noMatchHint') : t('home.emptyHint', { noun: activeTab.noun })}
-                </p>
-              </div>
-              {needle ? (
-                <Button variant="outline" onClick={() => setSearch('')}>
-                  {t('home.clearSearch')}
-                </Button>
-              ) : (
-                <Button onClick={() => setCreating(true)}>
-                  <Plus />
-                  {t('home.create', { noun: activeTab.noun })}
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {projects.map((project) => (
-                <ProjectRow
-                  key={project.id}
-                  project={project}
-                  today={today}
-                  onEdit={() => setEditing(project)}
-                  onDelete={() => handleDelete(project)}
-                />
-              ))}
-
-              {/* Ends the list, instead of leaving it dangling. */}
-              <button
-                type="button"
-                onClick={() => setCreating(true)}
-                className="border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground flex items-center justify-center gap-2 rounded-2xl border border-dashed py-4 text-sm transition-colors"
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger
+                aria-label={t('home.filterStatus')}
+                className="border-border/70 bg-background h-9 rounded-xl shadow-sm"
               >
-                <Plus className="size-4" />
-                {t('home.create', { noun: activeTab.noun })}
-              </button>
-            </div>
-          )}
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY_STATUS}>{t('home.allStatus')}</SelectItem>
+                {statuses.map((label) => (
+                  <SelectItem key={label} value={label}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={sort} onValueChange={(next) => setSort(next as SortId)}>
+              <SelectTrigger
+                aria-label={t('home.sortBy')}
+                className="border-border/70 bg-background h-9 rounded-xl shadow-sm"
+              >
+                <ArrowUpDown className="text-muted-foreground size-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORTS.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {t(entry.key)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* What the whole workspace adds up to. */}
-        <aside className="flex w-full shrink-0 flex-col gap-3 lg:w-72">
-          <section className="border-border/70 bg-card rounded-2xl border p-4 shadow-sm">
-            <h2 className="mb-3 text-xs font-semibold tracking-wide uppercase">
-              {t('home.workspace')}
-            </h2>
-            <div className="flex flex-col gap-2.5">
-              <RailStat label={t('home.statProjects')} value={String(totals.projects)} />
-              <RailStat label={t('home.statFiles')} value={String(totals.files)} />
-              <RailStat label={t('home.statMeetings')} value={String(totals.meetings)} />
-              <RailStat label={t('home.statSpend')} value={`$${totals.spend.toFixed(2)}`} />
+        {projects.length === 0 ? (
+          <div className="border-border flex flex-col items-center gap-4 rounded-2xl border border-dashed py-20 text-center">
+            <span className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-xl">
+              {narrowed ? <Search className="size-5" /> : <FolderPlus className="size-5" />}
+            </span>
+            <div className="max-w-sm">
+              <p className="font-medium">
+                {narrowed ? t('home.noMatch') : t('home.emptyTitle', { noun: activeTab.noun })}
+              </p>
+              <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+                {narrowed ? t('home.noMatchHint') : t('home.emptyHint', { noun: activeTab.noun })}
+              </p>
             </div>
-          </section>
-
-          <p className="text-muted-foreground/80 px-1 text-[11px]">{t('nav.mockupOnly')}</p>
-        </aside>
+            {narrowed ? (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearch('');
+                  setStatus(ANY_STATUS);
+                }}
+              >
+                {t('home.clearSearch')}
+              </Button>
+            ) : (
+              <Button onClick={() => setCreating(true)}>
+                <Plus />
+                {t('home.create', { noun: activeTab.noun })}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                today={today}
+                onEdit={() => setEditing(project)}
+                onDelete={() => handleDelete(project)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <CreateProjectDialog
@@ -469,7 +483,12 @@ export default function SketcherProjectsPage() {
         }}
       />
 
-      <Dialog open={deleting !== null} onOpenChange={(next) => { if (!next) setDeleting(null); }}>
+      <Dialog
+        open={deleting !== null}
+        onOpenChange={(next) => {
+          if (!next) setDeleting(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base">Delete project</DialogTitle>
@@ -504,5 +523,19 @@ export default function SketcherProjectsPage() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * The tab lives in the URL, which only the browser knows.
+ *
+ * `useSearchParams` reads it, and the static export build refuses to prerender
+ * a page that calls it without a boundary to fall back to.
+ */
+export default function SketcherProjectsPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto w-full max-w-6xl" />}>
+      <ProjectsPage />
+    </Suspense>
   );
 }

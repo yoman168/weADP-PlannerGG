@@ -1069,6 +1069,26 @@ export function findProject(projectId: string): DesignProject | null {
 }
 
 /**
+ * The two workspaces a project is filed in: work done for a customer, and the
+ * products we own.
+ *
+ * Keyed on `archived` because that is the field the store has always used, and
+ * renaming it would orphan every project already filed under the old value.
+ * The mapping lives here so the home page's tabs and a project's back link
+ * cannot drift into disagreeing about which list a project belongs to.
+ */
+export type ProjectWorkspace = 'customer' | 'product';
+
+export const WORKSPACE_LABEL: Record<ProjectWorkspace, string> = {
+  customer: 'Customer',
+  product: 'Product',
+};
+
+export function projectWorkspace(project: DesignProject): ProjectWorkspace {
+  return project.archived === true ? 'customer' : 'product';
+}
+
+/**
  * Whether this id is one of the samples that ship with the mockup.
  *
  * The seeded projects carry demo content that only makes sense as a

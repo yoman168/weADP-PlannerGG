@@ -111,8 +111,16 @@ const REFERENCE_CELL = /^[A-Z]{2,4}-\d{4}-\d{3,}$/;
 const WARNING_CELL = /^(\d+d overdue|due today|\d+ remaining|\d+ without a receipt)$/i;
 const NUMERIC_HEADER = /(amount|tax|charges|count|total|qty|unit price|share|progress|oldest)/i;
 
+/**
+ * A money or measure cell, which is right-aligned rather than left.
+ *
+ * The currencies are every one a generated screen can carry, not the three this
+ * started with: the design guide takes its locale from the source, so a UK brief
+ * produces £ and a Cambodian one ៛, and a symbol missing here left that column
+ * ragged against the numbers beside it.
+ */
 function isNumericCell(cell: string): boolean {
-  return /^[₩$€]?-?[\d,.]+%?$/.test(cell.trim()) && /\d/.test(cell);
+  return /^[₩$€£¥៛฿₫₹]?-?[\d,.]+%?$/.test(cell.trim()) && /\d/.test(cell);
 }
 
 function buttonClass(variant: string | undefined, color: string | undefined): string {

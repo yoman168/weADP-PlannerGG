@@ -36,6 +36,27 @@ public class SecurityConfig {
         "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"
     };
 
+    /**
+     * Where the workspace's origin is allowed: the paths it calls from a script, and no others.
+     *
+     * <p>Not {@code /**}, which is what this used to be. Spring Security attaches this source
+     * to every filter chain, including the session-based sign-in chain, and a same-origin form
+     * post to {@code /login} carries an {@code Origin} header like any other post. Behind a
+     * proxy that terminated TLS the request looked cross-site — {@code https://} in the
+     * header, {@code http://} on the socket — so the allowlist rejected it: a 403 with no
+     * content type, which a browser cannot render and offers as a download instead. Forwarded
+     * headers are honoured now ({@code server.forward-headers-strategy}), but a form that is
+     * served and received by the same host should never have been subject to a cross-origin
+     * allowlist at all, and now cannot be.
+     */
+    private static final String[] CORS_PATHS = {
+        "/api/**",
+        // The browser redeems its authorization code from the workspace's origin, and may
+        // read the keys and discovery documents the same way. Not /oauth2/authorize, /login
+        // or /logout: those are navigations, and a navigation is never a CORS request.
+        "/oauth2/token", "/oauth2/revoke", "/oauth2/jwks", "/userinfo", "/.well-known/**"
+    };
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, WeAdkProperties props) throws Exception {
         http.csrf(csrf -> csrf.disable())
@@ -65,7 +86,9 @@ public class SecurityConfig {
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+        for (String path : CORS_PATHS) {
+            source.registerCorsConfiguration(path, config);
+        }
         return source;
     }
 }

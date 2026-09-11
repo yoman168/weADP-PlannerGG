@@ -44,5 +44,8 @@ public abstract class PostgresTest {
         // environment, and a developer who has one exported would have these tests spending
         // real money against the real API.
         registry.add("weadk.anthropic.api-key", () -> "");
+        // Same reason: a developer whose shell exports CLAUDE_BRIDGE_URL would have them
+        // running real turns on their own Claude login.
+        registry.add("weadk.anthropic.bridge-url", () -> "");
     }
 }

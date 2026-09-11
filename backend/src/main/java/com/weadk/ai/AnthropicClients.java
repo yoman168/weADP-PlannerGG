@@ -25,6 +25,15 @@ import org.springframework.stereotype.Component;
  * accepted and sent as a bearer token with the OAuth beta header, but an API key
  * ({@code sk-ant-api…}) is the supported path.
  *
+ * <p>And the way back to the CLI: {@code weadk.anthropic.bridge-url} names the
+ * {@code claude-bridge} service ({@code scripts/claude-bridge.mjs}), which answers the
+ * Messages API by running {@code claude --print}. The SDK is simply pointed at it as its
+ * base URL; the request, the response and the usage it records are the same as against the
+ * real API. When a bridge is configured it is the path for <em>every</em> AI call — a
+ * credential that is present, the caller's or the server's, travels with the request as its
+ * key and the bridge hands it to the CLI, so someone spending their own quota still does.
+ * Without a bridge, the key is used directly, which is what a deployment does.
+ *
  * <p>Clients are cached per credential. Each one owns an OkHttp connection pool, so building
  * a fresh one per request would leak sockets under any real load.
  */
@@ -37,6 +46,9 @@ public class AnthropicClients implements AutoCloseable {
     private static final String OAUTH_PREFIX = "sk-ant-oat";
     private static final String OAUTH_BETA_HEADER = "oauth-2025-04-20";
 
+    /** What goes in the key header when nobody has one; the bridge then uses its own. */
+    private static final String BRIDGE_KEY = "local-claude-cli";
+
     private final WeAdkProperties props;
     private final Map<CacheKey, AnthropicClient> clients = new ConcurrentHashMap<>();
 
@@ -44,8 +56,9 @@ public class AnthropicClients implements AutoCloseable {
         this.props = props;
     }
 
-    public boolean serverKeyConfigured() {
-        return props.anthropic().configured();
+    /** Whether a call can be made without the caller bringing a key: ours, or the bridge. */
+    public boolean serverConfigured() {
+        return props.anthropic().available();
     }
 
     /**
@@ -57,22 +70,48 @@ public class AnthropicClients implements AutoCloseable {
         String credential = callerKey != null && !callerKey.isBlank()
                 ? callerKey.trim()
                 : props.anthropic().apiKey();
-        if (credential == null || credential.isBlank()) {
-            throw AiException.notConfigured();
+        boolean hasCredential = credential != null && !credential.isBlank();
+
+        String bridge = props.anthropic().bridgeUrl();
+        if (bridge != null && !bridge.isBlank()) {
+            // One path when there is a bridge. A credential rides along as the request's
+            // key — the bridge reads it and runs the CLI as that account — and its absence
+            // is the placeholder, which the bridge knows to ignore in favour of its own.
+            return clients.computeIfAbsent(
+                    CacheKey.bridge(bridge.trim(), hasCredential ? credential : BRIDGE_KEY, timeout),
+                    CacheKey::build);
         }
-        return clients.computeIfAbsent(new CacheKey(credential, timeout), CacheKey::build);
+        if (hasCredential) {
+            return clients.computeIfAbsent(CacheKey.direct(credential, timeout), CacheKey::build);
+        }
+        throw AiException.notConfigured();
     }
 
     /** Cached by credential and deadline together — the deadline is baked into the client. */
-    private record CacheKey(String credential, Duration timeout) {
+    private record CacheKey(String credential, String baseUrl, Duration timeout) {
+
+        static CacheKey direct(String credential, Duration timeout) {
+            return new CacheKey(credential, null, timeout);
+        }
+
+        static CacheKey bridge(String baseUrl, String credential, Duration timeout) {
+            return new CacheKey(credential, baseUrl, timeout);
+        }
 
         AnthropicClient build() {
             AnthropicOkHttpClient.Builder builder =
-                    AnthropicOkHttpClient.builder().timeout(timeout).maxRetries(2);
-            if (credential.startsWith(OAUTH_PREFIX)) {
-                builder.authToken(credential).putHeader("anthropic-beta", OAUTH_BETA_HEADER);
+                    AnthropicOkHttpClient.builder().timeout(timeout);
+            if (baseUrl != null) {
+                // Whatever the credential is, it goes as the key header: the bridge tells a
+                // subscription token from an API key itself. No retries — each attempt is a
+                // whole model turn, and a failed one is not going to go better the third time.
+                builder.baseUrl(baseUrl).apiKey(credential).maxRetries(0);
+            } else if (credential.startsWith(OAUTH_PREFIX)) {
+                builder.authToken(credential)
+                        .putHeader("anthropic-beta", OAUTH_BETA_HEADER)
+                        .maxRetries(2);
             } else {
-                builder.apiKey(credential);
+                builder.apiKey(credential).maxRetries(2);
             }
             return builder.build();
         }

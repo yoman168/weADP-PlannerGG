@@ -18,9 +18,18 @@
 
 name: ${STACK_NAME:-weadk}
 
+# Container names are set on every service, so `docker ps` reads `weadk-dev-api` rather
+# than compose's default `weadk-dev-api-1` — the trailing index is for replicas, and none
+# of these has any. Each one carries the stack name because a container name is unique to
+# the daemon, not to the project: without it, starting prod while dev was up would collide.
+#
+# The cost is that `docker compose up --scale` no longer works on these services. Nothing
+# here scales — one database, one API, one web server — so that is a price of nothing.
+
 services:
   postgres:
     image: postgres:17-alpine
+    container_name: ${STACK_NAME:-weadk}-postgres
     environment:
       POSTGRES_DB: ${DB_NAME:-weadk}
       POSTGRES_USER: ${DB_USER:-weadk}
@@ -39,6 +48,7 @@ services:
     restart: unless-stopped
 
   api:
+    container_name: ${STACK_NAME:-weadk}-api
     build:
       # Relative to this file, so the context is the API project and the Dockerfile sits
       # here beside it.
@@ -60,9 +70,14 @@ services:
       # Every one of these has to be the URL a browser reaches, not a service name: they end
       # up in tokens, in redirects and in the CORS check, all of which happen in the browser.
       OAUTH2_ISSUER: ${PUBLIC_API_URL:-http://localhost:8080}
-      OAUTH2_REDIRECT_URIS: ${PUBLIC_WEB_URL:-http://localhost:3000}/auth/callback
-      OAUTH2_POST_LOGOUT_URIS: ${PUBLIC_WEB_URL:-http://localhost:3000}/login
-      CORS_ORIGINS: ${PUBLIC_WEB_URL:-http://localhost:3000}
+      # Derived from PUBLIC_WEB_URL unless set outright. Set them outright when the workspace
+      # is opened from more than one place — on localhost and through a tunnel, say — as a
+      # comma-separated list of every origin. One PUBLIC_WEB_URL cannot say that, and a
+      # browser arriving from an origin missing here is refused, not redirected.
+      # scripts/tunnel.sh writes these into deploy/dev.local.env.
+      OAUTH2_REDIRECT_URIS: ${OAUTH2_REDIRECT_URIS:-${PUBLIC_WEB_URL:-http://localhost:3000}/auth/callback}
+      OAUTH2_POST_LOGOUT_URIS: ${OAUTH2_POST_LOGOUT_URIS:-${PUBLIC_WEB_URL:-http://localhost:3000}/login}
+      CORS_ORIGINS: ${CORS_ORIGINS:-${PUBLIC_WEB_URL:-http://localhost:3000}}
 
       # The first account, created once on an empty user table.
       WEADK_AUTH_SEED_EMAIL: ${SEED_EMAIL:-}
@@ -82,6 +97,7 @@ services:
     restart: unless-stopped
 
   web:
+    container_name: ${STACK_NAME:-weadk}-web
     build:
       context: ..
       dockerfile: deploy/web.Dockerfile
@@ -113,6 +129,7 @@ services:
   #
   #   pnpm stack:dev:tools      # then http://localhost:8090
   adminer:
+    container_name: ${STACK_NAME:-weadk}-adminer
     image: adminer:5
     profiles: ['tools']
     depends_on:

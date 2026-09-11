@@ -12,6 +12,18 @@ services:
   api:
     build:
       target: dev
+    environment:
+      # The claude-bridge service below, reached by its name on the stack's own network —
+      # and, while set, the path for every AI call the API makes: a key someone pastes into
+      # the workspace, or an ANTHROPIC_API_KEY here, goes through the bridge rather than
+      # around it. Set it to an empty string to call Anthropic directly instead.
+      CLAUDE_BRIDGE_URL: ${CLAUDE_BRIDGE_URL-http://claude-bridge:8788}
+    depends_on:
+      # Started, not healthy: the bridge is called on demand, and an API that refused to
+      # come up because nobody had run `claude setup-token` would be a worse trade than
+      # AI features that report they have no credential.
+      claude-bridge:
+        condition: service_started
     volumes:
       - ../backend:/app
       # Named, so the dependency cache survives a rebuild. Without it every start
@@ -44,7 +56,57 @@ services:
       # A bind mount from macOS does not deliver inotify events into the container, so the
       # watcher polls instead. Without this, saving a file changes nothing on screen.
       WATCHPACK_POLLING: 'true'
-    command: ['pnpm', 'dev', '--hostname', '0.0.0.0']
+    # Turbopack rather than webpack. The sketcher page is some 5,900 modules, and webpack took
+    # 45 to 60 seconds to compile it inside the VM while climbing to its 2 GB heap limit — and
+    # once, having got there, it wedged: every later request for that route hung with the
+    # process idle until the container was restarted. Turbopack compiles the same page in a
+    # fraction of the time and memory, which is what keeps the dev server under the ceiling.
+    command: ['pnpm', 'dev', '--hostname', '0.0.0.0', '--turbopack']
+
+  # Claude, for a machine with no API key.
+  #
+  # Answers the Anthropic Messages API by running `claude --print` — see
+  # scripts/claude-bridge.mjs. Development only: a deployment has ANTHROPIC_API_KEY and
+  # never reaches for this.
+  #
+  # No published port. It is an unauthenticated Messages API, and the only thing that
+  # needs to reach it is the api container, one network away.
+  claude-bridge:
+    container_name: ${STACK_NAME:-weadk}-claude-bridge
+    build:
+      context: ..
+      dockerfile: deploy/bridge.Dockerfile
+    environment:
+      # From `claude setup-token`, kept in the git-ignored deploy/dev.secrets.env. The
+      # container has no Keychain to borrow a login from, so this is how it signs in.
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+    restart: unless-stopped
+
+  # The workspace and the API, on the internet, through Cloudflare quick tunnels.
+  #
+  #   pnpm stack:dev:tunnel
+  #
+  # Behind a profile because a tunnel is a deliberate act: `pnpm stack:dev` alone must not
+  # put this machine's stack on a public hostname. scripts/tunnel.sh starts them, reads
+  # the hostname each one prints, and writes both into deploy/dev.local.env — the API has
+  # to know them, being the OAuth2 issuer and a CORS origin.
+  #
+  # Not restarted when they die. A new cloudflared process means a new hostname, and one
+  # swapped in under a running stack breaks sign-in with no sign of why; a stopped tunnel
+  # says so plainly. `pnpm stack:dev:tunnel` again, for new URLs.
+  tunnel-web:
+    container_name: ${STACK_NAME:-weadk}-tunnel-web
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    command: tunnel --url http://web:3000 --protocol http2 --no-autoupdate
+    restart: 'no'
+
+  tunnel-api:
+    container_name: ${STACK_NAME:-weadk}-tunnel-api
+    image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
+    command: tunnel --url http://api:8080 --protocol http2 --no-autoupdate
+    restart: 'no'
 
 volumes:
   gradle:

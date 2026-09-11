@@ -36,6 +36,7 @@ import {
   Input,
   cn,
 } from '@/components/ui';
+import { useApiSession } from '@/lib/api/session';
 import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import { ChatPane, readChatEvent, type ChatTurn } from '@/components/we-adk/claude-chat';
 import { findProject } from '@/lib/we-adk-mock/projects';
@@ -45,13 +46,13 @@ import { PageEditor } from '@/components/we-adk/page-editor';
 import { loadScreenBlocks, screenStorageKey as canvasKey } from '@/lib/we-adk-mock/sketcher';
 import { MoveToProductDialog, type MovingScreen } from '@/components/we-adk/move-to-product-dialog';
 
-import { MemberPicker } from '@/components/we-adk/member-picker';
 import { WhiteboardPanel } from '@/components/we-adk/whiteboard-panel';
 import { loadArtifacts } from '@/lib/we-adk/board-artifacts';
 
 import {
   SOURCE_STYLE,
   TASK_SOURCES,
+  taskSource,
   loadMockups,
   meetingAuthor,
   screenChange,
@@ -172,7 +173,7 @@ function MeetingScreenPreview({
         <div>
           <p className="text-sm font-medium">No screen yet</p>
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-            Write your meeting notes, then click <strong>Generate</strong>.
+            Write your notes, then click <strong>Generate</strong>.
           </p>
         </div>
       </div>
@@ -183,7 +184,7 @@ function MeetingScreenPreview({
     <div className="min-h-0 flex-1 p-3">
       <iframe
         srcDoc={safe}
-        title="Meeting preview"
+        title="Source preview"
         className="h-full w-full rounded-lg border bg-white shadow-sm"
         sandbox="allow-scripts"
       />
@@ -222,7 +223,8 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
   const [newKind, setNewKind] = useState<MeetingKind>('meeting-note');
   /** Where the meeting came from. Separate from `kind`, which is about output. */
   const [newSource, setNewSource] = useState<TaskSource>('meeting');
-  const [newPostedBy, setNewPostedBy] = useState<string | undefined>(undefined);
+  /** Who a meeting created here is posted by — no longer a question anyone answers. */
+  const { user } = useApiSession();
   const [editingNotes, setEditingNotes] = useState(false);
   const [editNotesText, setEditNotesText] = useState('');
   const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
@@ -291,13 +293,12 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
     setNewNotes('');
     setNewKind('meeting-note');
     setNewSource('meeting');
-    setNewPostedBy(undefined);
     setCreateOpen(true);
   };
 
-  /** "Untitled meeting", then "Untitled meeting 2", and so on. */
+  /** "Untitled source", then "Untitled source 2", and so on. */
   const nextUntitledName = (): string => {
-    const base = 'Untitled meeting';
+    const base = 'Untitled source';
     const taken = new Set(meetings.map((meeting) => meeting.title));
     if (!taken.has(base)) return base;
     let n = 2;
@@ -315,7 +316,17 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
       notes: newNotes,
       kind: newKind,
       source: newSource,
-      postedBy: newPostedBy,
+      /*
+       * Whoever is signed in, not a name anyone picks.
+       *
+       * Asking was busywork with a wrong answer available: the list is the
+       * project's roster, so on a project whose team is still empty the only
+       * option was "Nobody yet". Signed out — the workspace runs perfectly
+       * well that way — this stays unset and `meetingAuthor` falls back to
+       * the first attendee, as it does for every meeting written before the
+       * field existed.
+       */
+      postedBy: user?.name ?? user?.email,
     };
     const updated = [meeting, ...meetings];
     setMeetings(updated);
@@ -324,8 +335,21 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
     setCreateOpen(false);
   };
 
+  /**
+   * Patched against the list as it is now, not as it was when the caller was made.
+   *
+   * A generation saves its screens a minute or more after it was started, from a
+   * closure created before it began — and in that minute the product it is being
+   * built into was written to the same meeting. Mapping over the captured array
+   * would put that back the way it was and lose the product. The ref is what the
+   * last write left, so two patches in one tick compose instead of racing.
+   */
+  const meetingsRef = useRef<MockupMeeting[]>([]);
+  meetingsRef.current = meetings;
+
   const updateMeeting = (id: string, patch: Partial<MockupMeeting>) => {
-    const updated = meetings.map((m) => (m.id === id ? { ...m, ...patch } : m));
+    const updated = meetingsRef.current.map((m) => (m.id === id ? { ...m, ...patch } : m));
+    meetingsRef.current = updated;
     setMeetings(updated);
     saveMockups(projectId, updated);
   };
@@ -844,7 +868,12 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
         ].filter((page, index, all) => all.findIndex((entry) => entry.id === page.id) === index);
 
         const patched = withScreens(meeting, pages);
-        updateMeeting(meeting.id, { screens: patched.screens, htmlPreview: patched.htmlPreview });
+        updateMeeting(meeting.id, {
+          screens: patched.screens,
+          htmlPreview: patched.htmlPreview,
+          // How this was built, kept with what it built: Generate stops asking.
+          generateMode: mode,
+        });
         setActivePageId(pages[0]!.id);
         // A product build carries on into the IA step; a mockup stops here.
         // The dialog is still open on "Build"; move it along to the IA.
@@ -889,17 +918,17 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
 
   return (
     <div ref={containerRef} className="flex min-h-0 flex-1 overflow-hidden bg-background">
-      {/* Left: Meeting list */}
+      {/* Left: the source list — meetings, feedback and suggestions alike */}
       <div className="flex w-60 shrink-0 flex-col border-r bg-[#fafafa] dark:bg-[#0d1017]">
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
-            Meetings
+            Sources
           </span>
           <button
             type="button"
             onClick={openCreateDialog}
             className="text-muted-foreground hover:text-foreground hover:bg-background rounded p-1 transition-colors"
-            title="New meeting"
+            title="New source"
           >
             <Plus className="size-3.5" />
           </button>
@@ -909,11 +938,11 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
             <div className="flex flex-col items-center gap-3 px-3 py-16 text-center">
               <MessageSquare className="text-muted-foreground/30 size-10" />
               <div>
-                <p className="text-sm font-medium">No meetings</p>
+                <p className="text-sm font-medium">No sources</p>
                 <p className="text-muted-foreground mt-1 text-xs">Create one to get started</p>
               </div>
               <Button size="sm" className="mt-1 gap-1.5 text-xs" onClick={openCreateDialog}>
-                <Plus className="size-3" /> New Meeting
+                <Plus className="size-3" /> New Source
               </Button>
             </div>
           ) : (
@@ -955,7 +984,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                           }
                         }}
                         className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
-                        title="Delete meeting"
+                        title="Delete source"
                       >
                         <Trash2 className="size-3.5" />
                       </span>
@@ -968,10 +997,10 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                       <span
                         className={cn(
                           'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                          SOURCE_STYLE[meeting.source ?? 'meeting'],
+                          SOURCE_STYLE[taskSource(meeting.source)],
                         )}
                       >
-                        {TASK_SOURCES.find((s) => s.id === (meeting.source ?? 'meeting'))?.label}
+                        {TASK_SOURCES.find((s) => s.id === taskSource(meeting.source))?.label}
                       </span>
                     </span>
                   </button>
@@ -1004,11 +1033,11 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                       <span
                         className={cn(
                           'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
-                          SOURCE_STYLE[selected.source ?? 'meeting'],
+                          SOURCE_STYLE[taskSource(selected.source)],
                         )}
                       >
                         {
-                          TASK_SOURCES.find((entry) => entry.id === (selected.source ?? 'meeting'))
+                          TASK_SOURCES.find((entry) => entry.id === taskSource(selected.source))
                             ?.label
                         }
                       </span>
@@ -1066,20 +1095,32 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                       disabled={generatingId === selected.id}
                       onClick={() => {
                         /*
-                         * The question has already been answered.
+                         * Asked once per source.
                          *
-                         * A meeting with screens and a product chosen is being
-                         * regenerated, and asking "mockup or product?" again —
-                         * with the same answer every time — is a click that
-                         * only ever has one outcome. Reset is what changes it.
+                         * The first Generate asks "mockup or product?". The
+                         * answer is written on the meeting with the screens it
+                         * produced, and from then on Generate just runs — a
+                         * revision of those screens, into the same product if
+                         * one was chosen. Asking again would be a click with
+                         * only one outcome. Reset clears the answer along with
+                         * the screens, and the question comes back.
                          */
-                        if (product && pages.length > 0) {
+                        const remembered =
+                          selected.generateMode ??
+                          // Screens from before the answer was recorded: a
+                          // product on the meeting means it was a product build.
+                          (pages.length > 0 ? (product ? 'product' : 'mockup') : undefined);
+                        if (remembered === 'product' && product) {
                           setBuild({
                             step: 'generating',
                             meetingId: selected.id,
                             product,
                           });
                           void generatePreview(selected, 'product');
+                          return;
+                        }
+                        if (remembered === 'mockup') {
+                          void generatePreview(selected, 'mockup');
                           return;
                         }
                         setModeFor(selected);
@@ -1123,12 +1164,12 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                   </div>
                 </div>
 
-                {/* Meeting notes */}
+                {/* Source notes */}
                 <div className="mt-4">
                   <div className="flex items-center justify-between">
                     <h3 className="flex items-center gap-2 text-sm font-semibold">
                       <Pencil className="size-4" />
-                      Meeting Notes
+                      Notes
                     </h3>
                     {editingNotes ? (
                       <div className="flex items-center gap-1.5">
@@ -1671,7 +1712,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
       ) : (
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 text-center">
           <MessageSquare className="text-muted-foreground/20 size-12" />
-          <p className="text-sm font-medium">Select a meeting</p>
+          <p className="text-sm font-medium">Select a source</p>
           <p className="text-muted-foreground text-xs">
             Pick one from the list or create a new one.
           </p>
@@ -1917,7 +1958,8 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
             The {pages.length} screen{pages.length === 1 ? '' : 's'} generated from{' '}
             <span className="text-foreground font-medium">{selected?.title}</span> will be removed,
             along with the links and placements set on them. The notes stay, and so does anything
-            already moved into a product — those copies are the product&rsquo;s now.
+            already moved into a product — those copies are the product&rsquo;s now. The next
+            Generate asks again how to build.
           </p>
           <div className="mt-2 flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setResetOpen(false)}>
@@ -1942,6 +1984,10 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                   // Nothing of this meeting is outstanding any more, because
                   // nothing of this meeting is left.
                   movedTo: undefined,
+                  // And the question is open again: how to build, and into
+                  // what. The next Generate asks.
+                  generateMode: undefined,
+                  product: undefined,
                 });
                 setActivePageId(null);
                 setExternalId(null);
@@ -1967,7 +2013,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base">Delete meeting</DialogTitle>
+            <DialogTitle className="text-base">Delete source</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground text-sm">
             <span className="text-foreground font-medium">{pendingDelete?.title}</span> and its
@@ -1992,9 +2038,9 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
         <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
           <div className="bg-muted/40 px-6 py-5">
             <DialogHeader>
-              <DialogTitle className="text-lg">New Meeting</DialogTitle>
+              <DialogTitle className="text-lg">New Source</DialogTitle>
               <p className="text-muted-foreground text-xs mt-1">
-                Capture a meeting to generate mockups from its notes.
+                Capture a meeting, feedback or a suggestion, and generate mockups from its notes.
               </p>
             </DialogHeader>
           </div>
@@ -2028,25 +2074,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
               </div>
             </div>
             <div>
-              <label
-                htmlFor="new-posted-by"
-                className="text-muted-foreground mb-1.5 block text-[11px] font-semibold tracking-wider uppercase"
-              >
-                Posted by
-              </label>
-              {/* The project's roster, not a free-text name: two spellings of
-                  one person is how "whose meeting was this?" stops having an
-                  answer. */}
-              <MemberPicker
-                id="new-posted-by"
-                projectId={projectId}
-                value={newPostedBy}
-                onChange={setNewPostedBy}
-                placeholder="Nobody yet"
-                showRoles
-              />
-            </div>
-            <div>
               <label className="text-muted-foreground mb-1.5 block text-[11px] font-semibold tracking-wider uppercase">
                 Source
               </label>
@@ -2071,7 +2098,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
             </div>
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Meeting Notes
+                Notes
               </label>
               <textarea
                 value={newNotes}

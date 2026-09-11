@@ -227,7 +227,7 @@ behind. See the repository root README.
 ## Seeing the database
 
 ```bash
-docker exec -it weadk-dev-postgres-1 psql -U weadk -d weadk
+docker exec -it weadk-dev-postgres psql -U weadk -d weadk
 ```
 
 Or in a browser, which is the same thing Swagger UI is for the API:

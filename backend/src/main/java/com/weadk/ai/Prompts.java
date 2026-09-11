@@ -114,6 +114,9 @@ public final class Prompts {
         out.add("- Every screen needs a screenHeader block first, with its label set to the screen name.");
         out.add("- Use only the block kinds and prop names listed above. Never invent props.");
         out.add("- 3 to 7 blocks per screen. Fill props with content drawn from the notes, not lorem ipsum.");
+        out.add("- Write every label, column and option in the language the notes are written in, and draw");
+        out.add("  sample data from that same locale — names, currency and dates as the source uses them.");
+        out.add("  Never carry a language or a currency over from another project.");
         out.add("- If the notes explicitly rule something out, do not build it; mention that in \"reply\".");
         out.add("- If the notes are too vague for a screen, return fewer screens rather than guessing.");
         if (notBlank(references)) {
@@ -183,6 +186,10 @@ public final class Prompts {
      */
     public static final String HTML_DESIGN_GUIDE =
             """
+            - Write the interface in the language the notes are written in. Korean notes get a Korean UI,
+              Khmer notes a Khmer one, English notes an English one — every heading, label, menu item, button,
+              column and placeholder, and the page's lang attribute with it. The source's language, never
+              another project's and never a default.
             - Include all CSS in a <style> tag — NO external CDN links, NO Google Fonts, NO external scripts
             - Design like a senior product designer building a real SaaS application:
               • Use a clean, neutral colour palette: white/gray backgrounds (#f8f9fa, #fff), dark text (#111827), one accent colour for primary actions
@@ -195,7 +202,10 @@ public final class Prompts {
               • Buttons: solid primary (dark bg, white text), outline secondary (border, no fill), ghost for tertiary actions
               • Inputs: 36-40px height, 1px border #d1d5db, rounded, focus ring with accent colour
               • Sidebar navigation: 220-260px wide, white background, items with 10px vertical padding, active item with accent background and left border
-              • Use real-looking data: Korean names (김민수, 이지연), Korean Won (₩), realistic dates, plausible numbers
+              • Use real-looking data from that same locale: names, currency, addresses and date formats taken
+                from the source — a Korean brief gets Korean names and ₩, a Khmer one Khmer names and ៛, an
+                English one English names and whatever currency it names. Where the notes name no country,
+                plain unmarked numbers rather than an invented one
               • Include proper empty states, loading indicators where appropriate
               • Make it responsive — use flexbox/grid, min-width constraints, overflow handling
               • Add subtle hover states on interactive elements (rows, buttons, links)"""

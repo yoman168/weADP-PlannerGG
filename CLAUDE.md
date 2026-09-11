@@ -27,3 +27,6 @@ Common causes of hangs:
 - `src/app/_api/` — backup of API routes (used for static export builds)
 - `next.config.ts` — `output: 'export'` only in production, skipped in dev
 - Toast: use `showToast()` or `useToast()` from `@/components/ui/toast` — no provider wrapping needed
+- `scripts/claude-bridge.mjs` — the `claude` CLI behind the Messages API. While `CLAUDE_BRIDGE_URL` is set (dev), the API (`backend/`) sends every AI call through it, any caller or server key included; without it (prod) the key is used directly. Runs as the `claude-bridge` container, which signs in with `CLAUDE_CODE_OAUTH_TOKEN` from the git-ignored `deploy/dev.secrets.env` (`claude setup-token` mints it)
+- Every service runs in Docker — `pnpm stack:dev` brings up postgres, api, web and claude-bridge, and `pnpm stack:dev:tunnel` adds the two cloudflared containers behind compose's `tunnel` profile. Nothing is left running on the host
+- `scripts/lib/stack-env.sh` — the compose project name and its layered env files, shared by `stack.sh` and `tunnel.sh` so both drive the same stack

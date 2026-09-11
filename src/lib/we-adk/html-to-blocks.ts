@@ -110,7 +110,7 @@ function processElement(el: Element, blocks: CanvasBlock[]): void {
       if (nums && nums.length > 0) {
         isStat = true;
         const allText = Array.from(card.querySelectorAll('span, p, div, dt, h3, h4, label'))
-          .map((e) => e.textContent?.trim()).filter((t) => t && t.length > 1 && !/^[\d,$.%₩€£]+$/.test(t));
+          .map((e) => e.textContent?.trim()).filter((t) => t && t.length > 1 && !/^[\d,$.%₩€£¥៛฿₫₹]+$/.test(t));
         const cardCls = cls(card);
         const tone = cardCls.includes('green') || cardCls.includes('success') ? 'green'
           : cardCls.includes('red') || cardCls.includes('danger') ? 'red'

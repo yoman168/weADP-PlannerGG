@@ -4,10 +4,10 @@ The WE-ADK workspace: a Next.js app, and the Spring Boot API in [`backend/`](bac
 serves it.
 
 ```bash
-pnpm stack:dev          # Postgres, the API and the workspace, all in Docker
+pnpm stack:dev          # Postgres, the API, the workspace and the Claude bridge, in Docker
 ```
 
-That is the whole system: three containers, one command. `http://localhost:3000` when it
+That is the whole system: four containers, one command. `http://localhost:3000` when it
 comes up.
 
 ## Two stacks
@@ -30,11 +30,27 @@ pnpm stack:dev                 # build if needed, then start
 pnpm stack:dev:down            # stop, keeping the database
 pnpm stack:dev:logs api        # follow one service
 pnpm stack:dev:tools           # add the database browser
+pnpm stack:dev:urls            # where it is answering, tunnels included
 pnpm stack:prod                # the same, for the other stack
 
 bash scripts/stack.sh dev ps
 bash scripts/stack.sh dev reset   # stop and DELETE that stack's database
 ```
+
+### On the internet
+
+```bash
+pnpm stack:dev:tunnel          # add two cloudflared containers, print the public URLs
+pnpm stack:dev:tunnel:stop     # remove them; the stack goes back to localhost only
+```
+
+Cloudflare quick tunnels, so no account and no DNS — and the price is that the hostname is
+new every time one starts. `scripts/tunnel.sh` captures both and writes them into the
+git-ignored `deploy/dev.local.env`, because the API has to be told: it is the OAuth2 issuer,
+a CORS origin and a redirect URI, all of which the browser checks. Localhost keeps working
+alongside them.
+
+Forgotten the hostname? `pnpm stack:dev:urls` reads it back out of the running containers.
 
 Every command carries the environment as its first word. There is deliberately no "current"
 stack to be wrong about, and `reset` makes you type the stack name before it deletes
@@ -257,6 +273,21 @@ default is now one API key on the API (`ANTHROPIC_API_KEY`). The "Connect your C
 account" dialog still works and still sends what you paste, now as an API key; `sk-ant-oat…`
 tokens are still accepted but an API key is the supported path. Every call writes an
 `ai_usage` row, so what the AI costs is now a fact rather than a mock.
+
+**No key on this machine?** The dev stack includes a `claude-bridge` service
+(`scripts/claude-bridge.mjs`, built by `deploy/bridge.Dockerfile`): a small server that
+answers the Messages API by running the `claude` CLI. The API is pointed at it through
+`CLAUDE_BRIDGE_URL`, and while that is set **every** AI call goes through it — including one
+carrying a key someone pasted into the Connect dialog, which the bridge hands to the CLI so
+they still spend their own quota. A deployment sets no bridge URL and uses its
+`ANTHROPIC_API_KEY` directly, unchanged. Usage rows are still written; their cost column is
+list price, not what a subscription charges.
+
+It needs a credential of its own, because a container cannot read the login on your Mac.
+Run `claude setup-token`, copy `deploy/dev.secrets.env.example` to `deploy/dev.secrets.env`
+and paste the token in as `CLAUDE_CODE_OAUTH_TOKEN`. Until you do, the AI features answer
+with that instruction rather than failing obscurely. `pnpm claude-bridge` runs the same
+script on the host instead, if you would rather use your own signed-in CLI directly.
 
 ## What came across
 

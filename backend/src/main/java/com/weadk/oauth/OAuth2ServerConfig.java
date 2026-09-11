@@ -210,10 +210,24 @@ public class OAuth2ServerConfig {
     RegisteredClientRepository registeredClientRepository(DataSource dataSource, OAuth2Properties props) {
         JdbcRegisteredClientRepository repository =
                 new JdbcRegisteredClientRepository(new JdbcTemplate(dataSource));
-        if (repository.findByClientId(props.client().id()) == null) {
-            repository.save(workspaceClient(props));
+        RegisteredClient existing = repository.findByClientId(props.client().id());
+        RegisteredClient desired = workspaceClient(props);
+        if (existing == null) {
+            repository.save(desired);
             log.info(
                     "Registered the OAuth2 client '{}' with redirect URIs {}.",
+                    props.client().id(),
+                    props.client().redirectUris());
+        } else if (!existing.getRedirectUris().equals(desired.getRedirectUris())
+                || !existing.getPostLogoutRedirectUris()
+                        .equals(desired.getPostLogoutRedirectUris())) {
+            // Saved under the stored row's id, so the registration is updated rather than a
+            // second one inserted under the same client id. Without this the URIs are only
+            // ever read on the first boot against an empty database, and every later change
+            // to them is ignored in silence — which surfaces as a 401 from /oauth2/authorize.
+            repository.save(RegisteredClient.from(desired).id(existing.getId()).build());
+            log.info(
+                    "Updated the OAuth2 client '{}' to redirect URIs {}.",
                     props.client().id(),
                     props.client().redirectUris());
         }

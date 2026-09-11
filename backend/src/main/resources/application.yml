@@ -8,6 +8,16 @@ spring:
     virtual:
       enabled: true
 
+  mvc:
+    async:
+      # The folder chat streams its reply through a StreamingResponseBody, which runs as an
+      # async request — and Tomcat gives those 30 seconds by default, after which the stream
+      # is cut off and the client sees a 500 with no body it can read. A screen-sized reply
+      # takes longer than that, on the local Claude bridge routinely. So this covers the
+      # longest AI deadline, weadk.ai.timeout.chat (10m), with a minute to spare. Raise both
+      # together.
+      request-timeout: 11m
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/weadk}
     username: ${DB_USER:weadk}
@@ -34,6 +44,18 @@ spring:
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  # Behind anything that terminates TLS — the Cloudflare tunnel, a reverse proxy — Tomcat is
+  # spoken to over plain HTTP and would otherwise believe that is what the browser used. That
+  # goes wrong twice. Every redirect it builds points at http://. And a same-origin form post
+  # from the sign-in page arrives with an https:// Origin header that no longer matches the
+  # request's own origin, so the CORS filter treats it as cross-site and answers 403 with no
+  # content type — which a browser cannot render and so offers as a download.
+  #
+  # `framework` honours X-Forwarded-Proto/Host/Port from whoever connects. Fine while the
+  # service is reached through the tunnel or a proxy of ours; a deployment that exposes 8080
+  # to a network it does not trust should set `native` and configure Tomcat's internal
+  # proxies instead, so only the proxy can say what the browser used.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:framework}
   compression:
     # The workspace state read is JSON that compresses about six times over —
     # measured, not guessed. Every page load pays for it, so this is the cheapest
@@ -74,6 +96,9 @@ weadk:
     # Absent in dev; the generation endpoints report unavailable rather than failing.
     api-key: ${ANTHROPIC_API_KEY:}
     model: ${ANTHROPIC_MODEL:claude-opus-5}
+    # Where scripts/claude-bridge.mjs answers, for a machine with no key: the local `claude`
+    # CLI behind the Messages API. Consulted only when api-key is empty. The dev stack sets it.
+    bridge-url: ${CLAUDE_BRIDGE_URL:}
 
   auth:
     # Sign-in is a separate question from whether tokens are required above. With a secret

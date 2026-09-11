@@ -4,7 +4,6 @@ export const ko: Record<string, string> = {
   'app.subtitle': '디자인 시스템',
   'nav.projects': '프로젝트',
   'nav.notifications': '알림',
-  'nav.members': '멤버',
   'nav.archive': '보관',
   'nav.saveGitlab': 'GitLab에 저장 →',
   'shell.claudeOn': 'Claude 연결됨',
@@ -15,7 +14,6 @@ export const ko: Record<string, string> = {
   'nav.spendOf': '${spend} / ${budget}',
   'nav.overBudget': '예산 초과: ${spend} 사용 / ${budget}',
   'nav.spentOf': '${spend} 사용 / ${budget}',
-  'nav.mockupOnly': 'UI 목업 전용 — 실제 데이터 없음',
   // ── 도구 / 사이드바 ──
   // ── 스케쳐 탭 ──
   'tab.main': '메인',
@@ -349,11 +347,16 @@ export const ko: Record<string, string> = {
   // ── 프로젝트 홈 ──
   'action.taskCreated': '작업이 생성되었습니다 — 개요에서 확인하세요.',
   'home.title': '내 프로젝트',
-  'home.subtitle':
-    '고객 대화를 버전별 프로젝트 브리프, 화면 및 클릭 가능한 프로토타입으로 전환 — 모든 디자인 파일은 해당 프로젝트에 보관됩니다.',
+  'home.subtitle': '고객·제품 프로젝트와 디자인, 프로토타입을 한곳에서 관리하세요.',
   'home.create': '{noun} 만들기',
   'home.search': '프로젝트 검색',
   'home.clearSearch': '검색 지우기',
+  'home.allStatus': '전체 상태',
+  'home.filterStatus': '상태로 프로젝트 필터',
+  'home.sortBy': '프로젝트 정렬',
+  'home.sortNewest': '최신순',
+  'home.sortOldest': '오래된순',
+  'home.sortName': '이름순 (가나다)',
   'home.noArchived': '아직 보관된 항목이 없습니다.',
   'home.noMatch': '검색과 일치하는 프로젝트가 없습니다',
   'home.noMatchHint': '고객사, 담당자 또는 단계로 검색해 보세요.',
@@ -368,11 +371,6 @@ export const ko: Record<string, string> = {
   'home.meetings': '미팅 {count}회',
   'home.liveScreens': '실제 화면 {count}개',
   'home.noBrief': '아직 브리프가 없습니다 — 열어서 첫 대화를 시작하세요.',
-  'home.workspace': '이 워크스페이스',
-  'home.statProjects': '프로젝트',
-  'home.statFiles': '디자인 파일',
-  'home.statMeetings': '미팅',
-  'home.statSpend': 'Claude 비용',
   // ── 이 브라우저에 없는 프로젝트 ──
   'project.missing': '이 브라우저에 없는 프로젝트입니다',
   'project.missingHint':

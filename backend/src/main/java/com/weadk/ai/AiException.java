@@ -29,13 +29,15 @@ public class AiException extends RuntimeException {
         return slug;
     }
 
-    /** No credential is configured and the caller did not bring one. */
+    /** No credential configured, no bridge either, and the caller did not bring a key. */
     public static AiException notConfigured() {
         return new AiException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "ai-not-configured",
-                "This server has no Anthropic API key. Set ANTHROPIC_API_KEY on the API, or send "
-                        + "your own key as the X-Anthropic-Api-Key header.");
+                "This server has no Anthropic API key and no local Claude bridge. Set "
+                        + "ANTHROPIC_API_KEY on the API, point CLAUDE_BRIDGE_URL at "
+                        + "scripts/claude-bridge.mjs, or send your own key as the "
+                        + "X-Anthropic-Api-Key header.");
     }
 
     /** The model answered, but not with something this endpoint could read. */

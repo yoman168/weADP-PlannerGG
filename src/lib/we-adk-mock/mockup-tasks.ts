@@ -12,6 +12,7 @@
 
 import { pageTitleFromHtml } from '@/lib/we-adk/mockup-pages';
 import type { IAPlatform, IAScreenType } from './ia';
+import { isSeededProject } from './projects';
 import { workspaceStore } from '@/lib/api/workspace-store';
 
 export type MeetingKind = 'meeting-note' | 'wireframe';
@@ -30,6 +31,18 @@ export const SOURCE_STYLE: Record<TaskSource, string> = {
   feedback: 'bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
   suggestion: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
 };
+
+/**
+ * The source an entry actually has.
+ *
+ * The field is optional — anything written before it existed has none — and a
+ * value outside the three can only come from a build that spelled them
+ * differently. Either reads as a meeting rather than falling out of
+ * `TASK_SOURCES` and rendering as a blank chip with no colour.
+ */
+export function taskSource(source: string | undefined): TaskSource {
+  return source === 'feedback' || source === 'suggestion' ? source : 'meeting';
+}
 
 /**
  * Where a screen sits in the information architecture, as agreed the last time
@@ -126,6 +139,16 @@ export interface MockupMeeting {
    * screens floating with nothing around them.
    */
   product?: { id: string; name: string };
+  /**
+   * How Generate was answered the first time — a mockup, or a product build.
+   *
+   * Written alongside the screens it produced, so the question is asked once
+   * per source: every later Generate is a revision of those screens, into the
+   * same product if one was chosen. Reset clears it, and the question returns.
+   * Absent on entries from before it existed; the screens and `product` say
+   * what the answer was.
+   */
+  generateMode?: 'mockup' | 'product';
   /**
    * The product these screens have actually been sent to, once they have.
    *
@@ -299,6 +322,25 @@ function saveSeeded(projectId: string, ids: string[]): void {
   }
 }
 
+/** Every id the seed table can hand out — the demo's meetings, not yours. */
+const SEEDED_IDS = new Set(
+  Object.values(SEED_MEETINGS).flatMap((meetings) => meetings.map((meeting) => meeting.id)),
+);
+
+/**
+ * The meetings a project opens with.
+ *
+ * Only the samples get any. A sample without a set of its own borrows the POS
+ * kickoff, so every one of them demonstrates something — but a project you
+ * created starts with nothing and fills up as you hold meetings. Handing it
+ * the demo's meetings put another customer's notes, screens and preview into
+ * a workspace that was supposed to be blank.
+ */
+function seedFor(projectId: string): MockupMeeting[] {
+  if (!isSeededProject(projectId)) return [];
+  return SEED_MEETINGS[projectId] ?? SEED_MEETINGS['proj-eacc-cloud'] ?? [];
+}
+
 /**
  * A project's meetings, with any seeded ones it has not been offered yet.
  *
@@ -314,7 +356,7 @@ function saveSeeded(projectId: string, ids: string[]): void {
  */
 export function loadMockups(projectId: string): MockupMeeting[] {
   try {
-    const seed = SEED_MEETINGS[projectId] ?? SEED_MEETINGS['proj-eacc-cloud'] ?? [];
+    const seed = seedFor(projectId);
     const raw = workspaceStore.getItem(storageKey(projectId));
 
     if (!raw) {
@@ -324,6 +366,18 @@ export function loadMockups(projectId: string): MockupMeeting[] {
     }
 
     const stored = JSON.parse(raw) as MockupMeeting[];
+
+    /*
+     * Clear out the demo's meetings a project of your own was handed before
+     * this was fixed. A meeting you made has a `mockup-…` id, so the strays
+     * can go without touching anything anyone actually wrote.
+     */
+    if (!isSeededProject(projectId)) {
+      const yours = stored.filter((meeting) => !SEEDED_IDS.has(meeting.id));
+      if (yours.length !== stored.length) saveMockups(projectId, yours);
+      return yours;
+    }
+
     const known = new Set([...loadSeeded(projectId), ...stored.map((meeting) => meeting.id)]);
     const added = seed.filter((meeting) => !known.has(meeting.id));
     if (added.length === 0) return stored;

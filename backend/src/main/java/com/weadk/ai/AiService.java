@@ -53,7 +53,7 @@ public class AiService {
 
     public AiDtos.Status status() {
         return new AiDtos.Status(
-                clients.serverKeyConfigured(), props.modelFor("sonnet"), props.models());
+                clients.serverConfigured(), props.modelFor("sonnet"), props.models());
     }
 
     /* ------------------------------------------------------------------ */
@@ -370,10 +370,26 @@ public class AiService {
         }
         if (ex instanceof AnthropicServiceException service) {
             log.warn("Anthropic service error", service);
-            return AiException.upstream(HttpStatus.BAD_GATEWAY, "Anthropic returned an error.");
+            // The body's own sentence when there is one. From the real API that is
+            // "Overloaded" and the like; from the local Claude bridge it is the only place
+            // "the claude CLI was not found" can reach the person who can fix it.
+            String detail = upstreamMessage(service);
+            return AiException.upstream(
+                    HttpStatus.BAD_GATEWAY,
+                    detail.isBlank() ? "Anthropic returned an error." : excerpt(detail));
         }
         log.error("Unexpected failure calling Anthropic", ex);
         return AiException.upstream(HttpStatus.BAD_GATEWAY, "Could not complete the call to Anthropic.");
+    }
+
+    /** The {@code error.message} of an Anthropic-shaped error body, or "" when there is none. */
+    private static String upstreamMessage(AnthropicServiceException ex) {
+        try {
+            JsonNode body = ex.body().convert(JsonNode.class);
+            return body == null ? "" : body.path("error").path("message").asText("");
+        } catch (RuntimeException unreadable) {
+            return "";
+        }
     }
 
     static OutputConfig.Effort effortOf(AiDtos.Effort effort) {
