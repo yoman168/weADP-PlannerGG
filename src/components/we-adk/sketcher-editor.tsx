@@ -28,7 +28,6 @@ import {
   MessageSquare,
   Redo2,
   RotateCcw,
-  ClipboardList,
   Sparkles,
   Trash2,
   X,
@@ -1256,10 +1255,6 @@ export function SketcherEditor({
                         <Button size="sm" variant="outline" className="gap-1.5 rounded-full">
                           <Sparkles className="size-3.5" />
                           {t('action.improveAi')}
-                        </Button>
-                        <Button size="sm" variant="outline" className="gap-1.5 rounded-full">
-                          <ClipboardList className="size-3.5" />
-                          {t('action.createTask')}
                         </Button>
                       </div>
                     </div>

@@ -769,8 +769,8 @@ export interface FlowScreen {
   id: string;
   name: string;
   html?: string;
+  /** Not drawn anywhere — it is what decides which screen the tab opens on. */
   parentId?: string | null;
-  screenType?: string;
 }
 
 /** `srcdoc` carries a whole document in an attribute, so all five matter. */
@@ -788,63 +788,59 @@ function text(value: string): string {
 }
 
 /**
- * The screens indented by what opens what, parents before children.
+ * The screens in the order the board's tree reads in: parents before children.
  *
- * The same order the board's tree reads in, so the rail in the exported file
- * and the rail in the app are the same list — a screen that sat under the till
- * in one does not sit beside it in the other.
+ * Nothing is drawn from this any more, but it still decides which screen the
+ * tab opens on — the first top-level screen, rather than whichever one happened
+ * to be first in the array.
  */
-function flowOrdered(screens: FlowScreen[]): { screen: FlowScreen; depth: number }[] {
+function flowOrdered(screens: FlowScreen[]): FlowScreen[] {
   const byParent = new Map<string, FlowScreen[]>();
   const ids = new Set(screens.map((screen) => screen.id));
   for (const screen of screens) {
     // A parent outside this set is no parent here: the screen is top level,
-    // rather than missing from a rail that would then be shorter than the
-    // document it describes.
+    // rather than left out of the walk and appended at the end as a stray.
     const parent = screen.parentId && ids.has(screen.parentId) ? screen.parentId : '';
     byParent.set(parent, [...(byParent.get(parent) ?? []), screen]);
   }
-  const out: { screen: FlowScreen; depth: number }[] = [];
+  const out: FlowScreen[] = [];
   const seen = new Set<string>();
-  const walk = (parent: string, depth: number) => {
+  const walk = (parent: string) => {
     for (const screen of byParent.get(parent) ?? []) {
       if (seen.has(screen.id)) continue;
       seen.add(screen.id);
-      out.push({ screen, depth });
-      walk(screen.id, depth + 1);
+      out.push(screen);
+      walk(screen.id);
     }
   };
-  walk('', 0);
+  walk('');
   // A cycle in the parents would leave screens unvisited, and a dropped screen
-  // is worse than a flat one.
+  // is worse than one out of order.
   for (const screen of screens) {
-    if (!seen.has(screen.id)) out.push({ screen, depth: 0 });
+    if (!seen.has(screen.id)) out.push(screen);
   }
   return out;
 }
 
+/*
+ * The frame around the screens, and deliberately almost nothing.
+ *
+ * There was a rail down the left listing every screen, which was useful while
+ * the tab was a way of reviewing a build and wrong for what it is actually
+ * used for: showing someone the product. A generated screen draws its own
+ * sidebar, so the export drew a second one beside it, and the one WE-ADK added
+ * was the one that gave the game away.
+ *
+ * What is left is a full-bleed stage. The screen occupies the tab exactly as
+ * it would occupy a browser, and moving between screens is the page's own
+ * navigation doing it.
+ */
 const FLOW_STYLE = [
   '*{box-sizing:border-box}',
-  'body{margin:0;height:100vh;display:flex;font:13px/1.5 -apple-system,BlinkMacSystemFont,',
-  '"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:#18181b;background:#f4f5f7}',
-  '#rail{width:232px;flex:0 0 232px;background:#fff;border-right:1px solid #e4e4e7;',
-  'display:flex;flex-direction:column;overflow:hidden}',
-  '#rail h1{margin:0;padding:14px 16px 10px;font-size:12px;font-weight:600;letter-spacing:.04em;',
-  'text-transform:uppercase;color:#71717a;border-bottom:1px solid #f1f1f3}',
-  '#rail nav{flex:1;overflow-y:auto;padding:6px 0}',
-  '#rail button{display:block;width:100%;text-align:left;border:0;border-left:2px solid transparent;',
-  'background:none;font:inherit;color:#3f3f46;padding:6px 12px;cursor:pointer}',
-  '#rail button:hover{background:#f4f4f5;color:#18181b}',
-  '#rail button[aria-current="true"]{background:#eef2ff;border-left-color:#4f46e5;color:#1e1b4b;',
-  'font-weight:600}',
-  '#rail .kind{color:#a1a1aa;font-weight:400;font-size:11px}',
-  '#rail p{margin:0;padding:10px 16px;border-top:1px solid #f1f1f3;color:#a1a1aa;font-size:11px}',
-  '#stage{flex:1;min-width:0;position:relative;background:#fff}',
+  'html,body{margin:0;height:100%;background:#fff}',
+  '#stage{position:fixed;inset:0}',
   '#stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}',
   '#stage iframe[hidden]{display:none}',
-  '@media (max-width:720px){body{flex-direction:column;height:auto}',
-  '#rail{width:auto;flex:none;border-right:0;border-bottom:1px solid #e4e4e7}',
-  '#rail nav{max-height:30vh}#stage{height:70vh}}',
 ].join('');
 
 /**
@@ -852,20 +848,22 @@ const FLOW_STYLE = [
  *
  * Every screen is a sandboxed frame, so it asks rather than navigates — the
  * same arrangement the workspace uses, and the same message. This is the half
- * that listens, which in the app is a React effect and here is six lines.
+ * that listens, which in the app is a React effect and here is a few lines.
  */
 const FLOW_SCRIPT = [
   '(function(){',
   "var frames=[].slice.call(document.querySelectorAll('#stage iframe'));",
-  "var buttons=[].slice.call(document.querySelectorAll('#rail button'));",
   'function show(id){',
-  'var found=false;',
-  "frames.forEach(function(f){var here=f.getAttribute('data-id')===id;if(here)found=true;f.hidden=!here});",
-  'if(!found)return;',
-  "buttons.forEach(function(b){b.setAttribute('aria-current',b.getAttribute('data-id')===id?'true':'false')});",
+  'var next=null;',
+  "frames.forEach(function(f){if(f.getAttribute('data-id')===id)next=f});",
+  // Nothing to show is a link out of this build — a sign-out, a screen nobody
+  // generated. Leaving the current one up says the product has no such page;
+  // hiding everything first would have answered it with an empty tab, and with
+  // no rail there is now nothing to click to get back.
+  'if(!next)return;',
+  'frames.forEach(function(f){f.hidden=f!==next});',
   "if(window.history&&window.history.replaceState)window.history.replaceState(null,'','#'+encodeURIComponent(id));",
   '}',
-  "buttons.forEach(function(b){b.addEventListener('click',function(){show(b.getAttribute('data-id'))})});",
   "window.addEventListener('message',function(e){",
   'var d=e.data;',
   "if(!d||typeof d!=='object'||d.source!=='" + PREVIEW_NAV_SOURCE + "')return;",
@@ -893,34 +891,40 @@ const FLOW_SCRIPT = [
  * that message and swaps which one is showing. No server, no origin, nothing
  * fetched — it opens from a tab, from a file, or out of an email.
  *
- * Screens with no page yet are listed nowhere: a rail entry that shows a blank
- * frame is a dead end with a label on it.
+ * Nothing of this is visible. There was a rail listing every screen, and it has
+ * been taken out: the screens draw their own navigation, so the export was
+ * putting a second sidebar next to the product's own, and the one that was not
+ * part of the design is the one that made it look like a preview of something
+ * rather than the thing itself. What arrives now is the screen, full bleed,
+ * navigated by its own sidebar.
+ *
+ * Two consequences of there being no rail. A screen with no page yet is not in
+ * the document at all, so a link to one leaves the current screen up rather
+ * than blanking the tab. And a build whose screens do not link to each other
+ * opens on the first and stays there — the flow in the file is the flow the
+ * screens themselves describe, which is the point, but it does mean an
+ * unreachable screen is invisible here in a way it was not before.
  */
-export function flowDocument(screens: FlowScreen[], title: string): string {
+export function flowDocument(screens: FlowScreen[], title: string, at?: string): string {
   const ready = screens.filter((screen) => (screen.html ?? '').trim().length > 0);
   if (ready.length === 0) return '';
 
   const links: PreviewLink[] = ready.map((screen) => ({ id: screen.id, name: screen.name }));
   const ordered = flowOrdered(ready);
-  const first = ordered[0]?.screen.id ?? ready[0]!.id;
-
-  const rail = ordered
-    .map(({ screen, depth }) => {
-      const kind =
-        screen.screenType && screen.screenType !== 'Screen'
-          ? ` <span class="kind">${text(screen.screenType)}</span>`
-          : '';
-      return [
-        `<button type="button" data-id="${attr(screen.id)}"`,
-        ` aria-current="${screen.id === first ? 'true' : 'false'}"`,
-        ` style="padding-left:${12 + depth * 14}px">`,
-        `${text(screen.name)}${kind}</button>`,
-      ].join('');
-    })
-    .join('');
+  /*
+   * Which screen the tab opens on.
+   *
+   * `at` is the screen the person was looking at when they asked for this, and
+   * it is the answer whenever it is in the document — being shown something
+   * else first reads as the wrong thing having opened. Without it, the first of
+   * the tree: the top-level screen the rest hang off, which is where a product
+   * starts.
+   */
+  const first =
+    (at && ready.some((screen) => screen.id === at) ? at : ordered[0]?.id) ?? ready[0]!.id;
 
   const stage = ordered
-    .map(({ screen }) => {
+    .map((screen) => {
       const page = inertPreviewHtml(screen.html ?? '', links, screen.id);
       return [
         `<iframe data-id="${attr(screen.id)}" title="${attr(screen.name)}"`,
@@ -935,19 +939,19 @@ export function flowDocument(screens: FlowScreen[], title: string): string {
     '<!DOCTYPE html>',
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    // All that is left of the title: the tab's own name, which is where the
+    // name of a thing belongs when the thing is the whole window.
     `<title>${text(title)}</title>`,
     `<style>${FLOW_STYLE}</style></head><body>`,
-    `<div id="rail"><h1>${text(title)}</h1><nav>${rail}</nav>`,
-    `<p>${ready.length} screen${ready.length === 1 ? '' : 's'} · generated by WE-ADK</p></div>`,
     `<div id="stage">${stage}</div>`,
     `<script>${FLOW_SCRIPT}</script>`,
     '</body></html>',
   ].join('');
 }
 
-/** Opens a flow document in a new tab. Browser-only. */
-export function openFlowDocument(screens: FlowScreen[], title: string): boolean {
-  const html = flowDocument(screens, title);
+/** Opens a flow document in a new tab, on `at` if it names one. Browser-only. */
+export function openFlowDocument(screens: FlowScreen[], title: string, at?: string): boolean {
+  const html = flowDocument(screens, title, at);
   if (!html) return false;
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);

@@ -672,21 +672,15 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
    * person clicking this button already chose.
    */
   const openFlow = (startAt?: string) => {
-    const ordered = startAt
-      ? [
-          ...treeScreens.filter((screen) => screen.id === startAt),
-          ...treeScreens.filter((screen) => screen.id !== startAt),
-        ]
-      : treeScreens;
     const opened = openFlowDocument(
-      ordered.map((screen) => ({
+      treeScreens.map((screen) => ({
         id: screen.id,
         name: screen.name,
         html: screen.html,
         parentId: screen.ia.parentId,
-        screenType: screen.ia.screenType,
       })),
       selected?.title ?? 'Screens',
+      startAt,
     );
     if (!opened) {
       showToast('No screen has a page yet — generate the screens first.', 'info');

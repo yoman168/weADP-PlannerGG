@@ -488,16 +488,14 @@ function IAStep({
                             // that tab reads, so it is drawn from the draft
                             // rather than from where the screens came in.
                             openFlowDocument(
-                              [screen, ...screens.filter((entry) => entry.id !== screen.id)].map(
-                                (entry) => ({
-                                  id: entry.id,
-                                  name: entry.name,
-                                  html: entry.html,
-                                  parentId: iaOf(entry.id).parentId,
-                                  screenType: iaOf(entry.id).screenType,
-                                }),
-                              ),
+                              screens.map((entry) => ({
+                                id: entry.id,
+                                name: entry.name,
+                                html: entry.html,
+                                parentId: iaOf(entry.id).parentId,
+                              })),
                               productName ?? screen.name,
+                              screen.id,
                             );
                           }}
                           disabled={!screen.html}

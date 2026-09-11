@@ -206,7 +206,6 @@ export const ko: Record<string, string> = {
   'chat.pickFile': '탐색기에서 디자인 파일을 선택하여 미리보기하세요.',
   // ── 플로팅 액션 바 ──
   'action.improveAi': 'AI로 개선',
-  'action.createTask': '작업 생성',
   // ── 미리보기 페이지 ──
   'preview.prototypeHint': '{summary} · UI 편집은 이 화면을 변경합니다; 편집은 캔버스를 엽니다.',
   'preview.releasedHint':
@@ -345,7 +344,6 @@ export const ko: Record<string, string> = {
     '로컬 Claude Code CLI를 실행합니다 — 프롬프트 외에는 이 컴퓨터를 떠나지 않습니다.',
   'generate.generating': '생성 중',
   // ── 프로젝트 홈 ──
-  'action.taskCreated': '작업이 생성되었습니다 — 개요에서 확인하세요.',
   'home.title': '내 프로젝트',
   'home.subtitle': '고객·제품 프로젝트와 디자인, 프로토타입을 한곳에서 관리하세요.',
   'home.create': '{noun} 만들기',

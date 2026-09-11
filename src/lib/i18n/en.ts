@@ -208,7 +208,6 @@ export const en: Record<string, string> = {
   'chat.pickFile': 'Pick a design file in the explorer to preview it.',
   // ── Floating action bar ──
   'action.improveAi': 'Improve by AI',
-  'action.createTask': 'Create task',
   // ── Preview page ──
   'preview.prototypeHint': '{summary} · Edit UI changes this screen; Edit opens its canvas.',
   'preview.releasedHint':
@@ -348,7 +347,6 @@ export const en: Record<string, string> = {
     'Runs the local Claude Code CLI — nothing leaves this machine except the prompt.',
   'generate.generating': 'Generating',
   // ── Project home ──
-  'action.taskCreated': 'Task created — see it in Overview.',
   'home.title': 'Your projects',
   'home.subtitle': 'Manage customer and product projects, designs, and prototypes in one place.',
   'home.create': 'Create {noun}',

@@ -18,6 +18,22 @@ import {
   type PairEntry,
 } from '@/lib/we-adk-mock/sketcher';
 import { isPrototypeFile } from './prototype';
+import { workspaceStore } from '@/lib/api/workspace-store';
+
+/**
+ * The page saved for a screen, if one was ever generated or edited.
+ *
+ * The only copy there is: every preview, every export and the link editor read
+ * this same key, which is what makes a link written into a page show up
+ * everywhere at once.
+ */
+export function loadDesignHtml(screenId: string): string | null {
+  try {
+    return workspaceStore.getItem(`we-adk:design-html:${screenId}`);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Whether a design file is an html file.

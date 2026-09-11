@@ -2,7 +2,6 @@
 
 import {
   Check,
-  ClipboardList,
   Code2,
   ExternalLink,
   MessageSquare,
@@ -21,7 +20,6 @@ import { ChatPane } from '@/components/we-adk/claude-chat';
 import { DesignHtmlButton } from '@/components/we-adk/design-html-button';
 import { ScreenLinkPicker } from '@/components/we-adk/screen-link-picker';
 import { saveHtmlAndBlocks } from '@/lib/we-adk/html-to-blocks';
-import { TaskFormDialog } from '@/components/we-adk/task-form-dialog';
 import { showToast } from '@/components/ui/toast';
 import {
   businessEditHref,
@@ -35,7 +33,8 @@ import {
   type PreviewMode,
 } from '@/components/we-adk/screen-preview';
 import { useLocale } from '@/lib/locale';
-import { isHtmlDesignFile } from '@/lib/we-adk/design-html';
+import { isHtmlDesignFile, loadDesignHtml } from '@/lib/we-adk/design-html';
+import { openFlowDocument } from '@/lib/we-adk/mockup-pages';
 import {
   findPrototypeByRoute,
   findPrototypeFile,
@@ -47,7 +46,6 @@ import { prototypeDesignBlocks } from '@/lib/we-adk/prototype-design';
 import { resolveScreen, type ResolvedScreen } from '@/lib/we-adk/screen-registry';
 import { describeCanvas } from '@/lib/we-adk/sketcher-operations';
 import { loadScreenBlocks, type DevicePresetId } from '@/lib/we-adk-mock/sketcher';
-import { createTask } from '@/lib/we-adk-mock/tasks';
 
 /**
  * A design file previewed inside the workspace: the explorer stays where it is,
@@ -72,7 +70,6 @@ export default function BusinessPreviewPage() {
   /** The question Improve by AI hands to the chat pane beside the screen. */
   const [aiPrompt, setAiPrompt] = useState<string | null>(null);
   const [chatCollapsed, setChatCollapsed] = useState(true);
-  const [taskOpen, setTaskOpen] = useState(false);
   /** Wiring: the mode, and the control waiting to be told what it opens. */
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<number | null>(null);
@@ -116,6 +113,35 @@ export default function BusinessPreviewPage() {
   const where = `${screenName}${screenRoute ? ` (${screenRoute})` : ''}${
     round ? ` in ${round.name}` : ''
   }`;
+
+  /**
+   * The screen in its own tab — and the round with it, wired.
+   *
+   * These pages link to each other: the model writes `data-screen` where a
+   * real product would have an href, and the workspace turns that into
+   * navigation. Handing over the one page being looked at gives a screen with
+   * a drawn, dead sidebar, so the whole round goes instead and the tab opens on
+   * this screen. `openFlowDocument` builds it from the stored pages.
+   *
+   * The fallback is the route this button has always opened. A screen with no
+   * stored page — a baseline html file, which the server renders — has nothing
+   * to put in a standalone document, and showing someone a flow that does not
+   * contain the screen they were on would be worse than not linking at all.
+   */
+  const openInBrowser = () => {
+    if (loadDesignHtml(screenId)) {
+      const set = folders
+        .flatMap((entry) => [...entry.files, ...(entry.children ?? []).flatMap((c) => c.files)])
+        .map((entry) => ({
+          id: entry.id,
+          name: entry.name,
+          html: loadDesignHtml(entry.id) ?? undefined,
+        }));
+      if (openFlowDocument(set, round?.name ?? screenName, screenId)) return;
+    }
+    window.open(previewHref(screenId, project.id), '_blank', 'noopener');
+  };
+
   /**
    * Whether the screen on show is frozen.
    *
@@ -247,11 +273,14 @@ export default function BusinessPreviewPage() {
                 className="h-7 gap-1 px-2 text-xs"
               />
             )}
-            <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" asChild>
-              <a href={previewHref(screenId, project.id)} target="_blank" rel="noreferrer">
-                <ExternalLink className="size-3" />
-                {t('view.openBrowser')}
-              </a>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={openInBrowser}
+            >
+              <ExternalLink className="size-3" />
+              {t('view.openBrowser')}
             </Button>
           </div>
         </div>
@@ -312,16 +341,6 @@ export default function BusinessPreviewPage() {
                   >
                     <Sparkles className="size-3.5" />
                     {t('action.improveAi')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 rounded-full"
-                    onClick={() => setTaskOpen(true)}
-                    title={`Raise a task about ${screenName}`}
-                  >
-                    <ClipboardList className="size-3.5" />
-                    {t('action.createTask')}
                   </Button>
                 </div>
               </div>
@@ -404,28 +423,6 @@ export default function BusinessPreviewPage() {
           onClose={() => setPicked(null)}
         />
       )}
-
-      {/* Create task, with the screen already written into the form. There is
-          no task screen to land on — the task shows up in Overview. */}
-      <TaskFormDialog
-        open={taskOpen}
-        defaults={{
-          title: `Improve ${screenName}`,
-          status: 'Request',
-          priority: 2,
-          category: 'Design',
-          description: `Raised from the preview of ${file?.fileName ?? screenName}${
-            screenRoute ? ` (${screenRoute})` : ''
-          }${round ? ` in ${round.name}` : ''}.`,
-          tags: ['design'],
-        }}
-        onClose={() => setTaskOpen(false)}
-        onSave={(fields) => {
-          createTask(project.id, fields);
-          setTaskOpen(false);
-          showToast(t('action.taskCreated'));
-        }}
-      />
     </div>
   );
 }

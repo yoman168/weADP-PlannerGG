@@ -458,14 +458,14 @@ export function MoveToProductDialog({
     // The set, not the page: these screens link to each other, and the whole
     // point of reading one here is deciding whether it belongs with the rest.
     openFlowDocument(
-      [screen, ...screens.filter((entry) => entry.id !== screen.id)].map((entry) => ({
+      screens.map((entry) => ({
         id: entry.id,
         name: entry.name,
         html: entry.html,
         parentId: entry.ia.parentId,
-        screenType: entry.ia.screenType,
       })),
       screen.name,
+      screen.id,
     );
   };
 

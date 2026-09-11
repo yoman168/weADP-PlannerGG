@@ -18,6 +18,7 @@ import { useMemo } from 'react';
 import { Link2 } from 'lucide-react';
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, cn } from '@/components/ui';
 import { listPageControls, setPageControlTargets } from '@/lib/we-adk/mockup-pages';
+import { loadDesignHtml } from '@/lib/we-adk/design-html';
 import { workspaceStore } from '@/lib/api/workspace-store';
 
 export interface LinkTarget {
@@ -25,15 +26,6 @@ export interface LinkTarget {
   name: string;
   /** Shown beside the name, so a popup is not mistaken for a page. */
   kind?: string;
-}
-
-/** The page saved for a screen, if one was ever generated or edited. */
-function loadDesignHtml(screenId: string): string | null {
-  try {
-    return workspaceStore.getItem(`we-adk:design-html:${screenId}`);
-  } catch {
-    return null;
-  }
 }
 
 /**
