@@ -81,7 +81,13 @@ stack_value() {
 # Read from the container's log rather than from dev.local.env. The log is what cloudflared
 # is doing; the env file is only what the stack was last told, and the two part company the
 # moment a tunnel is restarted without the file being rewritten.
+#
+# The LAST hostname in the log, not the first. A restarted container keeps its log, and
+# every start mints a new hostname — so `head -1` answers with the one from before the
+# restart. That is worse than answering nothing: the URL looks right, resolves, and times
+# out, and what it poisons is deploy/dev.local.env and from there the API URL baked into
+# the workspace, which then cannot reach the API from any origin at all.
 tunnel_hostname() {
   compose logs --no-log-prefix "$1" 2>/dev/null |
-    grep -oE 'https://[a-z0-9]+(-[a-z0-9]+){3}\.trycloudflare\.com' | head -1 || true
+    grep -oE 'https://[a-z0-9]+(-[a-z0-9]+){3}\.trycloudflare\.com' | tail -1 || true
 }
