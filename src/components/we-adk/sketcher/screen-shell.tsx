@@ -117,7 +117,7 @@ export function ScreenShell({
             : undefined
         }
         className={cn(
-          'flex w-56 shrink-0 flex-col gap-5 border-r bg-[#fbfbfc] py-4 dark:bg-[#0f131a]',
+          'flex w-56 shrink-0 flex-col gap-5 border-r bg-[#fbfbfc] py-4 dark:bg-[#1f1430]',
           onSelect && 'cursor-pointer',
           selected && 'ring-primary/60 ring-2 ring-inset',
         )}
@@ -164,7 +164,7 @@ export function ScreenShell({
         </nav>
       </aside>
 
-      <div className="min-w-0 flex-1 overflow-auto bg-[#f7f8fa] dark:bg-[#0b0e14]">{children}</div>
+      <div className="min-w-0 flex-1 overflow-auto bg-[#f7f8fa] dark:bg-[#191024]">{children}</div>
     </div>
   );
 }

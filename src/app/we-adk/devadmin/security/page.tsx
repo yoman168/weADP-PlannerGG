@@ -52,7 +52,7 @@ export default function SecurityPage() {
             <button
               type="button"
               onClick={() => setTab('high')}
-              className="text-primary flex w-fit items-center gap-1 text-xs hover:underline"
+              className="text-key-accent flex w-fit items-center gap-1 text-xs hover:underline"
             >
               View list <ArrowRight className="size-3" />
             </button>
@@ -92,7 +92,7 @@ export default function SecurityPage() {
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium',
               tab === item.key
-                ? 'bg-primary/10 text-primary'
+                ? 'bg-primary/10 text-key-accent'
                 : 'text-muted-foreground hover:bg-muted',
             )}
           >

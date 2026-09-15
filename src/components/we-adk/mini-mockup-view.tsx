@@ -950,7 +950,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
   return (
     <div ref={containerRef} className="flex min-h-0 flex-1 overflow-hidden bg-background">
       {/* Left: the source list — meetings, feedback and suggestions alike */}
-      <div className="flex w-60 shrink-0 flex-col border-r bg-[#fafafa] dark:bg-[#0d1017]">
+      <div className="flex w-60 shrink-0 flex-col border-r bg-[#fafafa] dark:bg-[#1f1430]">
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
             Sources
@@ -1310,7 +1310,7 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
 
           {/* Right: HTML preview */}
           <div
-            className="relative flex shrink-0 flex-col overflow-hidden border-l bg-[#fafafa] dark:bg-[#0d1017]"
+            className="relative flex shrink-0 flex-col overflow-hidden border-l bg-[#fafafa] dark:bg-[#1f1430]"
             style={{ width: previewWidth || '50%' }}
           >
             {/* Drag handle */}

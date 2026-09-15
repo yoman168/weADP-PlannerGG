@@ -214,7 +214,9 @@ export function ZoomControl({
           aria-label={`Zoom ${entry.label}`}
           className={cn(
             'rounded px-2 py-1 text-[11px]',
-            zoom === entry.id ? 'bg-background shadow-xs' : 'text-muted-foreground',
+            zoom === entry.id
+              ? 'bg-primary text-primary-foreground shadow-xs'
+              : 'text-muted-foreground',
           )}
         >
           {entry.label}
@@ -276,7 +278,7 @@ export function MockupBoard({
   );
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-[#f4f5f7] p-8 dark:bg-[#0b0e14]">
+    <div className="min-h-0 flex-1 overflow-auto bg-[#f4f5f7] p-8 dark:bg-[#191024]">
       {screens.length === 0 ? (
         <p className="text-muted-foreground py-16 text-center text-sm">
           {emptyMessage ?? t('board.noScreens')}

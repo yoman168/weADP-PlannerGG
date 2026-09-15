@@ -57,7 +57,7 @@ export function MainViewSwitch({
             className={cn(
               'focus-visible:ring-ring flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none',
               current
-                ? 'bg-background text-foreground font-medium shadow-sm'
+                ? 'bg-primary text-primary-foreground font-medium shadow-sm'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >

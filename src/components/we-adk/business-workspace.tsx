@@ -510,7 +510,7 @@ function FileRow({
       }}
       className={cn(
         'group/file relative flex w-full items-center pr-1.5 transition-opacity duration-200',
-        isOpen ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/50',
+        isOpen ? 'bg-primary/10 text-key-accent' : 'text-muted-foreground hover:bg-muted/50',
         draggable && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-30',
       )}

@@ -443,7 +443,7 @@ export function ClaudeTerminal({
                 {streamText ? (
                   <p className="text-sm whitespace-pre-wrap">
                     {streamText}
-                    <span className="text-primary animate-pulse">▌</span>
+                    <span className="text-key-accent animate-pulse">▌</span>
                   </p>
                 ) : (
                   <p className="text-muted-foreground flex items-center gap-1.5 text-sm">

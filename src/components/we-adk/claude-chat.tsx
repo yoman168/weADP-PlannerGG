@@ -407,7 +407,7 @@ function ChatCodeBlock({ block }: { block: Extract<ChatBlock, { type: 'code' }> 
             type="button"
             onClick={() => applyCode(block.lines.join('\n'), hint)}
             title={hint ? `Write to ${hint}` : 'Write to a file in the workspace'}
-            className="text-primary shrink-0 text-[11px] font-medium hover:underline"
+            className="text-key-accent shrink-0 text-[11px] font-medium hover:underline"
           >
             Apply to workspace
           </button>

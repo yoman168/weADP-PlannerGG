@@ -20,7 +20,7 @@ import { startSignIn } from '@/lib/api/oauth';
 import { getApiToken, getApiUser } from '@/lib/api/session';
 
 /** The backdrop both states share, so the redirect is not a flash of a different page. */
-const SURFACE = 'min-h-dvh bg-[#f4f5f7] dark:bg-[#0b0e14]';
+const SURFACE = 'min-h-dvh bg-[#f4f5f7] dark:bg-[#191024]';
 
 function SignIn() {
   const router = useRouter();

@@ -383,7 +383,7 @@ function ResearchBrowser() {
                             className={cn(
                               'group/chat flex w-full items-center rounded-r-md',
                               active
-                                ? 'bg-primary/10 text-primary'
+                                ? 'bg-primary/10 text-key-accent'
                                 : 'text-muted-foreground hover:bg-muted/60',
                             )}
                           >
@@ -443,7 +443,7 @@ function ResearchBrowser() {
                     className={cn(
                       'group/chat flex w-full items-center rounded-md',
                       active
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-primary/10 text-key-accent'
                         : 'text-muted-foreground hover:bg-muted/60',
                     )}
                   >
