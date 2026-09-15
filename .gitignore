@@ -33,3 +33,8 @@ backend/.gradle
 # stack's file is committed because everything in it is a throwaway.
 deploy/*.env
 !deploy/dev.env
+
+# Per-machine Claude Code state: tool permissions and editor settings, which belong to
+# whoever is sitting here rather than to the repo. .claude/launch.json and .claude/skills
+# are committed — those are the project's.
+.claude/settings.local.json
