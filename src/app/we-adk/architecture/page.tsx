@@ -74,7 +74,7 @@ export default function WeAdkOverviewPage() {
                 <p className="text-muted-foreground flex-1 text-sm leading-relaxed">
                   {tool.tagline}
                 </p>
-                <span className="text-primary flex items-center gap-1 text-xs font-medium">
+                <span className="text-key-accent flex items-center gap-1 text-xs font-medium">
                   Open <ArrowRight className="size-3.5" />
                 </span>
               </CardContent>

@@ -101,7 +101,9 @@ export function DeviceSwitcher({
             title={label}
             className={cn(
               'rounded px-2 py-1',
-              device === entry.id ? 'bg-background shadow-xs' : 'text-muted-foreground',
+              device === entry.id
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground',
             )}
           >
             <Icon className="size-3.5" />
@@ -161,7 +163,7 @@ export function PreviewEditTabs({
           className={cn(
             'rounded px-2.5 py-1 text-[11px]',
             active === tab.id
-              ? 'bg-background shadow-xs font-medium'
+              ? 'bg-primary text-primary-foreground shadow-xs font-medium'
               : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -195,7 +197,9 @@ export function PreviewModeSwitcher({
           title={option.hint}
           className={cn(
             'rounded px-2 py-1 text-[11px]',
-            mode === option.id ? 'bg-background shadow-xs font-medium' : 'text-muted-foreground',
+            mode === option.id
+              ? 'bg-primary text-primary-foreground shadow-xs font-medium'
+              : 'text-muted-foreground',
           )}
         >
           {option.label}

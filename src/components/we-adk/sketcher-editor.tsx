@@ -1208,7 +1208,7 @@ export function SketcherEditor({
 
               return (
                 <main
-                  className="min-w-0 flex-1 overflow-auto bg-[#f4f5f7] dark:bg-[#0b0e14]"
+                  className="min-w-0 flex-1 overflow-auto bg-[#f4f5f7] dark:bg-[#191024]"
                   onClick={() => { setSelectedId(null); setSidebarSelected(false); }}
                 >
                   {shell ? (

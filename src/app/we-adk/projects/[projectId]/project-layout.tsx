@@ -60,7 +60,7 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
     // `fixed`, so it takes no height in the flow.
     <div className="-mx-6 -my-6 flex h-dvh">
       {/* ---- Project top bar ---- */}
-      <div className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-3 border-b bg-[#fafafa] px-4 dark:bg-[#0d1017]">
+      <div className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-3 border-b bg-[#fafafa] px-4 dark:bg-[#1f1430]">
         {/* Left: back + project identity */}
         <Link
           href={backHref}

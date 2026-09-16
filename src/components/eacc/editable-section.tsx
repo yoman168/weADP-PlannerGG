@@ -137,7 +137,7 @@ export function PropertiesPanel() {
       {/* Panel header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <Settings2 className="text-primary size-4" />
+          <Settings2 className="text-key-accent size-4" />
           <span className="text-sm font-semibold">Properties</span>
         </div>
         <button

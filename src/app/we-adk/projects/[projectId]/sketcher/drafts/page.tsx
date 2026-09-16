@@ -755,7 +755,7 @@ export default function DraftsPage() {
                     }}
                   />
                 ) : (
-                  <div className="flex min-h-0 flex-1 justify-center overflow-auto bg-[#f4f5f7] p-5 dark:bg-[#0b0e14]">
+                  <div className="flex min-h-0 flex-1 justify-center overflow-auto bg-[#f4f5f7] p-5 dark:bg-[#191024]">
                     <ScreenPreviewSurface
                       key={open.screenId}
                       screenId={open.screenId}

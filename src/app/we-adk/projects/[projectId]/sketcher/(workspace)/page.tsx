@@ -223,7 +223,7 @@ function FolderView({
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="min-w-0 flex-1 overflow-y-auto bg-[#f4f5f7] p-5 dark:bg-[#0b0e14]">
+        <div className="min-w-0 flex-1 overflow-y-auto bg-[#f4f5f7] p-5 dark:bg-[#191024]">
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
             {folder.files.length > 0 && (
               <div className="flex flex-col gap-1.5">

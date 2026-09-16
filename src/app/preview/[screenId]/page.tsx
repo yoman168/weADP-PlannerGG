@@ -90,7 +90,7 @@ function Preview() {
     : canvasHref(screenId, projectId ?? undefined);
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#f4f5f7] dark:bg-[#0b0e14]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#f4f5f7] dark:bg-[#191024]">
       {!bare && (
         <header className="bg-background flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
           <div className="flex min-w-0 items-center gap-2">

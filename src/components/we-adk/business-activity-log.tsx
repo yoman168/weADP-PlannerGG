@@ -100,7 +100,7 @@ export function BusinessActivityLog({
                       'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
                       event.version === undefined
                         ? 'text-muted-foreground bg-muted'
-                        : 'bg-primary/10 text-primary',
+                        : 'bg-primary/10 text-key-accent',
                     )}
                   >
                     {event.version === undefined

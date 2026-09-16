@@ -10,8 +10,13 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  /* WE-ADP key colour — Plum (palette D). The key colour is the selected/active
+     fill across the app; --key-accent is the same hue toned for use as *text*,
+     which --primary cannot be at this lightness without failing contrast. */
+  --primary: oklch(0.5635 0.1988 300.17); /* #8A4FD6 */
+  --primary-foreground: oklch(0.985 0 0); /* white on key — 5.04:1 */
+  --key-accent: oklch(0.5116 0.1969 299.72); /* #7A3FC4 — key as text on light */
+  --key-hover: oklch(0.9597 0.018 303.42); /* #F4EFFC — pale plum hover */
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -30,19 +35,28 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  /* Deep plum ground, from the WE-ADP sheet: the canvas is the sheet's sidebar
+     tone and the muted/hover step is its hover tone, so the surfaces carry the
+     key colour's hue rather than sitting on neutral grey. */
+  --background: oklch(0.1958 0.0408 303.6); /* #191024 — the sheet's sidebar */
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.2212 0.0543 300.14); /* #1F1430 — one step up from the canvas */
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.2212 0.0543 300.14);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --primary: oklch(0.5635 0.1988 300.17); /* #8A4FD6 — same fill in both modes */
+  /* Flipped from near-black: dark --primary used to be near-white, so its
+     foreground was dark. A mid-tone plum fill needs a light foreground. */
+  --primary-foreground: oklch(0.985 0 0);
+  --key-accent: oklch(0.6716 0.156 302.64); /* #A97BE4 — 6.26:1 on the dark canvas */
+  --key-hover: oklch(0.2539 0.0675 302.37); /* #29193D */
+  /* #29193D — the sheet's hover tone. These three are the raised/hover
+     surfaces, so hover states land on exactly the value the sheet specifies. */
+  --secondary: oklch(0.2539 0.0675 302.37);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  --muted: oklch(0.2539 0.0675 302.37);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --accent: oklch(0.2539 0.0675 302.37);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
@@ -74,6 +88,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-key-accent: var(--key-accent);
+  --color-key-hover: var(--key-hover);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

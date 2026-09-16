@@ -183,7 +183,7 @@ function ProjectCard({
   const who = [project.customer, project.owner].filter(Boolean).join(' · ');
 
   return (
-    <article className="group border-border/70 bg-card hover:border-foreground/25 relative flex flex-col rounded-2xl border shadow-sm transition-colors">
+    <article className="group border-border/70 bg-card hover:border-primary/40 relative flex flex-col rounded-2xl border shadow-sm transition-colors">
       <Link
         href={`/we-adk/projects/${project.id}/sketcher`}
         aria-label={`Open ${project.name}`}
@@ -354,7 +354,7 @@ function ProjectsPage() {
                   className={cn(
                     'flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm transition-colors',
                     selected
-                      ? 'bg-foreground text-background font-medium'
+                      ? 'bg-primary text-primary-foreground font-medium'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                 >

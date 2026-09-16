@@ -294,7 +294,7 @@ export default function BusinessPreviewPage() {
               area, so it stays centred over the screen and never drifts with
               the scroll. */}
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex min-h-0 flex-1 justify-center overflow-auto bg-[#f4f5f7] p-5 dark:bg-[#0b0e14]">
+            <div className="flex min-h-0 flex-1 justify-center overflow-auto bg-[#f4f5f7] p-5 dark:bg-[#191024]">
               <ScreenPreviewSurface
                 screenId={screenId}
                 seedPattern={file?.seedPattern ?? 'listPage'}

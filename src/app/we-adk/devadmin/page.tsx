@@ -275,7 +275,7 @@ export default function DevAdminDashboardPage() {
           <CardContent className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium">Token usage by group</p>
-              <a href="/we-adk/devadmin/analysis" className="text-primary text-xs hover:underline">
+              <a href="/we-adk/devadmin/analysis" className="text-key-accent text-xs hover:underline">
                 Analyze groups →
               </a>
             </div>
@@ -357,7 +357,7 @@ export default function DevAdminDashboardPage() {
         <CardContent className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Top 5 users by token usage</p>
-            <a href="/we-adk/devadmin/coaching" className="text-primary text-xs hover:underline">
+            <a href="/we-adk/devadmin/coaching" className="text-key-accent text-xs hover:underline">
               Analyze users →
             </a>
           </div>

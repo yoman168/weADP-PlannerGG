@@ -50,7 +50,7 @@ function LayerRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         'group flex items-center gap-1 rounded px-1 py-1 text-xs',
-        selected ? 'bg-primary/10 text-primary' : 'hover:bg-muted',
+        selected ? 'bg-primary/10 text-key-accent' : 'hover:bg-muted',
         isDragging && 'opacity-40',
       )}
     >

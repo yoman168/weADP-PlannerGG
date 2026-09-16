@@ -181,7 +181,7 @@ function RailButton({
         className={cn(
           'focus-visible:ring-ring flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none',
           selected
-            ? 'bg-primary/10 text-primary'
+            ? 'bg-primary/10 text-key-accent'
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
         )}
       >
@@ -376,7 +376,7 @@ export function VersionRail({
                 // rail still says where you are rather than showing nothing
                 // selected anywhere.
                 !showHistory && selectedInHistory
-                  ? 'text-primary'
+                  ? 'text-key-accent'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >

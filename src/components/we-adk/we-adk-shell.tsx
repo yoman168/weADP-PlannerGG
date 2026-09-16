@@ -44,9 +44,9 @@ export function WeAdkShell({ children }: { children: ReactNode }) {
       {/* Exactly the viewport, not a minimum: with `min-h` a page that asks for a
           full-height frame pushes the document past the screen, and the overflow
           reads as a band of dead background under the app. */}
-      <div className="flex h-dvh flex-col overflow-hidden bg-[#f4f5f7] dark:bg-[#0b0e14]">
+      <div className="flex h-dvh flex-col overflow-hidden bg-[#f4f5f7] dark:bg-[#191024]">
         {!insideProject && (
-          <header className="border-border/80 sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-[#fafafa]/85 px-4 backdrop-blur-md sm:px-6 dark:bg-[#0d1017]/85">
+          <header className="border-border/80 sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-[#fafafa]/85 px-4 backdrop-blur-md sm:px-6 dark:bg-[#1f1430]/85">
             <Link href="/we-adk" className="flex items-center gap-2.5">
               <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 text-[11px] font-bold text-white shadow-sm">
                 W
