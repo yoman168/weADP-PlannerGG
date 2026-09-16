@@ -153,3 +153,22 @@
 .animate-ai-glow {
   animation: ai-glow-pulse 2s ease-in-out infinite;
 }
+
+/*
+ * A slim scrollbar, for scroll containers that are only a little taller than
+ * their content.
+ *
+ * Tailwind ships no scrollbar utilities and this project has no scrollbar
+ * plugin, so `scrollbar-thin` would otherwise be a class that silently does
+ * nothing. `scrollbar-width` is standard CSS (Firefox, Chromium 121+).
+ *
+ * The case that needs it is a one-line toolbar: a classic scrollbar claims
+ * about 15px of a 40px row on Windows and Linux, which is most of the space the
+ * buttons need. macOS overlay scrollbars take none, so the problem is invisible
+ * there. `thin` rather than `none` — the scrollbar is the only sign that a
+ * scrolling toolbar has more buttons off the edge.
+ */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}

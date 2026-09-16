@@ -76,6 +76,29 @@ const OVERLAY_CSS = `
 /** Structural nodes that are page furniture rather than content. */
 const SKIP = new Set(['HTML', 'BODY', 'HEAD', 'SCRIPT', 'STYLE', 'LINK', 'META', 'TITLE']);
 
+/**
+ * A form control — the chat prompt, or a field in the page itself.
+ *
+ * Kept apart from `isTypingTarget` because the two are not interchangeable:
+ * a form field owns its own undo stack, an element being edited in the page
+ * does not. See `onKey`.
+ *
+ * Duck-typed rather than `instanceof HTMLElement`: these events also come from
+ * inside the iframe, whose elements belong to another realm and so fail an
+ * `instanceof` against this window's constructors.
+ */
+function isFormField(target: EventTarget | null): boolean {
+  const el = target as (HTMLElement & { tagName?: string }) | null;
+  if (!el) return false;
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
+}
+
+/** Text-entry targets, where Backspace is a character and not a command. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return isFormField(target) || el?.isContentEditable === true;
+}
+
 const DEVICES = [
   { id: 'full', label: 'Desktop', icon: Monitor, width: 0 },
   { id: 'tablet', label: 'Tablet', icon: Tablet, width: 820 },
@@ -248,6 +271,56 @@ function readStyle(el: HTMLElement): StyleReadout {
 const TEXT_COLOURS = ['#0f172a', '#475569', '#3b82f6', '#16a34a', '#d97706', '#dc2626', '#ffffff'];
 const FILL_COLOURS = ['transparent', '#ffffff', '#f8fafc', '#eff6ff', '#dcfce7', '#fef3c7', '#fee2e2', '#111827'];
 
+/** Where a toolbar popup is drawn, in viewport coordinates; null while closed. */
+type PopupAt = { top: number; left: number } | null;
+
+/**
+ * Just below an anchor, in viewport coordinates — what a `fixed` popup needs.
+ *
+ * The toolbar scrolls horizontally, and a scroll container clips its overflow on
+ * **both** axes: `overflow-x: auto` computes `overflow-y: visible` to `auto`. So a
+ * popup positioned `absolute` inside the toolbar is cut off at the toolbar's own
+ * edge however high its z-index — z-index orders painting, it does not escape a
+ * clip. The popups are `fixed` against the viewport instead, which no ancestor's
+ * overflow can clip, and this measures where to put them when one opens.
+ */
+function below(anchor: HTMLElement | null): PopupAt {
+  if (!anchor) return null;
+  const rect = anchor.getBoundingClientRect();
+  return { top: rect.bottom + 4, left: rect.left };
+}
+
+/** Breathing room between a popup and the edge of the window. */
+const EDGE_GAP = 8;
+
+/**
+ * The `left` a just-mounted popup needs to sit inside the window, or null if the
+ * one it already has is fine.
+ *
+ * `below()` anchors to the trigger's left edge, which puts a popup off the right
+ * of the window whenever the trigger is near it — and unlike an overflowing
+ * `absolute` element, a `fixed` one past the viewport edge cannot be scrolled
+ * to, so those options are simply unreachable. Narrow windows make this likely,
+ * because the toolbar scrolls and its buttons end up anywhere along it.
+ *
+ * The popup's width is only known once it is in the document, so this measures
+ * it rather than assuming one: a guessed constant would drift from the markup
+ * and shift the popup further than it has to.
+ *
+ * The answer goes back into state rather than onto `node.style`, because a
+ * re-render while the popup is open — selecting a different element in the page,
+ * say — would re-apply the uncorrected `left` from state and throw a direct
+ * style change away.
+ */
+function onScreenLeft(node: HTMLDivElement | null): number | null {
+  if (!node) return null;
+  const rect = node.getBoundingClientRect();
+  const overhang = rect.right - window.innerWidth + EDGE_GAP;
+  if (overhang <= 0) return null;
+  // Never past the left edge either: a popup wider than the window pins here.
+  return Math.max(EDGE_GAP, rect.left - overhang);
+}
+
 /* ------------------------------------------------------------------ */
 /* Editor                                                             */
 /* ------------------------------------------------------------------ */
@@ -274,6 +347,43 @@ export function PageEditor({
   const [busy, setBusy] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [fillOpen, setFillOpen] = useState(false);
+  /* Both toolbar popups are `fixed` rather than `absolute` — see `below()`. That
+     costs them their anchor, so each one's trigger is measured when it opens. */
+  const [addAt, setAddAt] = useState<PopupAt>(null);
+  const [fillAt, setFillAt] = useState<PopupAt>(null);
+  const addAnchor = useRef<HTMLDivElement>(null);
+  const fillAnchor = useRef<HTMLDivElement>(null);
+  /* The popup nodes, so an outside click can tell inside from out. Stashed by
+     the ref callbacks below rather than by refs of their own: an element takes
+     one `ref`, and those callbacks already have it. */
+  const addPopup = useRef<HTMLDivElement | null>(null);
+  const fillPopup = useRef<HTMLDivElement | null>(null);
+  /* Ref callbacks, so each popup is measured once as it mounts and pulled back
+     inside the window if it overhangs — see `onScreenLeft()`. Both are stable,
+     so React does not re-run them on the re-render their own update causes. */
+  const keepAddOnScreen = useCallback((node: HTMLDivElement | null) => {
+    addPopup.current = node;
+    const left = onScreenLeft(node);
+    if (left !== null) setAddAt((at) => (at ? { ...at, left } : at));
+  }, []);
+  const keepFillOnScreen = useCallback((node: HTMLDivElement | null) => {
+    fillPopup.current = node;
+    const left = onScreenLeft(node);
+    if (left !== null) setFillAt((at) => (at ? { ...at, left } : at));
+  }, []);
+  /* Closing takes the coordinates with it: they are only true for one opening. */
+  const closeAdd = useCallback(() => {
+    setAddOpen(false);
+    setAddAt(null);
+  }, []);
+  const closeFill = useCallback(() => {
+    setFillOpen(false);
+    setFillAt(null);
+  }, []);
+  const closePopups = useCallback(() => {
+    closeAdd();
+    closeFill();
+  }, [closeAdd, closeFill]);
   /*
    * Whether clicks belong to the page rather than to the editor.
    *
@@ -456,11 +566,11 @@ export function PageEditor({
       const anchor = selectedRef.current;
       if (anchor?.isConnected) anchor.after(node);
       else doc.body.appendChild(node);
-      setAddOpen(false);
+      closeAdd();
       select(node);
       setDirty(true);
     },
-    [docOf, select, snapshot],
+    [closeAdd, docOf, select, snapshot],
   );
 
   /* -------------------------------------------------- AI */
@@ -609,13 +719,28 @@ export function PageEditor({
    */
   const onKey = useCallback(
     (event: KeyboardEvent) => {
+      // Mid-composition the keys belong to the IME, which uses Escape and
+      // Backspace to correct and cancel what is being composed.
+      if (event.isComposing) return;
       const meta = event.metaKey || event.ctrlKey;
+      // Save is the page's whatever has focus: nothing else claims ⌘S.
       if (meta && event.key.toLowerCase() === 's') {
         event.preventDefault();
         save();
         return;
       }
-      if (meta && event.key.toLowerCase() === 'z') {
+      /*
+       * Undo and redo belong to a form field when one has focus.
+       *
+       * Not `isTypingTarget`: an element being edited in the page *is* a typing
+       * target, and there ⌘Z has to be the page's, because the page's history
+       * is this component's — snapshots of the document, restored in place. A
+       * form field is the opposite. Its own undo stack is the browser's, its
+       * `value` is not in the HTML `snapshot()` reads, and so page undo cannot
+       * restore what was typed into it; taking the key there loses the edit and
+       * throws away the page's last change as well.
+       */
+      if (meta && event.key.toLowerCase() === 'z' && !isFormField(event.target)) {
         event.preventDefault();
         if (event.shiftKey) redo();
         else undo();
@@ -627,9 +752,13 @@ export function PageEditor({
         else select(null);
         return;
       }
-      // Only when not typing: inside a contenteditable, Backspace is text.
-      const editing = (event.target as HTMLElement | null)?.isContentEditable;
-      if (!editing && (event.key === 'Backspace' || event.key === 'Delete')) {
+      // Backspace is text in any field, and a delete only when a block is
+      // selected: claiming the key otherwise swallows it from the chat box.
+      if (
+        (event.key === 'Backspace' || event.key === 'Delete') &&
+        !isTypingTarget(event.target) &&
+        selectedRef.current
+      ) {
         event.preventDefault();
         remove();
       }
@@ -642,6 +771,67 @@ export function PageEditor({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onKey]);
+
+  /**
+   * Dismissing the toolbar popups.
+   *
+   * They are plain `fixed` divs rather than a `Popover`, so nothing dismisses
+   * them for free. Bound only while one is open, and in the capture phase, so a
+   * handler that stops propagation cannot strand a popup open.
+   *
+   * Three things it has to get right:
+   *
+   * - **The page is in an iframe.** Clicking the page dispatches inside the
+   *   frame's own document and never reaches this one, so that document is
+   *   listened to as well — otherwise the commonest click of all leaves the
+   *   popup up.
+   * - **Each popup is judged on its own**, so clicking the other trigger closes
+   *   this one instead of leaving both open on top of each other.
+   * - **Moving the trigger strands the popup**, because `fixed` coordinates are
+   *   measured once. Scrolling or resizing closes it rather than trying to
+   *   track. Those two are bound a frame late: focusing the trigger can scroll
+   *   it into view inside the toolbar, and that scroll would otherwise close
+   *   the popup in the act of opening it.
+   */
+  useEffect(() => {
+    if (!addOpen && !fillOpen) return;
+    const doc = docOf();
+
+    const onPointerDown = (event: Event) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      const away = (anchor: HTMLDivElement | null, popup: HTMLDivElement | null) =>
+        anchor?.contains(target) !== true && popup?.contains(target) !== true;
+      if (away(addAnchor.current, addPopup.current)) closeAdd();
+      if (away(fillAnchor.current, fillPopup.current)) closeFill();
+    };
+    // Escape belongs to the popup while one is open: stopping it here keeps the
+    // same key from also deselecting the element underneath.
+    const onEscape = (event: Event) => {
+      if ((event as KeyboardEvent).key !== 'Escape') return;
+      event.stopPropagation();
+      closePopups();
+    };
+
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onEscape, true);
+    doc?.addEventListener('pointerdown', closePopups, true);
+    doc?.addEventListener('keydown', onEscape, true);
+    const frame = requestAnimationFrame(() => {
+      document.addEventListener('scroll', closePopups, true);
+      window.addEventListener('resize', closePopups);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onEscape, true);
+      doc?.removeEventListener('pointerdown', closePopups, true);
+      doc?.removeEventListener('keydown', onEscape, true);
+      document.removeEventListener('scroll', closePopups, true);
+      window.removeEventListener('resize', closePopups);
+    };
+  }, [addOpen, fillOpen, closeAdd, closeFill, closePopups, docOf]);
 
   // A new page replaces everything, history included.
   useEffect(() => {
@@ -663,8 +853,10 @@ export function PageEditor({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Element actions. One line, scrolled rather than wrapped: a toolbar
-          that reflows moves its buttons out from under the cursor. */}
-      <div className="flex items-center gap-1 overflow-x-auto border-b px-3 py-2">
+          that reflows moves its buttons out from under the cursor.
+          The scrolling is why the two popups below are `fixed` — this container
+          clips anything `absolute` inside it. See `below()`. */}
+      <div className="scrollbar-thin flex items-center gap-1 overflow-x-auto border-b px-3 py-2">
         <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5" title="Undo (⌘Z)"
           disabled={past.length === 0} onClick={undo}>
           <Undo2 className="size-3" />
@@ -745,18 +937,24 @@ export function PageEditor({
         ))}
 
         {/* Background */}
-        <div className="relative">
+        <div ref={fillAnchor}>
           <Button size="sm" variant="ghost" className="h-6 px-1.5" title="Background"
-            disabled={nothingSelected} onClick={() => setFillOpen((open) => !open)}>
+            disabled={nothingSelected}
+            onClick={() => {
+              setFillAt(fillOpen ? null : below(fillAnchor.current));
+              setFillOpen((open) => !open);
+            }}>
             <Palette className="size-3" />
           </Button>
-          {fillOpen && (
-            <div className="bg-popover absolute top-7 left-0 z-50 flex gap-1 rounded-md border p-1.5 shadow-md">
+          {fillOpen && fillAt && (
+            <div ref={keepFillOnScreen}
+              className="bg-popover fixed z-50 flex gap-1 rounded-md border p-1.5 shadow-md"
+              style={{ top: fillAt.top, left: fillAt.left }}>
               {FILL_COLOURS.map((colour) => (
                 <button key={colour} type="button" title={colour}
                   onClick={() => {
                     mutate((el) => { el.style.backgroundColor = colour; });
-                    setFillOpen(false);
+                    closeFill();
                   }}
                   className="size-4 rounded-full border"
                   style={{
@@ -792,13 +990,18 @@ export function PageEditor({
         </Button>
 
         {/* Add */}
-        <div className="relative">
+        <div ref={addAnchor}>
           <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5" title="Add an element"
-            onClick={() => setAddOpen((open) => !open)}>
+            onClick={() => {
+              setAddAt(addOpen ? null : below(addAnchor.current));
+              setAddOpen((open) => !open);
+            }}>
             <Plus className="size-3" />
           </Button>
-          {addOpen && (
-            <div className="bg-popover absolute top-7 left-0 z-50 flex w-32 flex-col rounded-md border p-1 shadow-md">
+          {addOpen && addAt && (
+            <div ref={keepAddOnScreen}
+              className="bg-popover fixed z-50 flex w-32 flex-col rounded-md border p-1 shadow-md"
+              style={{ top: addAt.top, left: addAt.left }}>
               {INSERTS.map((entry) => (
                 <button key={entry.id} type="button" onClick={() => insert(entry.html)}
                   className="hover:bg-muted rounded px-2 py-1 text-left text-[11px]">
@@ -814,7 +1017,7 @@ export function PageEditor({
       {/* Where the selection is, what AI can do to it, and the page's own
           actions — which stay reachable whether anything is selected or not. */}
       <div className="bg-muted/40 flex min-h-9 items-center gap-1 border-b px-3 py-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        <div className="scrollbar-thin flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {path.length === 0 ? (
             <span className="text-muted-foreground text-[11px] whitespace-nowrap">
               {interactive

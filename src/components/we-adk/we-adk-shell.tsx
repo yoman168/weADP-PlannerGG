@@ -19,6 +19,10 @@ import { useApiSession } from '@/lib/api/session';
  * When the user is inside a project (`/we-adk/projects/…`), the project
  * layout renders its own top bar, so the global header hides itself.
  */
+/** Shown beside the app name in the header. Not from package.json, which
+    versions the web app rather than the WE-ADP release. */
+const APP_VERSION = 'v1.0.1';
+
 export function WeAdkShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const insideProject = pathname.startsWith('/we-adk/projects/');
@@ -48,12 +52,12 @@ export function WeAdkShell({ children }: { children: ReactNode }) {
         {!insideProject && (
           <header className="border-border/80 sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-[#fafafa]/85 px-4 backdrop-blur-md sm:px-6 dark:bg-[#1f1430]/85">
             <Link href="/we-adk" className="flex items-center gap-2.5">
-              <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 text-[11px] font-bold text-white shadow-sm">
-                W
+              <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg text-[13px] font-bold shadow-sm">
+                P
               </span>
-              <span className="hidden flex-col leading-tight sm:flex">
+              <span className="hidden items-baseline gap-1.5 sm:flex">
                 <span className="text-sm font-semibold tracking-tight">{t('app.name')}</span>
-                <span className="text-muted-foreground text-[10px]">{t('app.subtitle')}</span>
+                <span className="text-muted-foreground text-[10px]">{APP_VERSION}</span>
               </span>
             </Link>
 

@@ -925,7 +925,7 @@ export function SketcherEditor({
         >
           {/* Toolbar. The chat's header is the second cell of this row, so the
               two are the same height however the controls wrap. */}
-          <div className="bg-background flex shrink-0 border-b">
+          <div className="bg-background relative z-10 flex shrink-0 border-b">
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-4 py-2">
               <div className="flex min-w-0 items-center gap-2 text-sm">
                 {/* A file keeps the header its Preview tab has, so switching

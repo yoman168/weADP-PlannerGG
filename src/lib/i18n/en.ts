@@ -1,7 +1,6 @@
 export const en: Record<string, string> = {
   // ── Global shell ──
-  'app.name': 'WE-ADK',
-  'app.subtitle': 'Design system',
+  'app.name': 'WE-ADP Planner',
   'nav.projects': 'Projects',
   'nav.notifications': 'Notifications',
   'nav.archive': 'Archive',
