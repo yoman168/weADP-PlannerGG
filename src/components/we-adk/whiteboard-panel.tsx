@@ -373,7 +373,21 @@ export function WhiteboardPanel({
         onClose={() => setPicking(false)}
       />
 
-      <Dialog open={mode !== null} onOpenChange={(next) => !next && dismiss()}>
+      {/* `modal` is off for the whiteboard, and only for it.
+
+          Radix's modal mode wraps the content in react-remove-scroll, which
+          blocks wheel and touch scrolling everywhere outside that subtree — and
+          Excalidraw portals its own dialogs into `document.body` rather than
+          into its container (`useCreatePortalContainer` with no parentSelector),
+          so Help and Shortcuts land outside it and cannot be scrolled at all.
+
+          The entity model keeps modal semantics. It is a form, so its focus trap
+          is worth more than it is to a canvas that already fills the screen. */}
+      <Dialog
+        modal={mode !== 'whiteboard'}
+        open={mode !== null}
+        onOpenChange={(next) => !next && dismiss()}
+      >
         {/* The whiteboard takes the whole screen: it is a drawing tool, and every
             edge of a dialog is canvas you do not have. The entity model is a form
             beside a preview and reads better boxed. */}
@@ -382,6 +396,13 @@ export function WhiteboardPanel({
           // finish a text label or drop a selection in Excalidraw, and it was
           // closing the whole window instead. Use the ✕ to close.
           onEscapeKeyDown={(event) => {
+            if (mode === 'whiteboard') event.preventDefault();
+          }}
+          // The other half of turning `modal` off: Excalidraw's dialogs are
+          // portaled to the body, so this dialog counts them as outside itself
+          // and a click inside Help would dismiss the whole board. Same rule as
+          // Escape above — while the board is open, the ✕ closes it.
+          onInteractOutside={(event) => {
             if (mode === 'whiteboard') event.preventDefault();
           }}
           className={cn(

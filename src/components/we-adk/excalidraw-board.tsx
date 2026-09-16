@@ -21,8 +21,9 @@ import { Excalidraw, convertToExcalidrawElements, exportToCanvas } from '@excali
 import '@excalidraw/excalidraw/index.css';
 import type { ExcalidrawImperativeAPI, BinaryFiles } from '@excalidraw/excalidraw/types';
 import type { ExcalidrawElement, NonDeleted } from '@excalidraw/excalidraw/element/types';
-import { MessageSquareText, Save } from 'lucide-react';
+import { MessageSquareText, Save, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui';
 import { ChatPane, type ChatTurn } from '@/components/we-adk/claude-chat';
 import { type DesignProject } from '@/lib/we-adk-mock/projects';
@@ -129,6 +130,23 @@ export function ExcalidrawBoard({
   replaceId?: string;
 }) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
+  /**
+   * Where to put a ✕ on Excalidraw's own dialogs — Help, Shortcuts — or null
+   * while none is open.
+   *
+   * Excalidraw renders a close button only on a mobile viewport: its `Dialog`
+   * gates one on `isFullscreen`, so on a desktop the element is never in the DOM
+   * and there is no prop or stylesheet that brings it back. That leaves Escape
+   * and a click on the backdrop, neither of which is visible, so the dialog
+   * reads as having no way out.
+   *
+   * The dialogs are portaled to `document.body` rather than into the Excalidraw
+   * container, so they are outside this component's tree and have to be found by
+   * watching the body. The node wanted is `.Island`, which Excalidraw styles
+   * `position: relative` — so its own `.Dialog__close` rule places our button in
+   * the corner it already reserved for one.
+   */
+  const [dialogIsland, setDialogIsland] = useState<HTMLElement | null>(null);
   const [caption, setCaption] = useState('');
   const [note, setNote] = useState<string | null>(null);
   const [empty, setEmpty] = useState(true);
@@ -166,6 +184,21 @@ export function ExcalidrawBoard({
     }
     setEmpty(initial.elements.length === 0);
   }, [initial]);
+
+  /* Watch the body for one of Excalidraw's dialogs opening or closing, so the ✕
+     below can be portaled into it. See `dialogIsland`. A MutationObserver rather
+     than a poll: the dialog appears on a click, and anything slower than the
+     paint would show the corner empty first. */
+  useEffect(() => {
+    const find = () =>
+      setDialogIsland(
+        document.querySelector<HTMLElement>('.excalidraw-modal-container .Modal .Island'),
+      );
+    find();
+    const observer = new MutationObserver(find);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   // Excalidraw reports every pointer move, so writes are trailing-edge only.
   const persist = useCallback(
@@ -256,6 +289,30 @@ export function ExcalidrawBoard({
 
   return (
     <div className="flex min-h-0 flex-1 gap-3">
+      {/* The ✕ Excalidraw does not draw on a desktop — see `dialogIsland`.
+          `Dialog__close` is Excalidraw's own class, so this inherits the
+          position and hover colours it already defines. Closing goes through
+          the backdrop `Modal` wires to `onCloseRequest`, which is the same path
+          a click outside takes, rather than reaching for Excalidraw's state. */}
+      {dialogIsland &&
+        createPortal(
+          <button
+            type="button"
+            className="Dialog__close"
+            title="Close"
+            aria-label="Close"
+            onClick={() =>
+              dialogIsland
+                .closest('.Modal')
+                ?.querySelector<HTMLElement>('.Modal__background')
+                ?.click()
+            }
+          >
+            <X className="size-5" />
+          </button>,
+          dialogIsland,
+        )}
+
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         {/* Excalidraw fills whatever box it is given and needs a real height. */}
         <div className="min-h-0 flex-1 overflow-hidden rounded-md border">

@@ -1,7 +1,6 @@
 export const ko: Record<string, string> = {
   // ── 글로벌 셸 ──
-  'app.name': 'WE-ADK',
-  'app.subtitle': '디자인 시스템',
+  'app.name': 'WE-ADP Planner',
   'nav.projects': '프로젝트',
   'nav.notifications': '알림',
   'nav.archive': '보관',
