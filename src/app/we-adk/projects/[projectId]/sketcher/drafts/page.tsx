@@ -29,12 +29,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ChevronDown,
-  ChevronRight,
   Code2,
   ExternalLink,
-  Folder,
-  FolderOpen,
   Layers,
   MessageSquare,
   MonitorPlay,
@@ -86,35 +82,19 @@ import { loadScreenBlocks, type DevicePresetId } from '@/lib/we-adk-mock/sketche
 import { workspaceStore } from '@/lib/api/workspace-store';
 import { loadDesignHtml } from '@/lib/we-adk/design-html';
 import { openFlowDocument } from '@/lib/we-adk/mockup-pages';
+import { ResizablePanel } from '@/components/we-adk/resizable-panel';
+import {
+  ScreenTree,
+  toFileName,
+  type ScreenTreeFolder,
+} from '@/components/we-adk/screen-tree';
 
 /** A draft's key — a screen id is unique, but the task it came from names it. */
 const draftKey = (draft: ProjectDraft) => `${draft.taskId ?? 'project'}:${draft.screenId}`;
 
-/**
- * The explorer's row, borrowed rather than reinvented.
- *
- * A tree that is nearly the same as Main's reads as a different tree, and the
- * whole point of this tab looking like Main is that a draft is the same kind of
- * thing as a filed screen. Same rail, same spacing, same hover.
- */
-function rowClass(active: boolean): string {
-  return cn(
-    'group/folder flex w-full items-center gap-1 border-l-2 py-1 pr-1.5 pl-1 text-xs',
-    active
-      ? 'border-primary bg-muted text-foreground'
-      : 'border-transparent text-muted-foreground hover:bg-muted/50',
-  );
-}
-
 /** What a draft is called as a file: its route, or its name, made filename-ish. */
 function fileNameOf(draft: ProjectDraft): string {
-  const base = (draft.route ?? draft.name)
-    .trim()
-    .replace(/^\//, '')
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase();
-  return `${base || 'untitled'}.html`;
+  return toFileName(draft.route ?? draft.name);
 }
 
 /* ------------------------------------------------------------------ */
@@ -141,9 +121,28 @@ function emptyNode(name: string, path: string): TreeNode {
   return { name, path, folders: [], drafts: [] };
 }
 
-/** How many drafts sit at or under a node. */
-function countOf(node: TreeNode): number {
-  return node.drafts.length + node.folders.reduce((sum, child) => sum + countOf(child), 0);
+
+/**
+ * A screen whose name is also a folder beside it is that section's own page:
+ * Cart's page belongs inside Cart, not next to it.
+ *
+ * A draft's placement says who its parent is, never that it is one — the Cart
+ * folder exists only because other drafts named Cart as their parent. So the
+ * section's own page arrives with an empty path and files at the root, beside
+ * the folder it heads. Nothing knows that until the whole tree is built, which
+ * is why it is settled here rather than while walking the path.
+ */
+function nestSectionPages(node: TreeNode): void {
+  node.drafts = node.drafts.filter((draft) => {
+    const section = node.folders.find(
+      (entry) => entry.name.trim().toLowerCase() === draft.name.trim().toLowerCase(),
+    );
+    if (!section) return true;
+    // First inside it: the section's own page is what its name promises.
+    section.drafts.unshift(draft);
+    return false;
+  });
+  for (const child of node.folders) nestSectionPages(child);
 }
 
 function buildTree(drafts: ProjectDraft[]): TreeNode[] {
@@ -165,6 +164,7 @@ function buildTree(drafts: ProjectDraft[]): TreeNode[] {
     }
     node.drafts.push(draft);
   }
+  for (const root of roots) nestSectionPages(root);
   return roots;
 }
 
@@ -453,93 +453,56 @@ export default function DraftsPage() {
       ].join(' ')
     : '';
 
-  /** One node of the tree, and everything under it. */
-  const renderNode = (node: TreeNode) => {
-    const isOpen = !collapsed.has(node.path);
-    return (
-      <div key={node.path}>
-        <div className={rowClass(false)}>
-          <button
-            type="button"
-            onClick={() => toggleFolder(node.path)}
-            aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.name}`}
-            aria-expanded={isOpen}
-            className="hover:text-foreground shrink-0"
-          >
-            {isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-          </button>
-          <button
-            type="button"
-            onClick={() => toggleFolder(node.path)}
-            title={node.path}
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-          >
-            {isOpen ? (
-              <FolderOpen className="size-3.5 shrink-0" />
-            ) : (
-              <Folder className="size-3.5 shrink-0" />
+  /** The pile, in the shape the shared explorer draws. */
+  const treeFolders: ScreenTreeFolder[] = useMemo(() => {
+    const toFolder = (node: TreeNode): ScreenTreeFolder => ({
+      path: node.path,
+      name: node.name,
+      title: node.path,
+      folders: node.folders.map(toFolder),
+      files: node.drafts.map((draft) => ({
+        key: draftKey(draft),
+        fileName: fileNameOf(draft),
+        title: `${draft.name}${draft.route ? ` · ${draft.route}` : ''}`,
+        muted: isFiled(draft),
+        onOpen: () => setOpenId(draftKey(draft)),
+        markers: (
+          <>
+            {/* Already in a round — the row stays, and says so. */}
+            {isFiled(draft) && (
+              <Check
+                className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                aria-label="In a round"
+              />
             )}
-            <span className="min-w-0 flex-1 truncate">{node.name}</span>
-            <span className="shrink-0 font-mono text-[10px]">{countOf(node)}</span>
-          </button>
-        </div>
-
-        {isOpen && (
-          <div className="ml-5 border-l">
-            {node.folders.map((child) => renderNode(child))}
-            {node.drafts.map((draft) => {
-              const key = draftKey(draft);
-              const active = !!open && draftKey(open) === key;
-              return (
-                <div key={key} className={rowClass(active)}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(key)}
-                    title={`${draft.name}${draft.route ? ` · ${draft.route}` : ''}`}
-                    className={cn(
-                      'flex min-w-0 flex-1 items-center gap-1 py-1 pl-2 text-xs',
-                      active ? 'font-medium' : 'hover:text-foreground',
-                    )}
-                  >
-                    <Code2 className="size-3.5 shrink-0" />
-                    <span
-                      className={cn(
-                        'min-w-0 flex-1 truncate text-left font-mono',
-                        isFiled(draft) && 'opacity-50',
-                      )}
-                    >
-                      {fileNameOf(draft)}
-                    </span>
-                    {/* Already in a round — the row stays, and says so. */}
-                    {isFiled(draft) && (
-                      <Check
-                        className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
-                        aria-label="In a round"
-                      />
-                    )}
-                    {/* The same letter-slot marker Main uses for a popup. */}
-                    {draft.placement && draft.placement.screenType !== 'Screen' && (
-                      <span
-                        title={`${draft.placement.screenType} · ${draft.placement.platform}`}
-                        className="w-3 shrink-0 text-center font-mono text-[10px] font-semibold text-violet-600 dark:text-violet-400"
-                      >
-                        {draft.placement.screenType.slice(0, 1)}
-                      </span>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
+            {/* The same letter-slot marker Main uses for a popup. */}
+            {draft.placement && draft.placement.screenType !== 'Screen' && (
+              <span
+                title={`${draft.placement.screenType} · ${draft.placement.platform}`}
+                className="w-3 shrink-0 text-center font-mono text-[10px] font-semibold text-violet-600 dark:text-violet-400"
+              >
+                {draft.placement.screenType.slice(0, 1)}
+              </span>
+            )}
+          </>
+        ),
+      })),
+    });
+    return tree.map(toFolder);
+  }, [tree, isFiled]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-      {/* Left: the pile, nested the way it was agreed to sit. */}
-      <div className="bg-background flex w-64 shrink-0 flex-col border-r max-lg:hidden">
+      {/* Left: the pile, nested the way it was agreed to sit — and as wide as
+          the reader drags it, since a nested route outgrows any fixed width. */}
+      <ResizablePanel
+        defaultWidth={256}
+        minWidth={180}
+        maxWidth={560}
+        storageKey="we-adk:drafts-tree-width"
+        label={t('tab.drafts')}
+        className="bg-background flex flex-col border-r max-lg:hidden"
+      >
         <div className="flex shrink-0 items-center gap-2 px-3 py-2">
           <Layers className="size-3.5 shrink-0 text-violet-500" />
           <span className="truncate font-mono text-xs font-medium">{t('tab.drafts')}</span>
@@ -564,7 +527,7 @@ export default function DraftsPage() {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
           {drafts.length === 0 ? (
             <p className="text-muted-foreground px-2 py-10 text-center text-xs leading-relaxed">
               {t('drafts.empty')}
@@ -574,7 +537,12 @@ export default function DraftsPage() {
               {t('drafts.noMatch')}
             </p>
           ) : (
-            tree.map((node) => renderNode(node))
+            <ScreenTree
+              folders={treeFolders}
+              activeKey={open ? draftKey(open) : null}
+              collapsed={collapsed}
+              onToggle={toggleFolder}
+            />
           )}
         </div>
 
@@ -613,7 +581,7 @@ export default function DraftsPage() {
             </Button>
           </div>
         )}
-      </div>
+      </ResizablePanel>
 
       {/* Right: the draft itself, under Main's toolbar. */}
       {open ? (

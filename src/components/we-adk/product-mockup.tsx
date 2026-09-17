@@ -698,6 +698,9 @@ function WalkStep({
   const renderNode = (node: FlowNode) => {
     const isOpen = !collapsed.has(node.screen.id);
     const active = at?.screen.id === node.screen.id;
+    // A screen the flow hangs others off is a section too, and folds from its
+    // whole row rather than the chevron alone.
+    const branch = node.children.length > 0;
     return (
       <div key={node.screen.id}>
         <div
@@ -708,11 +711,12 @@ function WalkStep({
               : 'border-transparent text-muted-foreground hover:bg-muted/50',
           )}
         >
-          {node.children.length > 0 ? (
+          {branch ? (
             <button
               type="button"
               onClick={() => toggle(node.screen.id)}
               aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.screen.name}`}
+              aria-expanded={isOpen}
               className="hover:text-foreground shrink-0"
             >
               {isOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
@@ -722,8 +726,12 @@ function WalkStep({
           )}
           <button
             type="button"
-            onClick={() => setAtId(node.screen.id)}
+            onClick={() => {
+              if (branch) toggle(node.screen.id);
+              setAtId(node.screen.id);
+            }}
             title={node.screen.name}
+            aria-expanded={branch ? isOpen : undefined}
             className={cn('flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left', active && 'font-medium')}
           >
             <span className="min-w-0 flex-1 truncate">{node.screen.name}</span>
@@ -742,7 +750,7 @@ function WalkStep({
             )}
           </button>
         </div>
-        {isOpen && node.children.length > 0 && (
+        {isOpen && branch && (
           <div className="ml-4 border-l">{node.children.map(renderNode)}</div>
         )}
       </div>

@@ -33,9 +33,10 @@
     "**/*.ts",
     "**/*.tsx",
     ".next-3000/types/**/*.ts",
+    ".next-run/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-run/types/**/*.ts"
+    ".next-3004/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

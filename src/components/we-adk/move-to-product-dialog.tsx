@@ -517,7 +517,7 @@ export function MoveToProductDialog({
   const iaTable = (targetName?: string) => (
     <div className="min-h-0 overflow-auto rounded-lg border">
       <table className="w-full table-fixed border-collapse text-xs">
-        <thead className="bg-muted/40 text-muted-foreground sticky top-0 text-[10px] font-semibold tracking-wider uppercase">
+        <thead className="bg-muted text-muted-foreground sticky top-0 text-[10px] font-semibold tracking-wider uppercase">
           <tr>
             <th className="w-9 px-2 py-2 text-left font-semibold">
               <input

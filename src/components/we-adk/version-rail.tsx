@@ -14,8 +14,9 @@
  */
 
 import { Archive, Check, ChevronDown, ChevronRight, FolderPlus, Layers, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/components/ui';
+import { ResizablePanel } from '@/components/we-adk/resizable-panel';
 import {
   isVersionLocked,
   resolveVersionStatus,
@@ -24,7 +25,6 @@ import {
 } from '@/lib/we-adk-mock/versions';
 import { type ProjectTask } from '@/lib/we-adk-mock/tasks';
 import { type VersionStatus } from '@/lib/we-adk-mock/types';
-import { workspaceStore } from '@/lib/api/workspace-store';
 
 /** `'all'` is every round at once. */
 export type VersionScope = number | 'all';
@@ -98,56 +98,17 @@ export const VERSION_STATUS_PILL: Record<VersionStatus, string> = {
 /* How wide the rail is                                                */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Round names are as long as somebody decided to make them, so no fixed width
+ * is right for every project — "Approval rework" fits and "Corporate card bulk
+ * approve" does not. `ResizablePanel` holds the drag handle and remembers the
+ * width; the explorer trees have the same problem and use the same one.
+ */
 const WIDTH_KEY = 'we-adk:version-rail-width';
 /** `w-44`, the width this rail had before it could be dragged. */
 const DEFAULT_WIDTH = 176;
 const MIN_WIDTH = 144;
 const MAX_WIDTH = 380;
-
-function clampWidth(value: number): number {
-  return Math.min(Math.max(Math.round(value), MIN_WIDTH), MAX_WIDTH);
-}
-
-/**
- * The rail's width, remembered.
- *
- * Round names are as long as somebody decided to make them, so no fixed width is
- * right for every project — "Approval rework" fits and "Corporate card bulk
- * approve" does not. Kept globally rather than per project: it is a preference
- * about this person's screen, not a fact about the work.
- *
- * Read after mount, like everything else out of storage, so the server pass and
- * the first client render agree on the default.
- */
-function useRailWidth(): [number, (next: number) => void, (next: number) => void] {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-
-  useEffect(() => {
-    try {
-      const raw = workspaceStore.getItem(WIDTH_KEY);
-      const parsed = Number(raw);
-      if (Number.isFinite(parsed) && parsed > 0) setWidth(clampWidth(parsed));
-    } catch {
-      // Storage unavailable — the default width is a fine answer.
-    }
-  }, []);
-
-  /** While dragging: on screen only, so a drag is not a hundred writes. */
-  const preview = (next: number) => setWidth(clampWidth(next));
-
-  /** On release: this is the width from now on. */
-  const commit = (next: number) => {
-    const value = clampWidth(next);
-    setWidth(value);
-    try {
-      workspaceStore.setItem(WIDTH_KEY, String(value));
-    } catch {
-      // Storage unavailable — it just will not survive a reload.
-    }
-  };
-
-  return [width, preview, commit];
-}
 
 const VERSION_STATUS_HOVER: Record<VersionStatus, string> = {
   Released: 'hover:bg-emerald-200 dark:hover:bg-emerald-500/25',
@@ -313,15 +274,16 @@ export function VersionRail({
   const [historyOpen, setHistoryOpen] = useState<boolean | null>(null);
   const showHistory = historyOpen ?? selectedInHistory;
 
-  const [width, previewWidth, commitWidth] = useRailWidth();
-  /** Where the drag started, and how wide the rail was then. */
-  const drag = useRef<{ x: number; width: number } | null>(null);
-
   return (
-    <nav
+    <ResizablePanel
+      as="nav"
       aria-label="Versions"
-      style={{ width }}
-      className="bg-background relative flex shrink-0 flex-col border-r max-lg:hidden"
+      label="the versions rail"
+      defaultWidth={DEFAULT_WIDTH}
+      minWidth={MIN_WIDTH}
+      maxWidth={MAX_WIDTH}
+      storageKey={WIDTH_KEY}
+      className="bg-background flex flex-col border-r max-lg:hidden"
     >
       <div className="flex shrink-0 items-center gap-1 px-3 py-2">
         <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
@@ -401,43 +363,6 @@ export function VersionRail({
           </div>
         )}
       </div>
-
-      {/* The drag handle: a hair of hit area straddling the border, so the border
-          itself is what you reach for. It is a `separator` with a value rather
-          than a bare div — the width is adjustable, and a pointer is not the only
-          way people adjust things, so the arrow keys move it too. */}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize the versions rail"
-        aria-valuenow={width}
-        aria-valuemin={MIN_WIDTH}
-        aria-valuemax={MAX_WIDTH}
-        tabIndex={0}
-        style={{ touchAction: 'none' }}
-        onPointerDown={(event) => {
-          drag.current = { x: event.clientX, width };
-          event.currentTarget.setPointerCapture(event.pointerId);
-        }}
-        onPointerMove={(event) => {
-          if (!drag.current) return;
-          previewWidth(drag.current.width + (event.clientX - drag.current.x));
-        }}
-        onPointerUp={(event) => {
-          if (drag.current) {
-            commitWidth(drag.current.width + (event.clientX - drag.current.x));
-            drag.current = null;
-          }
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowLeft') commitWidth(width - 16);
-          else if (event.key === 'ArrowRight') commitWidth(width + 16);
-          else return;
-          event.preventDefault();
-        }}
-        className="hover:bg-primary/30 focus-visible:bg-primary/40 absolute inset-y-0 -right-1 w-2 cursor-col-resize transition-colors focus-visible:outline-none"
-      />
-    </nav>
+    </ResizablePanel>
   );
 }

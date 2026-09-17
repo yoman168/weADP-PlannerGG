@@ -5,13 +5,8 @@ import {
   CalendarDays,
   CircleStop,
   Clock,
-  ChevronDown,
-  ChevronRight,
-  Code2,
   ExternalLink,
   FileCode2,
-  Folder,
-  FolderOpen,
   Layers,
   Loader2,
   MessageSquare,
@@ -88,6 +83,13 @@ import {
   type FlowNode,
   type GenerateMode,
 } from '@/components/we-adk/product-mockup';
+import { ResizablePanel } from '@/components/we-adk/resizable-panel';
+import {
+  ScreenTree,
+  toFileName,
+  type ScreenTreeFile,
+  type ScreenTreeFolder,
+} from '@/components/we-adk/screen-tree';
 import { addStandaloneDraft } from '@/lib/we-adk/task-design';
 import { workspaceStore } from '@/lib/api/workspace-store';
 
@@ -1443,7 +1445,14 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                 thing it was always describing: the product's structure. */}
             <div className="flex min-h-0 flex-1 overflow-hidden">
               {treeScreens.length > 1 && (
-                <div className="bg-background flex w-52 shrink-0 flex-col overflow-hidden border-r">
+                <ResizablePanel
+                  defaultWidth={208}
+                  minWidth={160}
+                  maxWidth={520}
+                  storageKey="we-adk:sketcher-tree-width"
+                  label="structure"
+                  className="bg-background flex flex-col border-r"
+                >
                   {/* Whose structure this is, by name: the product once these
                       screens have joined it, the meeting until then. Named
                       rather than described — "This meeting" said nothing you
@@ -1468,141 +1477,116 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
                     </span>
                     <span className="shrink-0 font-mono text-[10px]">{treeScreens.length}</span>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+                  <div className="min-h-0 flex-1 overflow-auto px-1 pb-2">
                     {(() => {
-                      const renderNode = (node: FlowNode): ReactNode => {
-                        const own = ownIds.has(node.screen.id);
-                        const hasChildren = node.children.length > 0;
-                        const folded = collapsedScreens.has(node.screen.id);
-                        const active = own
-                          ? activePage?.id === node.screen.id && externalId === null
-                          : externalId === node.screen.id;
+                      /**
+                       * A screen that opens others is handed over as a folder
+                       * holding its own page, so the Request tab's explorer can
+                       * draw this tree too: a folder folds, a file opens, and
+                       * neither does the other's job.
+                       */
+                      const markersFor = (screen: MockupScreen): ReactNode => {
+                        const own = ownIds.has(screen.id);
+                        const change = own ? screenChange(screen) : null;
+                        const isNew = change === 'added';
                         return (
-                          <div key={node.screen.id}>
-                            <div
-                              className={cn(
-                                'flex w-full items-center gap-1 border-l-2 py-1 pr-1.5 pl-1 text-xs',
-                                active
-                                  ? 'border-primary bg-muted text-foreground'
-                                  : 'border-transparent text-muted-foreground hover:bg-muted/50',
-                              )}
-                            >
-                              {/* A screen that opens others is a section as well
-                                as a screen, so it folds like one — and a leaf
-                                keeps the slot so no filename shifts. */}
-                              {hasChildren ? (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleScreen(node.screen.id)}
-                                  aria-label={`${folded ? 'Expand' : 'Collapse'} ${node.screen.name}`}
-                                  aria-expanded={!folded}
-                                  className="hover:text-foreground shrink-0"
-                                >
-                                  {folded ? (
-                                    <ChevronRight className="size-3.5" />
-                                  ) : (
-                                    <ChevronDown className="size-3.5" />
-                                  )}
-                                </button>
-                              ) : (
-                                <span aria-hidden className="w-3.5 shrink-0" />
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (own) {
-                                    setActivePageId(node.screen.id);
-                                    setExternalId(null);
-                                  } else {
-                                    setExternalId(node.screen.id);
-                                  }
-                                }}
-                                title={node.screen.name}
+                          <>
+                            {/* Already in the product — context, not work. */}
+                            {!own && (
+                              <span
+                                title={`Already in ${product?.name ?? 'the product'}`}
+                                className="text-muted-foreground shrink-0 font-mono text-[9px]"
+                              >
+                                ·
+                              </span>
+                            )}
+                            {/* N for new, M for modified: never sent to the
+                              product, or changed since it was. Nothing at all
+                              once the two agree. */}
+                            {change && (
+                              <span
+                                title={
+                                  isNew
+                                    ? 'New — not in the product yet'
+                                    : 'Modified since it was sent'
+                                }
+                                aria-label={
+                                  isNew
+                                    ? 'New — not in the product yet'
+                                    : 'Modified since it was sent'
+                                }
                                 className={cn(
-                                  'flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left',
-                                  active && 'font-medium',
+                                  'shrink-0 font-mono text-[10px] font-semibold',
+                                  isNew
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-amber-600 dark:text-amber-400',
                                 )}
                               >
-                                {/* A screen that opens others is a section too,
-                                  and Main draws a section as a folder — so it
-                                  does here, and a leaf keeps the </> that says
-                                  it is a page. */}
-                                {hasChildren ? (
-                                  folded ? (
-                                    <Folder
-                                      className={cn('size-3.5 shrink-0', !own && 'opacity-50')}
-                                    />
-                                  ) : (
-                                    <FolderOpen
-                                      className={cn('size-3.5 shrink-0', !own && 'opacity-50')}
-                                    />
-                                  )
-                                ) : (
-                                  <Code2
-                                    className={cn('size-3.5 shrink-0', !own && 'opacity-50')}
-                                  />
-                                )}
-                                <span
-                                  className={cn('min-w-0 flex-1 truncate', !own && 'opacity-60')}
-                                >
-                                  {node.screen.name}
-                                </span>
-                                {/* Already in the product — context, not work. */}
-                                {!own && (
-                                  <span
-                                    title={`Already in ${product?.name ?? 'the product'}`}
-                                    className="text-muted-foreground shrink-0 font-mono text-[9px]"
-                                  >
-                                    ·
-                                  </span>
-                                )}
-                                {/* N for new, M for modified: never sent to the
-                                  product, or changed since it was. Nothing at
-                                  all once the two agree. */}
-                                {own &&
-                                  (() => {
-                                    const change = screenChange(node.screen);
-                                    if (!change) return null;
-                                    const isNew = change === 'added';
-                                    const label = isNew
-                                      ? 'New — not in the product yet'
-                                      : 'Modified since it was sent';
-                                    return (
-                                      <span
-                                        title={label}
-                                        aria-label={label}
-                                        className={cn(
-                                          'shrink-0 font-mono text-[10px] font-semibold',
-                                          isNew
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-amber-600 dark:text-amber-400',
-                                        )}
-                                      >
-                                        {isNew ? 'N' : 'M'}
-                                      </span>
-                                    );
-                                  })()}
-                                {/* The letter marker Main uses for a popup. */}
-                                {node.screen.ia.screenType !== 'Screen' && (
-                                  <span
-                                    title={node.screen.ia.screenType}
-                                    className="w-3 shrink-0 text-center font-mono text-[10px] font-semibold text-violet-600 dark:text-violet-400"
-                                  >
-                                    {node.screen.ia.screenType.slice(0, 1)}
-                                  </span>
-                                )}
-                              </button>
-                            </div>
-                            {hasChildren && !folded && (
-                              <div className="ml-4 border-l">{node.children.map(renderNode)}</div>
+                                {isNew ? 'N' : 'M'}
+                              </span>
                             )}
-                          </div>
+                            {/* The letter marker Main uses for a popup. */}
+                            {screen.ia.screenType !== 'Screen' && (
+                              <span
+                                title={screen.ia.screenType}
+                                className="w-3 shrink-0 text-center font-mono text-[10px] font-semibold text-violet-600 dark:text-violet-400"
+                              >
+                                {screen.ia.screenType.slice(0, 1)}
+                              </span>
+                            )}
+                          </>
                         );
                       };
-                      return buildFlow(treeScreens).map(renderNode);
+
+                      const fileOf = (screen: MockupScreen): ScreenTreeFile => ({
+                        key: screen.id,
+                        fileName: toFileName(screen.name),
+                        title: screen.name,
+                        muted: !ownIds.has(screen.id),
+                        markers: markersFor(screen),
+                        onOpen: () => {
+                          if (ownIds.has(screen.id)) {
+                            setActivePageId(screen.id);
+                            setExternalId(null);
+                          } else {
+                            setExternalId(screen.id);
+                          }
+                        },
+                      });
+
+                      const folderOf = (node: FlowNode): ScreenTreeFolder => ({
+                        path: node.screen.id,
+                        name: node.screen.name,
+                        title: node.screen.name,
+                        folders: node.children
+                          .filter((child) => child.children.length > 0)
+                          .map(folderOf),
+                        // Its own page belongs inside the section it heads.
+                        files: [
+                          fileOf(node.screen),
+                          ...node.children
+                            .filter((child) => child.children.length === 0)
+                            .map((child) => fileOf(child.screen)),
+                        ],
+                      });
+
+                      const roots = buildFlow(treeScreens);
+                      return (
+                        <ScreenTree
+                          folders={roots
+                            .filter((node) => node.children.length > 0)
+                            .map(folderOf)}
+                          files={roots
+                            .filter((node) => node.children.length === 0)
+                            .map((node) => fileOf(node.screen))}
+                          activeKey={externalId ?? activePage?.id ?? null}
+                          collapsed={collapsedScreens}
+                          onToggle={toggleScreen}
+                        />
+                      );
                     })()}
                   </div>
-                </div>
+                </ResizablePanel>
               )}
 
               <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

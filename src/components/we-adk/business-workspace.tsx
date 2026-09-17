@@ -1664,9 +1664,12 @@ export function BusinessWorkspace({ children }: { children: ReactNode }) {
                             path: string;
                             below: Level[];
                             leaf?: { child: DesignFolder; index: number };
+                            files: { file: DesignFile; index: number }[];
                           }
 
                           const roots: Level[] = [];
+                          const rootFiles: { file: DesignFile; index: number }[] = [];
+
                           (folder.children ?? []).forEach((child, childIndex) => {
                             // Only ›, never /: a screen may well be called
                             // "Product Catalog / Checkout".
@@ -1694,7 +1697,7 @@ export function BusinessWorkspace({ children }: { children: ReactNode }) {
                                 (entry) => entry.name === name && (!last || !entry.leaf),
                               );
                               if (!node) {
-                                node = { name, path: trail, below: [] };
+                                node = { name, path: trail, below: [], files: [] };
                                 siblings.push(node);
                               }
                               if (last) node.leaf = { child, index: childIndex };
@@ -1702,11 +1705,97 @@ export function BusinessWorkspace({ children }: { children: ReactNode }) {
                             });
                           });
 
+                          /*
+                           * Routes and names both name a level, so match them
+                           * loosely: a screen routed at /product-catalog belongs in
+                           * the folder a person called "Product Catalog", not in a
+                           * second row drawn beside it.
+                           */
+                          const slugOf = (value: string) =>
+                            value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                          const titleOf = (value: string) =>
+                            value
+                              .split(/[-_]+/)
+                              .filter(Boolean)
+                              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                              .join(' ') || value;
+                          const segmentsOf = (file: DesignFile) => {
+                            if (file.name.includes('›')) {
+                              const named = file.name
+                                .split('›')
+                                .map((part) => part.trim())
+                                .filter(Boolean);
+                              if (named.length > 0) return named;
+                            }
+                            const routed = file.route ? file.route.split('/').filter(Boolean) : [];
+                            return routed.length > 0 ? routed.map(titleOf) : [file.name];
+                          };
+                          const levelAt = (siblings: Level[], name: string) =>
+                            siblings.find((entry) => slugOf(entry.name) === slugOf(name));
+
+                          // A file naming a path goes inside it. The rest wait, because
+                          // the folder they belong in may not be drawn yet.
+                          const loose: { file: DesignFile; index: number; segment: string }[] = [];
+                          (folder.files ?? []).forEach((file, fileIndex) => {
+                            const segments = segmentsOf(file);
+                            if (segments.length < 2) {
+                              loose.push({ file, index: fileIndex, segment: segments[0] ?? file.name });
+                              return;
+                            }
+                            let siblings = roots;
+                            let trail = folder.id;
+                            segments.slice(0, -1).forEach((name, depth) => {
+                              let node = levelAt(siblings, name);
+                              if (node) {
+                                trail = node.path;
+                              } else {
+                                trail = `${trail}/${name}`;
+                                node = { name, path: trail, below: [], files: [] };
+                                siblings.push(node);
+                              }
+                              if (depth === segments.length - 2) {
+                                node.files.push({ file, index: fileIndex });
+                              }
+                              siblings = node.below;
+                            });
+                          });
+
+                          /*
+                           * A one-segment file is its section's own page whenever a
+                           * folder of that name exists: /cart is the Cart folder's
+                           * page, so it opens from inside Cart rather than as a stray
+                           * file row under the whole tree.
+                           */
+                          loose.forEach(({ file, index, segment }) => {
+                            const node = levelAt(roots, segment);
+                            if (node) node.files.push({ file, index });
+                            else rootFiles.push({ file, index });
+                          });
+
                           const countOf = (level: Level): number =>
                             (level.leaf?.child.files.length ?? 0) +
+                            level.files.length +
                             level.below.reduce((sum, entry) => sum + countOf(entry), 0);
 
                           const renderLevel = (level: Level): ReactNode => {
+                            const fileNodes = level.files.map(({ file, index }) => (
+                              <FileRow
+                                key={file.id}
+                                file={file}
+                                folder={folder}
+                                index={index}
+                                onReorder={(fileId, toIndex) => reorderFile(folder, fileId, toIndex)}
+                                projectId={project.id}
+                                openScreenId={openScreenId}
+                                released={status === 'Released'}
+                                change={changes[file.id]}
+                                surface={resolveSurface(file.id, surfaces)}
+                                onSurface={markSurface}
+                                onDelete={deleteFile}
+                                onRename={renameFile}
+                              />
+                            ));
+
                             if (level.leaf) {
                               /*
                                * A real folder, with whatever deeper paths hang
@@ -1715,11 +1804,14 @@ export function BusinessWorkspace({ children }: { children: ReactNode }) {
                                * drop target and its delete.
                                */
                               const node = childNode(level.leaf.child, level.leaf.index);
-                              if (level.below.length === 0) return node;
+                              if (level.below.length === 0 && level.files.length === 0) return node;
                               return (
                                 <div key={level.path}>
                                   {node}
-                                  <div className="ml-5 border-l">{level.below.map(renderLevel)}</div>
+                                  <div className="ml-5 border-l">
+                                    {fileNodes}
+                                    {level.below.map(renderLevel)}
+                                  </div>
                                 </div>
                               );
                             }
@@ -1759,32 +1851,38 @@ export function BusinessWorkspace({ children }: { children: ReactNode }) {
                                   // A level reaching here has no folder of its
                                   // own — the branch above returns for those —
                                   // so there is nothing but the paths below it.
-                                  <div className="ml-5 border-l">{level.below.map(renderLevel)}</div>
+                                  <div className="ml-5 border-l">
+                                    {fileNodes}
+                                    {level.below.map(renderLevel)}
+                                  </div>
                                 )}
                               </div>
                             );
                           };
 
-                          return roots.map(renderLevel);
+                          return (
+                            <>
+                              {roots.map(renderLevel)}
+                              {rootFiles.map(({ file, index }) => (
+                                <FileRow
+                                  key={file.id}
+                                  file={file}
+                                  folder={folder}
+                                  index={index}
+                                  onReorder={(fileId, toIndex) => reorderFile(folder, fileId, toIndex)}
+                                  projectId={project.id}
+                                  openScreenId={openScreenId}
+                                  released={status === 'Released'}
+                                  change={changes[file.id]}
+                                  surface={resolveSurface(file.id, surfaces)}
+                                  onSurface={markSurface}
+                                  onDelete={deleteFile}
+                                  onRename={renameFile}
+                                />
+                              ))}
+                            </>
+                          );
                         })()}
-
-                        {folder.files.map((file, fileIndex) => (
-                          <FileRow
-                            key={file.id}
-                            file={file}
-                            folder={folder}
-                            index={fileIndex}
-                            onReorder={(fileId, toIndex) => reorderFile(folder, fileId, toIndex)}
-                            projectId={project.id}
-                            openScreenId={openScreenId}
-                            released={status === 'Released'}
-                            change={changes[file.id]}
-                            surface={resolveSurface(file.id, surfaces)}
-                            onSurface={markSurface}
-                            onDelete={deleteFile}
-                            onRename={renameFile}
-                          />
-                        ))}
                         {folder.files.length === 0 &&
                           (folder.children ?? []).length === 0 &&
                           (folder.kind === 'version' &&
