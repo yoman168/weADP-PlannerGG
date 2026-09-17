@@ -23,6 +23,10 @@ import {
   Label,
 } from '@/components/ui';
 import { MAX_PROJECT_NAME, type NewProjectFields } from '@/lib/we-adk-mock/created-projects';
+import { CustomerField } from './customer-field';
+import { ProductLinkFields, type ProductLink } from './product-link-fields';
+
+const NEW_BUILD: ProductLink = { kind: 'new-build', productName: '' };
 
 const EMPTY: NewProjectFields = { name: '', customer: '', owner: '', summary: '' };
 
@@ -43,24 +47,37 @@ export function CreateProjectDialog({
   noun = 'project',
   initial,
   existingNames = [],
+  customerOptions = [],
+  products = [],
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (fields: NewProjectFields) => void;
+  onCreate: (fields: NewProjectFields, link?: ProductLink) => void;
   /** What the tab in view calls the thing being made — "customer", "product". */
   noun?: string;
   /** Values to start from — set when copying an existing project. */
   initial?: NewProjectFields;
   /** Names already taken, so a defaulted one does not collide. */
   existingNames?: string[];
+  /** Customers already on the books, offered as you type so the same company
+      does not end up spelled three ways across three projects. */
+  customerOptions?: string[];
+  /** Products a new customer could be improving instead of starting — ignored for a product. */
+  products?: { id: string; name: string }[];
 }) {
   const [fields, setFields] = useState<NewProjectFields>(initial ?? EMPTY);
+  const [link, setLink] = useState<ProductLink>(NEW_BUILD);
+  /** Drives both the product link picker and the wording of the first field. */
+  const isCustomer = noun === 'customer';
 
   // Reset on open rather than on close, so the form starts from the same place
   // every time it is reached and an abandoned draft cannot leak into the next
   // project.
   useEffect(() => {
-    if (open) setFields(initial ?? EMPTY);
+    if (open) {
+      setFields(initial ?? EMPTY);
+      setLink(NEW_BUILD);
+    }
   }, [open, initial]);
 
   const set = (key: keyof NewProjectFields, value: string) =>
@@ -74,7 +91,7 @@ export function CreateProjectDialog({
    */
   const submit = () => {
     const name = fields.name.trim() || untitledName(noun, existingNames);
-    onCreate({ ...fields, name });
+    onCreate({ ...fields, name }, isCustomer ? link : undefined);
     onClose();
   };
 
@@ -93,30 +110,54 @@ export function CreateProjectDialog({
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="project-name">Name</Label>
+            {/* On the customer side this names the customer; on the product side, the
+                product. One field, because each list is titled after what it holds. */}
+            <Label htmlFor="project-name">{isCustomer ? 'Customer' : 'Name'}</Label>
             <Input
               id="project-name"
               value={fields.name}
               onChange={(event) => set('name', event.target.value)}
               onKeyDown={onKeyDown}
               maxLength={MAX_PROJECT_NAME}
-              placeholder="Fleet portal"
+              placeholder={isCustomer ? 'PPCBank' : 'Fleet portal'}
               autoFocus
             />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="project-customer" className="text-muted-foreground font-normal">
-                Customer
-              </Label>
-              <Input
-                id="project-customer"
-                value={fields.customer}
-                onChange={(event) => set('customer', event.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="KOSIGN Logistics"
-              />
+              {isCustomer ? (
+                <>
+                  <Label
+                    htmlFor="project-company-type"
+                    className="text-muted-foreground font-normal"
+                  >
+                    Company type
+                  </Label>
+                  <Input
+                    id="project-company-type"
+                    value={fields.companyType ?? ''}
+                    onChange={(event) => set('companyType', event.target.value)}
+                    onKeyDown={onKeyDown}
+                    placeholder="Bank"
+                  />
+                </>
+              ) : (
+                <>
+                  <Label htmlFor="project-customer" className="text-muted-foreground font-normal">
+                    Customer
+                  </Label>
+                  {/* Picked from the customers themselves, so a product points at one
+                      of them rather than at a name typed twice. */}
+                  <CustomerField
+                    id="project-customer"
+                    value={fields.customer}
+                    options={customerOptions}
+                    onChange={(next) => set('customer', next)}
+                    onKeyDown={onKeyDown}
+                  />
+                </>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="project-owner" className="text-muted-foreground font-normal">
@@ -144,6 +185,8 @@ export function CreateProjectDialog({
               placeholder="Replaces the spreadsheet the dispatchers keep."
             />
           </div>
+
+          {isCustomer && <ProductLinkFields products={products} value={link} onChange={setLink} />}
 
           <p className="bg-muted/40 text-muted-foreground rounded-lg px-3 py-2 text-[11px] leading-relaxed">
             It opens empty at version 1 — no meetings, no designs, nothing captured from a live

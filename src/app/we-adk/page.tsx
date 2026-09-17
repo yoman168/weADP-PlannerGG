@@ -2,16 +2,22 @@
 
 import {
   ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Ellipsis,
   FolderPlus,
   Layers,
+  LayoutGrid,
+  Link2,
+  List,
   MessagesSquare,
   Monitor,
   Pencil,
   Plus,
   Search,
   Trash2,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -28,16 +34,24 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
   cn,
 } from '@/components/ui';
 import { CreateProjectDialog } from '@/components/we-adk/create-project-dialog';
 import { EditProjectDialog } from '@/components/we-adk/edit-project-dialog';
 import { ProjectTile } from '@/components/we-adk/project-chrome';
+import type { ProductLink } from '@/components/we-adk/product-link-fields';
 import { StatusChip } from '@/components/we-adk/status-chip';
 import { useLocale } from '@/lib/locale';
 import {
   createProject,
   deleteProject,
+  linkProjectToProduct,
   loadCreatedProjects,
   toggleArchiveProject,
   updateProject,
@@ -50,6 +64,7 @@ import {
   relativeUpdated,
   WORKSPACE_LABEL,
   type DesignProject,
+  type ProjectLinkKind,
 } from '@/lib/we-adk-mock/projects';
 import { startWithNoRounds } from '@/lib/we-adk-mock/versions';
 
@@ -79,6 +94,13 @@ type SortId = (typeof SORTS)[number]['id'];
 
 /** The status filter's "no filter" value — Radix items cannot carry an empty one. */
 const ANY_STATUS = 'all';
+
+/** Cards browse, the table scans. Which one you are in is a display preference, so
+    it stays in component state rather than the URL the workspace and filters use. */
+type ViewId = 'grid' | 'table';
+
+/** Rows per page in the table. The card grid is not paged — it scrolls, as a grid does. */
+const PAGE_SIZE = 8;
 
 /** Dropdown that closes on outside click or Escape. */
 function ProjectActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
@@ -165,22 +187,36 @@ function Meta({ icon: Icon, children }: { icon: typeof Clock; children: ReactNod
 function ProjectCard({
   project,
   today,
+  relatedProduct,
+  relatedCount,
   onEdit,
   onDelete,
+  onJumpToProduct,
+  onJumpToCustomers,
 }: {
   project: DesignProject;
   today: string | null;
+  /** The product this customer engagement is for, if it has one. */
+  relatedProduct: DesignProject | null;
+  /** How many customer engagements this product has, when `project` is one. */
+  relatedCount: number;
   onEdit: () => void;
   onDelete: () => void;
+  onJumpToProduct: (productName: string) => void;
+  onJumpToCustomers: (productId: string) => void;
 }) {
   const { t } = useLocale();
   const editable = !isSeededProject(project.id);
+  const isCustomer = project.archived === true;
 
   const files = projectSketchScreens(project).length;
   const liveScreens = projectRealScreens(project).length;
   const meetings = project.sessions.length;
-  // A created project has a customer but not always an owner yet.
-  const who = [project.customer, project.owner].filter(Boolean).join(' · ');
+  /* A customer is described by what kind of business it is; a product by the customer
+     it is for. Either way the owner follows it. */
+  const who = [isCustomer ? project.companyType : project.customer, project.owner]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <article className="group border-border/70 bg-card hover:border-primary/40 relative flex flex-col rounded-2xl border shadow-sm transition-colors">
@@ -212,6 +248,47 @@ function ProjectCard({
           {project.summary || t('home.noBrief')}
         </p>
 
+        {/* What this project is for — the product it started or added to, so
+            the two workspaces read as related rather than two guesses at the
+            same list. */}
+        {isCustomer && (
+          <div className="pointer-events-auto relative z-20 mt-3">
+            {relatedProduct ? (
+              <button
+                type="button"
+                onClick={() => onJumpToProduct(relatedProduct.name)}
+                className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
+              >
+                <Link2 className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  {project.linkKind === 'new-build'
+                    ? 'New build · '
+                    : project.featureArea
+                      ? `${project.featureArea} · `
+                      : 'Feature · '}
+                  {relatedProduct.name}
+                </span>
+              </button>
+            ) : (
+              <span className="bg-amber-500/10 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium">
+                {t('home.needsProduct')}
+              </span>
+            )}
+          </div>
+        )}
+        {!isCustomer && relatedCount > 0 && (
+          <div className="pointer-events-auto relative z-20 mt-3">
+            <button
+              type="button"
+              onClick={() => onJumpToCustomers(project.id)}
+              className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
+            >
+              <Link2 className="size-3.5" />
+              {relatedCount} {relatedCount === 1 ? 'customer' : 'customers'}
+            </button>
+          </div>
+        )}
+
         {/* What has been made. */}
         <div className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
           <Meta icon={Layers}>
@@ -236,16 +313,59 @@ function ProjectCard({
   );
 }
 
+/**
+ * Turns the dialog's new-build-or-existing choice into what actually gets
+ * stored. "New build" creates the product on the spot — the customer being
+ * saved is its origin — so both callers (create, and linking an older
+ * customer) hand it a `taken` id set to fold the new product into.
+ */
+function resolveLink(
+  link: ProductLink | undefined,
+  fields: { name: string; owner: string },
+  stamp: string,
+  taken: Set<string>,
+): { relatedProductId?: string; linkKind?: ProjectLinkKind; featureArea?: string } {
+  if (!link) return {};
+  if (link.kind === 'new-build') {
+    const product = createProject(
+      {
+        name: link.productName.trim() || `${fields.name} product`,
+        // The customer being saved is who this product is for, so it arrives attributed
+        // rather than needing the same name typed again on the Products side.
+        customer: fields.name,
+        owner: fields.owner,
+        summary: '',
+      },
+      stamp,
+      taken,
+    );
+    taken.add(product.id);
+    return { relatedProductId: product.id, linkKind: 'new-build' };
+  }
+  if (!link.productId) return {};
+  return {
+    relatedProductId: link.productId,
+    linkKind: 'feature-improvement',
+    featureArea: link.featureArea,
+  };
+}
+
 function ProjectsPage() {
   const { t } = useLocale();
   const router = useRouter();
-  const wanted = useSearchParams().get('tab');
-  const [tab, setTab] = useState<TabId>(
-    TABS.find((entry) => entry.noun === wanted)?.id ?? TABS[0].id,
-  );
+  /*
+   * The workspace and the product it is narrowed to both live in the URL now: the
+   * switch between them moved up into the app header, which cannot reach this
+   * component's state — and a filtered workspace becomes a link someone can send.
+   */
+  const params = useSearchParams();
+  const tab: TabId = TABS.find((entry) => entry.noun === params.get('tab'))?.id ?? TABS[0].id;
+  const relatedFilter = params.get('forProduct');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>(ANY_STATUS);
   const [sort, setSort] = useState<SortId>('newest');
+  const [view, setView] = useState<ViewId>('grid');
+  const [page, setPage] = useState(1);
   const [today, setToday] = useState<string | null>(null);
   const [created, setCreated] = useState<DesignProject[]>([]);
   const [creating, setCreating] = useState(false);
@@ -295,12 +415,27 @@ function ProjectsPage() {
     ...new Set(all.filter((project) => inTab(project, tab)).map((project) => project.status.label)),
   ];
 
+  /*
+   * Statuses differ between the two workspaces, so one carried across would point at
+   * an option that is not there. Ignoring it beats clearing it: the switch lives in
+   * the header now, and reaching back into this page's state to reset it would mean
+   * an effect that also wipes the filters a jump arrived with.
+   */
+  const effectiveStatus = statuses.includes(status) ? status : ANY_STATUS;
+
   const projects = all
     .filter((project) => {
       if (!inTab(project, tab)) return false;
-      if (status !== ANY_STATUS && project.status.label !== status) return false;
+      if (effectiveStatus !== ANY_STATUS && project.status.label !== effectiveStatus) return false;
+      if (relatedFilter && project.relatedProductId !== relatedFilter) return false;
       if (!needle) return true;
-      return [project.name, project.customer, project.owner, project.stage]
+      return [
+        project.name,
+        project.customer,
+        project.companyType ?? '',
+        project.owner,
+        project.stage,
+      ]
         .join(' ')
         .toLowerCase()
         .includes(needle);
@@ -316,16 +451,80 @@ function ProjectsPage() {
   const activeTab = TABS.find((entry) => entry.id === tab) ?? TABS[0];
 
   // An empty grid reads differently when you narrowed it yourself.
-  const narrowed = needle !== '' || status !== ANY_STATUS;
+  const narrowed = needle !== '' || effectiveStatus !== ANY_STATUS || relatedFilter !== null;
+
+  /*
+   * Clamped rather than corrected. Narrowing the list can strand you past the last
+   * page, and resetting the state from here would be a write during a render — so the
+   * page in view is derived, and only the pager and the filters write to it.
+   */
+  const pageCount = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const firstRow = (currentPage - 1) * PAGE_SIZE;
+  const rows = view === 'table' ? projects.slice(firstRow, firstRow + PAGE_SIZE) : projects;
+
+  /** Filters change what a page even means, so any of them sends you back to the first. */
+  const refilter =
+    <T,>(apply: (value: T) => void) =>
+    (value: T) => {
+      setPage(1);
+      apply(value);
+    };
+
+  // The products a customer engagement could be for — the Products workspace, by name.
+  const products = all
+    .filter((project) => project.archived !== true)
+    .map((project) => ({ id: project.id, name: project.name }));
+
+  /*
+   * The customers themselves — the entries on the Customer side, by name. A product
+   * points at one of these rather than at a company name retyped on every product,
+   * which is what let one customer become three spellings of itself. Still free text
+   * underneath, because a product may arrive before its customer does.
+   */
+  const customerOptions = [
+    ...new Set(
+      all
+        .filter((project) => project.archived === true)
+        .map((project) => project.name.trim())
+        .filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
+  const relatedProductName = relatedFilter
+    ? (all.find((project) => project.id === relatedFilter)?.name ?? null)
+    : null;
+
+  const jumpToProduct = useCallback(
+    (productName: string) => {
+      setStatus(ANY_STATUS);
+      setSearch(productName);
+      router.push('/we-adk?tab=product');
+    },
+    [router],
+  );
+
+  const jumpToCustomers = useCallback(
+    (productId: string) => {
+      setStatus(ANY_STATUS);
+      setSearch('');
+      router.push(`/we-adk?tab=customer&forProduct=${encodeURIComponent(productId)}`);
+    },
+    [router],
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      {/* Titled after the workspace in view — the switch between them is in the
+          app header now, so repeating "Your projects" here would name nothing. */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex max-w-2xl flex-col gap-2">
           <h1 className="text-[28px] leading-tight font-semibold tracking-tight">
-            {t('home.title')}
+            {t(`home.section.${activeTab.noun}`)}
           </h1>
-          <p className="text-muted-foreground text-sm leading-relaxed">{t('home.subtitle')}</p>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {t(`home.sectionHint.${activeTab.noun}`)}
+          </p>
         </div>
         <Button size="lg" className="rounded-xl" onClick={() => setCreating(true)}>
           <Plus />
@@ -334,45 +533,10 @@ function ProjectsPage() {
       </header>
 
       <div className="flex min-w-0 flex-col gap-4">
-        {/* The two workspaces, and a way to find one project inside them. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="border-border/70 bg-background inline-flex rounded-xl border p-1 shadow-sm">
-            {TABS.map((entry) => {
-              const count = all.filter((project) => inTab(project, entry.id)).length;
-              const selected = tab === entry.id;
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  // Statuses differ between the two workspaces, so a filter
-                  // carried across would point at an option that is not there.
-                  onClick={() => {
-                    setTab(entry.id);
-                    setStatus(ANY_STATUS);
-                  }}
-                  aria-current={selected ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm transition-colors',
-                    selected
-                      ? 'bg-primary text-primary-foreground font-medium'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {entry.label}
-                  <span
-                    className={cn(
-                      'rounded-full px-1.5 text-[11px] tabular-nums',
-                      selected ? 'bg-background/20' : 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
+          {/* Finding things reads left-to-right with the list below it; the density
+              switch is a view control, so it sits away at the far end. */}
+          <div className="flex flex-1 flex-wrap items-center gap-3">
             <div className="relative w-full sm:w-64">
               <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <label className="sr-only" htmlFor="project-search">
@@ -381,13 +545,16 @@ function ProjectsPage() {
               <Input
                 id="project-search"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('home.search')}
+                onChange={(event) => {
+                  setPage(1);
+                  setSearch(event.target.value);
+                }}
+                placeholder={t(`home.searchIn.${activeTab.noun}`)}
                 className="bg-background h-9 rounded-xl pl-9 text-sm"
               />
             </div>
 
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={effectiveStatus} onValueChange={refilter(setStatus)}>
               <SelectTrigger
                 aria-label={t('home.filterStatus')}
                 className="border-border/70 bg-background h-9 rounded-xl shadow-sm"
@@ -404,7 +571,10 @@ function ProjectsPage() {
               </SelectContent>
             </Select>
 
-            <Select value={sort} onValueChange={(next) => setSort(next as SortId)}>
+            <Select
+              value={sort}
+              onValueChange={refilter((next: string) => setSort(next as SortId))}
+            >
               <SelectTrigger
                 aria-label={t('home.sortBy')}
                 className="border-border/70 bg-background h-9 rounded-xl shadow-sm"
@@ -420,8 +590,56 @@ function ProjectsPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Same list, two densities: cards to browse, rows to scan a long one. */}
+            <div className="border-border/70 bg-background ml-auto inline-flex overflow-hidden rounded-xl border shadow-sm">
+              {(
+                [
+                  { id: 'grid', icon: LayoutGrid, label: t('home.viewGrid') },
+                  { id: 'table', icon: List, label: t('home.viewTable') },
+                ] as const
+              ).map((entry) => {
+                const Icon = entry.icon;
+                const selected = view === entry.id;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setView(entry.id)}
+                    aria-label={entry.label}
+                    title={entry.label}
+                    aria-pressed={selected}
+                    className={cn(
+                      'flex h-9 items-center px-2.5 transition-colors',
+                      selected
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="size-4" />
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
+
+        {relatedProductName && (
+          <div className="text-muted-foreground flex items-center gap-2 text-xs">
+            <span>Showing customers of</span>
+            <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1 pl-2.5 font-medium">
+              {relatedProductName}
+              <button
+                type="button"
+                onClick={() => router.push(`/we-adk?tab=${activeTab.noun}`)}
+                aria-label="Clear product filter"
+                className="hover:bg-primary/20 rounded-full p-0.5"
+              >
+                <X className="size-3" />
+              </button>
+            </span>
+          </div>
+        )}
 
         {projects.length === 0 ? (
           <div className="border-border flex flex-col items-center gap-4 rounded-2xl border border-dashed py-20 text-center">
@@ -442,6 +660,7 @@ function ProjectsPage() {
                 onClick={() => {
                   setSearch('');
                   setStatus(ANY_STATUS);
+                  if (relatedFilter) router.push(`/we-adk?tab=${activeTab.noun}`);
                 }}
               >
                 {t('home.clearSearch')}
@@ -453,17 +672,163 @@ function ProjectsPage() {
               </Button>
             )}
           </div>
-        ) : (
+        ) : view === 'grid' ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {projects.map((project) => (
               <ProjectCard
                 key={project.id}
                 project={project}
                 today={today}
+                relatedProduct={
+                  project.relatedProductId
+                    ? (all.find((entry) => entry.id === project.relatedProductId) ?? null)
+                    : null
+                }
+                relatedCount={all.filter((entry) => entry.relatedProductId === project.id).length}
                 onEdit={() => setEditing(project)}
                 onDelete={() => handleDelete(project)}
+                onJumpToProduct={jumpToProduct}
+                onJumpToCustomers={jumpToCustomers}
               />
             ))}
+          </div>
+        ) : (
+          <div className="border-border/70 bg-card overflow-hidden rounded-2xl border shadow-sm">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('home.colName')}</TableHead>
+                    <TableHead>
+                      {tab === 'archived' ? t('home.colRelated') : t('home.colCustomers')}
+                    </TableHead>
+                    <TableHead>{t('home.colStatus')}</TableHead>
+                    <TableHead>{t('home.colFiles')}</TableHead>
+                    <TableHead>{t('home.colUpdated')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((project) => {
+                    const relatedProduct = project.relatedProductId
+                      ? (all.find((entry) => entry.id === project.relatedProductId) ?? null)
+                      : null;
+                    const relatedCount = all.filter(
+                      (entry) => entry.relatedProductId === project.id,
+                    ).length;
+                    const who = [
+                      tab === 'archived' ? project.companyType : project.customer,
+                      project.owner,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ');
+                    return (
+                      <TableRow key={project.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <ProjectTile project={project} className="size-7 rounded-lg text-xs" />
+                            <div className="min-w-0">
+                              <Link
+                                href={`/we-adk/projects/${project.id}/sketcher`}
+                                className="hover:text-primary block truncate font-medium"
+                              >
+                                {project.name}
+                              </Link>
+                              {who && (
+                                <span className="text-muted-foreground block truncate text-xs">
+                                  {who}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          {tab === 'archived' ? (
+                            relatedProduct ? (
+                              // Carries the same line the card does, so the dense view
+                              // does not know less about the link than the roomy one.
+                              <div className="flex flex-col items-start gap-1">
+                                <span className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
+                                  {project.linkKind === 'new-build'
+                                    ? 'New build'
+                                    : (project.featureArea ?? 'Feature')}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => jumpToProduct(relatedProduct.name)}
+                                  className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-medium transition-colors"
+                                >
+                                  <Link2 className="size-3 shrink-0" />
+                                  <span className="truncate">{relatedProduct.name}</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center rounded-lg bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                                {t('home.needsProduct')}
+                              </span>
+                            )
+                          ) : relatedCount > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => jumpToCustomers(project.id)}
+                              className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-medium transition-colors"
+                            >
+                              <Link2 className="size-3" />
+                              {relatedCount}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground/60 text-xs">—</span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <StatusChip {...project.status} />
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs tabular-nums">
+                          {projectSketchScreens(project).length}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {today ? relativeUpdated(project.updatedAt, today) : project.updatedAt}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="border-border/70 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+              <span className="text-muted-foreground text-xs">
+                {t('home.showing', {
+                  from: firstRow + 1,
+                  to: Math.min(firstRow + PAGE_SIZE, projects.length),
+                  total: projects.length,
+                })}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  <ChevronLeft />
+                  {t('home.prevPage')}
+                </Button>
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {t('home.pageOf', { page: currentPage, pages: pageCount })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= pageCount}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  {t('home.nextPage')}
+                  <ChevronRight />
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -472,10 +837,14 @@ function ProjectsPage() {
         open={creating}
         noun={activeTab.noun}
         existingNames={all.map((project) => project.name)}
+        customerOptions={customerOptions}
+        products={products}
         onClose={() => setCreating(false)}
-        onCreate={(fields) => {
+        onCreate={(fields, link) => {
           const stamp = today ?? new Date().toISOString().slice(0, 10);
-          const project = createProject(fields, stamp, new Set(all.map((entry) => entry.id)));
+          const taken = new Set(all.map((entry) => entry.id));
+          const resolved = resolveLink(link, fields, stamp, taken);
+          const project = createProject({ ...fields, ...resolved }, stamp, taken);
           startWithNoRounds(project.id);
           if (tab === 'archived') toggleArchiveProject(project.id);
           setCreated(loadCreatedProjects());
@@ -514,10 +883,29 @@ function ProjectsPage() {
 
       <EditProjectDialog
         project={editing}
+        products={products}
+        customerOptions={customerOptions}
         onClose={() => setEditing(null)}
-        onSave={(fields) => {
+        onSave={(fields, link) => {
           if (!editing) return;
           updateProject(editing.id, fields);
+          if (link) {
+            const stamp = today ?? new Date().toISOString().slice(0, 10);
+            const resolved = resolveLink(
+              link,
+              fields,
+              stamp,
+              new Set(all.map((entry) => entry.id)),
+            );
+            if (resolved.relatedProductId && resolved.linkKind) {
+              linkProjectToProduct(
+                editing.id,
+                resolved.relatedProductId,
+                resolved.linkKind,
+                resolved.featureArea,
+              );
+            }
+          }
           setEditing(null);
           reload();
         }}

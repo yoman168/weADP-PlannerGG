@@ -1,10 +1,11 @@
 'use client';
 
-import { Bell, Globe, LogOut } from 'lucide-react';
+import { Globe, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { cn } from '@/components/ui';
+import { WorkspaceNav } from '@/components/we-adk/workspace-nav';
 import { useLocale, LOCALE_LABELS, type Locale } from '@/lib/locale';
 import { useClaudeAccount } from '@/lib/we-adk/claude-account';
 import { ClaudeConnectDialog } from '@/components/we-adk/claude-connect';
@@ -26,6 +27,13 @@ const APP_VERSION = 'v1.0.1';
 export function WeAdkShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const insideProject = pathname.startsWith('/we-adk/projects/');
+  /*
+   * The workspace switch belongs to the project list, not to this header in general.
+   * The other pages under this chrome — architecture, canvas, production, devadmin —
+   * are not filtered views of that list, so a Customer/Product pair sitting over them
+   * would name a choice those pages cannot honour.
+   */
+  const onProjectList = pathname === '/we-adk';
   const { locale, setLocale, t } = useLocale();
   const { connected } = useClaudeAccount();
   const { user } = useApiSession();
@@ -61,6 +69,14 @@ export function WeAdkShell({ children }: { children: ReactNode }) {
               </span>
             </Link>
 
+            {/* `useSearchParams` needs a boundary to fall back to, or the static
+                export build refuses to prerender every page under this shell. */}
+            {onProjectList && (
+              <Suspense fallback={<div className="ml-1 h-8 w-56" />}>
+                <WorkspaceNav />
+              </Suspense>
+            )}
+
             <div className="ml-auto flex items-center gap-1.5">
               <div className="hover:bg-foreground/[0.04] flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors dark:hover:bg-white/5">
                 <Globe className="text-muted-foreground size-3.5" />
@@ -77,18 +93,6 @@ export function WeAdkShell({ children }: { children: ReactNode }) {
                   <option value="ko">{LOCALE_LABELS.ko}</option>
                 </select>
               </div>
-
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04] relative rounded-lg p-1.5 transition-colors dark:hover:bg-white/5"
-                aria-label="Notifications (9 or more unread)"
-                title="Notifications — not part of this mockup"
-              >
-                <Bell className="size-4" />
-                <span className="bg-destructive absolute top-0 right-0 flex size-4 items-center justify-center rounded-full text-[9px] font-medium text-white">
-                  9+
-                </span>
-              </button>
 
               {/*
                 One control for who you are and whether Claude can run for you.
