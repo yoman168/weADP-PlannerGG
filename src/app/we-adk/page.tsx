@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Link2,
   List,
+  MessageSquare,
   MessagesSquare,
   Monitor,
   Pencil,
@@ -45,13 +46,11 @@ import {
 import { CreateProjectDialog } from '@/components/we-adk/create-project-dialog';
 import { EditProjectDialog } from '@/components/we-adk/edit-project-dialog';
 import { ProjectTile } from '@/components/we-adk/project-chrome';
-import type { ProductLink } from '@/components/we-adk/product-link-fields';
 import { StatusChip } from '@/components/we-adk/status-chip';
 import { useLocale } from '@/lib/locale';
 import {
   createProject,
   deleteProject,
-  linkProjectToProduct,
   loadCreatedProjects,
   toggleArchiveProject,
   updateProject,
@@ -63,10 +62,12 @@ import {
   projectSketchScreens,
   relativeUpdated,
   WORKSPACE_LABEL,
+  STATUS_TONE,
+  deriveStatus,
   type DesignProject,
-  type ProjectLinkKind,
 } from '@/lib/we-adk-mock/projects';
-import { startWithNoRounds } from '@/lib/we-adk-mock/versions';
+import { loadMockups } from '@/lib/we-adk-mock/mockup-tasks';
+import { loadVersionStatuses, startWithNoRounds } from '@/lib/we-adk-mock/versions';
 
 /**
  * The two workspaces a project can live in — work done for a customer, and the
@@ -101,6 +102,49 @@ type ViewId = 'grid' | 'table';
 
 /** Rows per page in the table. The card grid is not paged — it scrolls, as a grid does. */
 const PAGE_SIZE = 8;
+
+/**
+ * What a customer's sources say about it: how many it has, and the distinct products
+ * they were moved to. Read from the Sketcher's own records — a source is a meeting,
+ * a piece of feedback or a suggestion, and moving one to a product is what links the
+ * two sides, so one customer reaches as many products as its sources went to.
+ */
+function sourceCounts(project: DesignProject) {
+  if (project.archived !== true) return { sources: 0, products: 0 };
+  const meetings = loadMockups(project.id);
+  return {
+    sources: meetings.length,
+    products: new Set(
+      meetings.map((meeting) => meeting.movedTo?.id).filter((id): id is string => Boolean(id)),
+    ).size,
+  };
+}
+
+/** Customers whose sources were moved to this product. */
+function customersOf(productId: string, customers: DesignProject[]) {
+  return customers.filter((customer) =>
+    loadMockups(customer.id).some((meeting) => meeting.movedTo?.id === productId),
+  );
+}
+
+/**
+ * The chip a project shows, worked out rather than remembered — nothing sets a status
+ * by hand, so this is the only place it is decided.
+ */
+function shownStatus(project: DesignProject, counts: { customers: number; movedSources: number }) {
+  const released = Object.values(loadVersionStatuses(project.id)).includes('Released');
+  return statusChip(
+    deriveStatus(project, {
+      customerCount: counts.customers,
+      movedSources: counts.movedSources,
+      released,
+    }),
+  );
+}
+
+function statusChip(status: ReturnType<typeof deriveStatus>) {
+  return { label: status, tone: STATUS_TONE[status] };
+}
 
 /** Dropdown that closes on outside click or Escape. */
 function ProjectActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
@@ -139,7 +183,7 @@ function ProjectActionsMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete
         <Ellipsis className="size-4" />
       </button>
       {open && (
-        <div className="bg-popover text-popover-foreground border-border absolute right-0 z-50 mt-1 min-w-[140px] rounded-md border py-1 shadow-md">
+        <div className="bg-popover text-popover-foreground border-border absolute right-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-md">
           <button
             type="button"
             className="hover:bg-accent flex w-full items-center gap-2 px-3 py-1.5 text-xs"
@@ -187,22 +231,26 @@ function Meta({ icon: Icon, children }: { icon: typeof Clock; children: ReactNod
 function ProjectCard({
   project,
   today,
-  relatedProduct,
   relatedCount,
+  sourceCount,
+  productCount,
+  status,
   onEdit,
   onDelete,
-  onJumpToProduct,
   onJumpToCustomers,
 }: {
   project: DesignProject;
   today: string | null;
-  /** The product this customer engagement is for, if it has one. */
-  relatedProduct: DesignProject | null;
-  /** How many customer engagements this product has, when `project` is one. */
+  /** Customers reaching this product, when `project` is one. */
   relatedCount: number;
+  /** Things this customer has said, when `project` is one. */
+  sourceCount: number;
+  /** Products those sources were moved to. */
+  productCount: number;
+  /** Worked out by the list, which can see the sources and rounds behind it. */
+  status: { label: string; tone: Parameters<typeof StatusChip>[0]['tone'] };
   onEdit: () => void;
   onDelete: () => void;
-  onJumpToProduct: (productName: string) => void;
   onJumpToCustomers: (productId: string) => void;
 }) {
   const { t } = useLocale();
@@ -221,7 +269,9 @@ function ProjectCard({
   return (
     <article className="group border-border/70 bg-card hover:border-primary/40 relative flex flex-col rounded-2xl border shadow-sm transition-colors">
       <Link
-        href={`/we-adk/projects/${project.id}/sketcher`}
+        href={
+          isCustomer ? `/we-adk/customers/${project.id}` : `/we-adk/projects/${project.id}/sketcher`
+        }
         aria-label={`Open ${project.name}`}
         className="focus-visible:ring-ring absolute inset-0 z-10 rounded-2xl focus-visible:ring-2 focus-visible:outline-none"
       />
@@ -231,7 +281,7 @@ function ProjectCard({
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <ProjectTile project={project} className="size-10 rounded-xl text-sm shadow-sm" />
-            <StatusChip {...project.status} />
+            <StatusChip {...status} />
           </div>
           {editable && <ProjectActionsMenu onEdit={onEdit} onDelete={onDelete} />}
         </div>
@@ -248,45 +298,38 @@ function ProjectCard({
           {project.summary || t('home.noBrief')}
         </p>
 
-        {/* What this project is for — the product it started or added to, so
-            the two workspaces read as related rather than two guesses at the
-            same list. */}
-        {isCustomer && (
-          <div className="pointer-events-auto relative z-20 mt-3">
-            {relatedProduct ? (
-              <button
-                type="button"
-                onClick={() => onJumpToProduct(relatedProduct.name)}
-                className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
-              >
-                <Link2 className="size-3.5 shrink-0" />
-                <span className="truncate">
-                  {project.linkKind === 'new-build'
-                    ? 'New build · '
-                    : project.featureArea
-                      ? `${project.featureArea} · `
-                      : 'Feature · '}
-                  {relatedProduct.name}
-                </span>
-              </button>
+        {/* Who this reaches. A customer's products are wherever its sources went, so
+            both sides of the relationship are counted rather than declared. */}
+        {isCustomer ? (
+          <div className="pointer-events-auto relative z-20 mt-3 flex flex-wrap items-center gap-2">
+            <span className="bg-muted text-muted-foreground inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium">
+              <MessageSquare className="size-3.5" />
+              {sourceCount} {sourceCount === 1 ? 'source' : 'sources'}
+            </span>
+            {productCount > 0 ? (
+              <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium">
+                <Link2 className="size-3.5" />
+                {productCount} {productCount === 1 ? 'product' : 'products'}
+              </span>
             ) : (
-              <span className="bg-amber-500/10 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium">
+              <span className="inline-flex items-center rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
                 {t('home.needsProduct')}
               </span>
             )}
           </div>
-        )}
-        {!isCustomer && relatedCount > 0 && (
-          <div className="pointer-events-auto relative z-20 mt-3">
-            <button
-              type="button"
-              onClick={() => onJumpToCustomers(project.id)}
-              className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
-            >
-              <Link2 className="size-3.5" />
-              {relatedCount} {relatedCount === 1 ? 'customer' : 'customers'}
-            </button>
-          </div>
+        ) : (
+          relatedCount > 0 && (
+            <div className="pointer-events-auto relative z-20 mt-3">
+              <button
+                type="button"
+                onClick={() => onJumpToCustomers(project.id)}
+                className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
+              >
+                <Link2 className="size-3.5" />
+                {relatedCount} {relatedCount === 1 ? 'customer' : 'customers'}
+              </button>
+            </div>
+          )
         )}
 
         {/* What has been made. */}
@@ -311,43 +354,6 @@ function ProjectCard({
       </div>
     </article>
   );
-}
-
-/**
- * Turns the dialog's new-build-or-existing choice into what actually gets
- * stored. "New build" creates the product on the spot — the customer being
- * saved is its origin — so both callers (create, and linking an older
- * customer) hand it a `taken` id set to fold the new product into.
- */
-function resolveLink(
-  link: ProductLink | undefined,
-  fields: { name: string; owner: string },
-  stamp: string,
-  taken: Set<string>,
-): { relatedProductId?: string; linkKind?: ProjectLinkKind; featureArea?: string } {
-  if (!link) return {};
-  if (link.kind === 'new-build') {
-    const product = createProject(
-      {
-        name: link.productName.trim() || `${fields.name} product`,
-        // The customer being saved is who this product is for, so it arrives attributed
-        // rather than needing the same name typed again on the Products side.
-        customer: fields.name,
-        owner: fields.owner,
-        summary: '',
-      },
-      stamp,
-      taken,
-    );
-    taken.add(product.id);
-    return { relatedProductId: product.id, linkKind: 'new-build' };
-  }
-  if (!link.productId) return {};
-  return {
-    relatedProductId: link.productId,
-    linkKind: 'feature-improvement',
-    featureArea: link.featureArea,
-  };
 }
 
 function ProjectsPage() {
@@ -404,6 +410,9 @@ function ProjectsPage() {
   // samples are the furniture.
   const all = [...created, ...PROJECTS];
 
+  /** Every customer, for counting which of them reach a product. */
+  const customers = all.filter((project) => project.archived === true);
+
   const inTab = (project: DesignProject, id: TabId) =>
     (project.archived === true) === (id === 'archived');
 
@@ -427,7 +436,12 @@ function ProjectsPage() {
     .filter((project) => {
       if (!inTab(project, tab)) return false;
       if (effectiveStatus !== ANY_STATUS && project.status.label !== effectiveStatus) return false;
-      if (relatedFilter && project.relatedProductId !== relatedFilter) return false;
+      // Arrived from a product's "N customers" chip: only the customers that reach it.
+      if (
+        relatedFilter &&
+        !loadMockups(project.id).some((meeting) => meeting.movedTo?.id === relatedFilter)
+      )
+        return false;
       if (!needle) return true;
       return [
         project.name,
@@ -679,15 +693,15 @@ function ProjectsPage() {
                 key={project.id}
                 project={project}
                 today={today}
-                relatedProduct={
-                  project.relatedProductId
-                    ? (all.find((entry) => entry.id === project.relatedProductId) ?? null)
-                    : null
-                }
-                relatedCount={all.filter((entry) => entry.relatedProductId === project.id).length}
+                relatedCount={customersOf(project.id, customers).length}
+                sourceCount={sourceCounts(project).sources}
+                productCount={sourceCounts(project).products}
+                status={shownStatus(project, {
+                  customers: customersOf(project.id, customers).length,
+                  movedSources: sourceCounts(project).products,
+                })}
                 onEdit={() => setEditing(project)}
                 onDelete={() => handleDelete(project)}
-                onJumpToProduct={jumpToProduct}
                 onJumpToCustomers={jumpToCustomers}
               />
             ))}
@@ -709,26 +723,43 @@ function ProjectsPage() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((project) => {
-                    const relatedProduct = project.relatedProductId
-                      ? (all.find((entry) => entry.id === project.relatedProductId) ?? null)
-                      : null;
-                    const relatedCount = all.filter(
-                      (entry) => entry.relatedProductId === project.id,
-                    ).length;
+                    /* From the sources, like the card — the old `relatedProductId` is
+                       not written any more, so reading it left every row saying a
+                       customer needed a product it had already been moved to. */
+                    const reached = [
+                      ...new Map(
+                        loadMockups(project.id)
+                          .filter((meeting) => meeting.movedTo)
+                          .map((meeting) => [meeting.movedTo!.id, meeting.movedTo!] as const),
+                      ).values(),
+                    ];
+                    const relatedCount = customersOf(project.id, customers).length;
                     const who = [
                       tab === 'archived' ? project.companyType : project.customer,
                       project.owner,
                     ]
                       .filter(Boolean)
                       .join(' · ');
+                    /* Where the card goes, so a row and a card cannot disagree about
+                       what opening a project means. */
+                    const href =
+                      tab === 'archived'
+                        ? `/we-adk/customers/${project.id}`
+                        : `/we-adk/projects/${project.id}/sketcher`;
                     return (
-                      <TableRow key={project.id}>
+                      /* The row is the target. The name stays a real link so a keyboard,
+                         a middle click and "open in new tab" all still work. */
+                      <TableRow
+                        key={project.id}
+                        onClick={() => router.push(href)}
+                        className="hover:bg-muted/40 cursor-pointer"
+                      >
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <ProjectTile project={project} className="size-7 rounded-lg text-xs" />
                             <div className="min-w-0">
                               <Link
-                                href={`/we-adk/projects/${project.id}/sketcher`}
+                                href={href}
                                 className="hover:text-primary block truncate font-medium"
                               >
                                 {project.name}
@@ -744,23 +775,22 @@ function ProjectsPage() {
 
                         <TableCell>
                           {tab === 'archived' ? (
-                            relatedProduct ? (
-                              // Carries the same line the card does, so the dense view
-                              // does not know less about the link than the roomy one.
-                              <div className="flex flex-col items-start gap-1">
-                                <span className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
-                                  {project.linkKind === 'new-build'
-                                    ? 'New build'
-                                    : (project.featureArea ?? 'Feature')}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => jumpToProduct(relatedProduct.name)}
-                                  className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-medium transition-colors"
-                                >
-                                  <Link2 className="size-3 shrink-0" />
-                                  <span className="truncate">{relatedProduct.name}</span>
-                                </button>
+                            reached.length > 0 ? (
+                              <div className="flex flex-wrap items-center gap-1">
+                                {reached.map((product) => (
+                                  <button
+                                    key={product.id}
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      jumpToProduct(product.name);
+                                    }}
+                                    className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex max-w-[12rem] items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-medium transition-colors"
+                                  >
+                                    <Link2 className="size-3 shrink-0" />
+                                    <span className="truncate">{product.name}</span>
+                                  </button>
+                                ))}
                               </div>
                             ) : (
                               <span className="inline-flex items-center rounded-lg bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
@@ -770,7 +800,10 @@ function ProjectsPage() {
                           ) : relatedCount > 0 ? (
                             <button
                               type="button"
-                              onClick={() => jumpToCustomers(project.id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                jumpToCustomers(project.id);
+                              }}
                               className="bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-xs font-medium transition-colors"
                             >
                               <Link2 className="size-3" />
@@ -782,7 +815,12 @@ function ProjectsPage() {
                         </TableCell>
 
                         <TableCell>
-                          <StatusChip {...project.status} />
+                          <StatusChip
+                            {...shownStatus(project, {
+                              customers: customersOf(project.id, customers).length,
+                              movedSources: sourceCounts(project).products,
+                            })}
+                          />
                         </TableCell>
                         <TableCell className="text-muted-foreground text-xs tabular-nums">
                           {projectSketchScreens(project).length}
@@ -838,13 +876,11 @@ function ProjectsPage() {
         noun={activeTab.noun}
         existingNames={all.map((project) => project.name)}
         customerOptions={customerOptions}
-        products={products}
         onClose={() => setCreating(false)}
-        onCreate={(fields, link) => {
+        onCreate={(fields) => {
           const stamp = today ?? new Date().toISOString().slice(0, 10);
           const taken = new Set(all.map((entry) => entry.id));
-          const resolved = resolveLink(link, fields, stamp, taken);
-          const project = createProject({ ...fields, ...resolved }, stamp, taken);
+          const project = createProject(fields, stamp, taken);
           startWithNoRounds(project.id);
           if (tab === 'archived') toggleArchiveProject(project.id);
           setCreated(loadCreatedProjects());
@@ -883,29 +919,11 @@ function ProjectsPage() {
 
       <EditProjectDialog
         project={editing}
-        products={products}
         customerOptions={customerOptions}
         onClose={() => setEditing(null)}
-        onSave={(fields, link) => {
+        onSave={(fields) => {
           if (!editing) return;
           updateProject(editing.id, fields);
-          if (link) {
-            const stamp = today ?? new Date().toISOString().slice(0, 10);
-            const resolved = resolveLink(
-              link,
-              fields,
-              stamp,
-              new Set(all.map((entry) => entry.id)),
-            );
-            if (resolved.relatedProductId && resolved.linkKind) {
-              linkProjectToProduct(
-                editing.id,
-                resolved.relatedProductId,
-                resolved.linkKind,
-                resolved.featureArea,
-              );
-            }
-          }
           setEditing(null);
           reload();
         }}

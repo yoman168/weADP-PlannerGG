@@ -24,9 +24,6 @@ import {
 } from '@/components/ui';
 import { MAX_PROJECT_NAME, type NewProjectFields } from '@/lib/we-adk-mock/created-projects';
 import { CustomerField } from './customer-field';
-import { ProductLinkFields, type ProductLink } from './product-link-fields';
-
-const NEW_BUILD: ProductLink = { kind: 'new-build', productName: '' };
 
 const EMPTY: NewProjectFields = { name: '', customer: '', owner: '', summary: '' };
 
@@ -48,11 +45,10 @@ export function CreateProjectDialog({
   initial,
   existingNames = [],
   customerOptions = [],
-  products = [],
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (fields: NewProjectFields, link?: ProductLink) => void;
+  onCreate: (fields: NewProjectFields) => void;
   /** What the tab in view calls the thing being made — "customer", "product". */
   noun?: string;
   /** Values to start from — set when copying an existing project. */
@@ -62,11 +58,8 @@ export function CreateProjectDialog({
   /** Customers already on the books, offered as you type so the same company
       does not end up spelled three ways across three projects. */
   customerOptions?: string[];
-  /** Products a new customer could be improving instead of starting — ignored for a product. */
-  products?: { id: string; name: string }[];
 }) {
   const [fields, setFields] = useState<NewProjectFields>(initial ?? EMPTY);
-  const [link, setLink] = useState<ProductLink>(NEW_BUILD);
   /** Drives both the product link picker and the wording of the first field. */
   const isCustomer = noun === 'customer';
 
@@ -76,7 +69,6 @@ export function CreateProjectDialog({
   useEffect(() => {
     if (open) {
       setFields(initial ?? EMPTY);
-      setLink(NEW_BUILD);
     }
   }, [open, initial]);
 
@@ -91,7 +83,7 @@ export function CreateProjectDialog({
    */
   const submit = () => {
     const name = fields.name.trim() || untitledName(noun, existingNames);
-    onCreate({ ...fields, name }, isCustomer ? link : undefined);
+    onCreate({ ...fields, name });
     onClose();
   };
 
@@ -185,8 +177,6 @@ export function CreateProjectDialog({
               placeholder="Replaces the spreadsheet the dispatchers keep."
             />
           </div>
-
-          {isCustomer && <ProductLinkFields products={products} value={link} onChange={setLink} />}
 
           <p className="bg-muted/40 text-muted-foreground rounded-lg px-3 py-2 text-[11px] leading-relaxed">
             It opens empty at version 1 — no meetings, no designs, nothing captured from a live

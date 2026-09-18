@@ -15,24 +15,18 @@ import {
 import { MAX_PROJECT_NAME, type NewProjectFields } from '@/lib/we-adk-mock/created-projects';
 import type { DesignProject } from '@/lib/we-adk-mock/projects';
 import { CustomerField } from './customer-field';
-import { ProductLinkFields, type ProductLink } from './product-link-fields';
-
-const NEW_BUILD: ProductLink = { kind: 'new-build', productName: '' };
 
 export function EditProjectDialog({
   project,
-  products,
   customerOptions = [],
   onClose,
   onSave,
 }: {
   project: DesignProject | null;
-  /** Products this customer could be improving — ignored once it already has one. */
-  products: { id: string; name: string }[];
   /** Customers already on the books, so an edit does not respell one of them. */
   customerOptions?: string[];
   onClose: () => void;
-  onSave: (fields: NewProjectFields, link?: ProductLink) => void;
+  onSave: (fields: NewProjectFields) => void;
 }) {
   const [fields, setFields] = useState<NewProjectFields>({
     name: '',
@@ -40,11 +34,6 @@ export function EditProjectDialog({
     owner: '',
     summary: '',
   });
-  const [link, setLink] = useState<ProductLink>(NEW_BUILD);
-
-  // A customer project only ever gets to declare its product once — here, that
-  // means the picker only shows up while one is still missing.
-  const needsLink = project?.archived === true && !project.relatedProductId;
 
   /* Named after what is being edited, the way the create dialog is. One dialog serves
      both workspaces, so "project" was the only word that fit — and the only one that
@@ -60,7 +49,6 @@ export function EditProjectDialog({
         owner: project.owner,
         summary: project.summary,
       });
-      setLink(NEW_BUILD);
     }
   }, [project]);
 
@@ -71,7 +59,7 @@ export function EditProjectDialog({
 
   const submit = () => {
     if (!ready) return;
-    onSave(fields, needsLink ? link : undefined);
+    onSave(fields);
   };
 
   const onKeyDown = (event: { key: string }) => {
@@ -158,8 +146,6 @@ export function EditProjectDialog({
               onKeyDown={onKeyDown}
             />
           </div>
-
-          {needsLink && <ProductLinkFields products={products} value={link} onChange={setLink} />}
         </div>
 
         <DialogFooter>

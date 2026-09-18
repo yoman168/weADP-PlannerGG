@@ -32,6 +32,7 @@ import {
   cn,
 } from '@/components/ui';
 import { showToast } from '@/components/ui/toast';
+import Link from 'next/link';
 import { useApiSession } from '@/lib/api/session';
 import { claudeHeaders } from '@/lib/we-adk/claude-account';
 import { ChatPane, readChatEvent, type ChatTurn } from '@/components/we-adk/claude-chat';
@@ -243,7 +244,18 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
   useEffect(() => {
     const loaded = loadMockups(projectId);
     setMeetings(loaded);
-    if (loaded.length > 0 && !selectedId) setSelectedId(loaded[0]!.id);
+    if (loaded.length === 0 || selectedId) return;
+    /*
+     * A link can name which source to open — the customer overview sends you here from
+     * a particular one, and landing on a different source than the one clicked is the
+     * kind of small wrongness that makes a list feel broken.
+     *
+     * Read off the URL rather than through `useSearchParams`, which would oblige this
+     * component to sit inside a Suspense boundary for the static export build. This
+     * runs on mount, in the browser, where `location` is simply there.
+     */
+    const wanted = new URLSearchParams(window.location.search).get('source');
+    setSelectedId(loaded.find((meeting) => meeting.id === wanted)?.id ?? loaded[0]!.id);
   }, [projectId]);
 
   // Load chat history when meeting changes
@@ -951,99 +963,12 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
 
   return (
     <div ref={containerRef} className="flex min-h-0 flex-1 overflow-hidden bg-background">
-      {/* Left: the source list — meetings, feedback and suggestions alike */}
-      <div className="flex w-60 shrink-0 flex-col border-r bg-[#fafafa] dark:bg-[#1f1430]">
-        <div className="flex items-center justify-between px-4 py-3">
-          <span className="text-muted-foreground text-[11px] font-semibold tracking-wider uppercase">
-            Sources
-          </span>
-          <button
-            type="button"
-            onClick={openCreateDialog}
-            className="text-muted-foreground hover:text-foreground hover:bg-background rounded p-1 transition-colors"
-            title="New source"
-          >
-            <Plus className="size-3.5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-2 pb-2">
-          {meetings.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 px-3 py-16 text-center">
-              <MessageSquare className="text-muted-foreground/30 size-10" />
-              <div>
-                <p className="text-sm font-medium">No sources</p>
-                <p className="text-muted-foreground mt-1 text-xs">Create one to get started</p>
-              </div>
-              <Button size="sm" className="mt-1 gap-1.5 text-xs" onClick={openCreateDialog}>
-                <Plus className="size-3" /> New Source
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              {meetings.map((meeting) => {
-                const active = selectedId === meeting.id;
-                return (
-                  <button
-                    key={meeting.id}
-                    type="button"
-                    onClick={() => setSelectedId(meeting.id)}
-                    className={cn(
-                      'group flex w-full flex-col gap-0.5 rounded-lg px-3 py-2.5 text-left transition-colors',
-                      active
-                        ? 'bg-background shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]'
-                        : 'hover:bg-background/60',
-                    )}
-                  >
-                    <span className="flex items-center gap-1">
-                      <span
-                        className={cn(
-                          'min-w-0 flex-1 truncate text-[13px]',
-                          active ? 'font-semibold' : 'font-medium',
-                        )}
-                      >
-                        {meeting.title}
-                      </span>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteMeeting(meeting.id);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.stopPropagation();
-                            deleteMeeting(meeting.id);
-                          }
-                        }}
-                        className="text-muted-foreground hover:text-destructive shrink-0 cursor-pointer opacity-0 transition-opacity group-hover:opacity-100"
-                        title="Delete source"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </span>
-                    </span>
-                    <span className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-[11px]">
-                      <CalendarDays className="size-3" />
-                      {formatDate(meeting.date)}
-                      {/* Entries saved before this existed read as meetings,
-                          which is what every one of them was. */}
-                      <span
-                        className={cn(
-                          'rounded px-1.5 py-0.5 text-[10px] font-medium',
-                          SOURCE_STYLE[taskSource(meeting.source)],
-                        )}
-                      >
-                        {TASK_SOURCES.find((s) => s.id === taskSource(meeting.source))?.label}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
+      {/*
+        The source list used to sit here, in a left rail. It moved to the customer's own
+        page: that screen already lists what the customer has said, and a link from it
+        names which source to open, so repeating the list beside the thing it opened was
+        the same list twice. Creating and removing sources moved with it.
+      */}
       {/* Center: Meeting detail */}
       {selected ? (
         <>
@@ -1725,13 +1650,20 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
       ) : (
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 text-center">
           <MessageSquare className="text-muted-foreground/20 size-12" />
-          <p className="text-sm font-medium">Select a source</p>
+          <p className="text-sm font-medium">No source open</p>
+          {/* There is no list here any more to point at, so point at the one there is. */}
           <p className="text-muted-foreground text-xs">
-            Pick one from the list or create a new one.
+            Open one from{' '}
+            <Link
+              href={`/we-adk/customers/${projectId}`}
+              className="text-primary underline underline-offset-2"
+            >
+              this customer
+            </Link>
+            .
           </p>
         </div>
       )}
-
       {/* The control just clicked on the screen, and what it should open. */}
       {selected &&
         activePage &&
@@ -1797,7 +1729,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
             </Dialog>
           );
         })()}
-
       {/* What to build. The product answer opens the build dialog, which then
           holds every step of it. */}
       <GenerateModeDialog
@@ -1816,7 +1747,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
           void generatePreview(meeting, mode);
         }}
       />
-
       {(() => {
         const meeting = meetings.find((entry) => entry.id === build?.meetingId);
         const pages = meeting ? meetingScreens(meeting) : [];
@@ -1920,7 +1850,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
           />
         );
       })()}
-
       {/* Move to Product — every screen in the project, each with its IA. */}
       <MoveToProductDialog
         open={moveScope !== null}
@@ -1941,7 +1870,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
           setMoved(`${count} screen${count === 1 ? '' : 's'} into ${projectName} · ${where}`);
         }}
       />
-
       {moved && (
         <div className="bg-foreground text-background fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-md px-3 py-2 text-xs shadow-lg">
           Copied {moved}
@@ -1954,7 +1882,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
           </button>
         </div>
       )}
-
       {/* Reset: the screens go, the notes stay. Asked rather than done,
           because a generation is minutes of waiting and there is no undo. */}
       <Dialog
@@ -2015,7 +1942,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
           </div>
         </DialogContent>
       </Dialog>
-
       {/* Delete confirmation. Names the task, because "this meeting" told you
           nothing about which one was about to go. */}
       <Dialog
@@ -2046,7 +1972,6 @@ export function MiniMockupView({ projectId }: { projectId: string; projectName: 
           </div>
         </DialogContent>
       </Dialog>
-
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
           <div className="bg-muted/40 px-6 py-5">

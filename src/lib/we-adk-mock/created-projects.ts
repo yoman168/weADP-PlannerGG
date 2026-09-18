@@ -109,8 +109,15 @@ function inflate(entry: StoredProject): DesignProject {
     relatedProductId: entry.relatedProductId,
     linkKind: entry.linkKind,
     featureArea: entry.featureArea,
-    // Blue, the tone this app uses for work that is under way.
-    status: { label: 'New', tone: 'blue' },
+    /*
+     * What this record alone can say: an engagement moved to a product, or anything with
+     * a brief written, is under way. The list refines it with what only it can see — a
+     * product's customers, and whether a round has been released — via `deriveStatus`.
+     */
+    status:
+      entry.relatedProductId || entry.summary.trim()
+        ? { label: 'In progress', tone: 'violet' }
+        : { label: 'New', tone: 'blue' },
     // The first thing a project needs is a brief, and nothing has been written
     // yet — so the pipeline starts at its start.
     stage: 'Project Brief',

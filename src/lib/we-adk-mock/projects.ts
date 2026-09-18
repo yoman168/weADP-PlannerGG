@@ -23,6 +23,51 @@ import { type Chip, type VersionStatus } from './types';
 export const PROJECT_STAGES = ['Project Brief', 'Summary', 'Design', 'Prototype'] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 
+/**
+ * Where the work stands.
+ *
+ * Every value here has to be reachable on its own, because nothing sets this by hand —
+ * a status somebody must remember to change is the one that goes stale, which is what
+ * the hardcoded "New" on every created project already proved. So the list is short,
+ * and each entry names something the workspace can actually observe.
+ */
+export const PROJECT_STATUSES = ['New', 'In progress', 'Delivered'] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
+export const STATUS_TONE: Record<ProjectStatus, Chip['tone']> = {
+  New: 'blue',
+  'In progress': 'violet',
+  Delivered: 'green',
+};
+
+/** What the workspace can see about a project, gathered by whoever is drawing it. */
+export interface ProgressSignals {
+  /** Customers pointing at this project, when it is a product. */
+  customerCount?: number;
+  /** Products this customer's sources have been moved to, when it is a customer. */
+  movedSources?: number;
+  /** Whether any round of work has been released. */
+  released?: boolean;
+}
+
+/**
+ * Works the status out from what has happened to the project.
+ *
+ * Only from things that really move. A created project's `sessions` are fixed at empty
+ * and nothing writes to them, so "has meetings" would be as frozen as the hardcoded
+ * status this replaces. What does change: an engagement gets moved to a product, a
+ * product gets customers asking for it, someone writes down what it is for, and a round
+ * of work gets released — and, for a customer, whether anything it said has been moved
+ * to a product yet.
+ */
+export function deriveStatus(project: DesignProject, signals: ProgressSignals = {}): ProjectStatus {
+  if (signals.released) return 'Delivered';
+  const movedToProduct = project.archived === true && (signals.movedSources ?? 0) > 0;
+  const wanted = project.archived !== true && (signals.customerCount ?? 0) > 0;
+  const briefed = project.summary.trim() !== '';
+  return movedToProduct || wanted || briefed ? 'In progress' : 'New';
+}
+
 /** Tile colour on the project card — deterministic per project, mock data only. */
 export type ProjectAccent = 'indigo' | 'violet' | 'green' | 'teal' | 'amber' | 'slate';
 

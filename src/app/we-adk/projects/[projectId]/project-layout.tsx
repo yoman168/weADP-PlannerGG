@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Bell, FolderX, Globe } from 'lucide-react';
+import { ArrowLeft, FolderX, Globe } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -40,16 +40,24 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
   const base = `/we-adk/projects/${params.projectId}`;
 
   /*
-   * Back to the list this project is actually in.
+   * Back to where this project was opened from.
    *
-   * "Projects" named neither of them and led to whichever tab the home page
-   * opened on, so leaving a Product project put you in the Customer list with
-   * no sign of the project you just left. Until a created project arrives from
-   * storage there is nothing to name, and the generic label stands in for the
-   * one tick that takes.
+   * "Projects" named neither list and led to whichever tab the home page opened
+   * on, so leaving a Product project put you in the Customer list with no sign
+   * of the project you just left. A customer goes one step further: its designs
+   * are reached through its own page, one source at a time, so the way back is
+   * that page and not the tab above it — landing on the tab loses the list you
+   * picked the source from. Until a created project arrives from storage there
+   * is nothing to name, and the generic label stands in for the one tick that
+   * takes.
    */
   const workspace = project ? projectWorkspace(project) : null;
-  const backHref = workspace ? `/we-adk?tab=${workspace}` : '/we-adk';
+  const backHref =
+    workspace === 'customer'
+      ? `/we-adk/customers/${params.projectId}`
+      : workspace
+        ? `/we-adk?tab=${workspace}`
+        : '/we-adk';
   const backLabel = workspace ? WORKSPACE_LABEL[workspace] : t('nav.projects');
 
   return (
@@ -94,17 +102,6 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
             <option value="ko">{LOCALE_LABELS.ko}</option>
           </select>
         </div>
-
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground relative shrink-0"
-          aria-label="Notifications"
-        >
-          <Bell className="size-4" />
-          <span className="bg-destructive absolute -top-1 -right-1.5 flex size-3.5 items-center justify-center rounded-full text-[8px] font-medium text-white">
-            9+
-          </span>
-        </button>
       </div>
 
       {/* A column so a page can fill the row with `flex-1`, and scrolling so a
